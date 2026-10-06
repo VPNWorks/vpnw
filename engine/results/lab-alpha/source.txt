@@ -1,0 +1,14 @@
+Lab: 5359 lines of Go in 24 files (tests not counted)
+  internal/lab (root)         1324 lines
+  internal/lab/bench           430 lines
+  internal/lab/client          548 lines
+  internal/lab/demo             52 lines
+  internal/lab/netlink         539 lines
+  internal/lab/probe           301 lines
+  internal/lab/wire            421 lines
+  internal/lab/world           996 lines
+  cmd/vpnw-lab                 523 lines
+  wasm/lab                     225 lines
+recordings for the demo: 4 files, 3447 lines
+tests: 3250 lines of Go
+shared test network used as it is: internal/testnet, 423 lines

@@ -1,0 +1,26 @@
+{"v":1,"ts":"2026-10-05T21:30:34.830799889Z","type":"run.start","run":"x-ec7c07","path":"exit-nl","fields":{"clients":3,"listen":"203.0.113.2:8443","mode":"exit","sources":["203.0.113.10","203.0.113.11","203.0.113.20","203.0.113.21"],"version":"0.1.0"}}
+{"v":1,"ts":"2026-10-05T21:30:38.516349827Z","type":"connection.attempt","run":"x-ec7c07","path":"exit-nl","conn":1,"fields":{"client":"agent-1","client_conn":5,"client_run":"r-4bca10","host":"api.partner.test","peer":"192.0.2.2:52048","port":80,"proto":"http-connect"}}
+{"v":1,"ts":"2026-10-05T21:30:38.516823805Z","type":"dns.query","run":"x-ec7c07","path":"exit-nl","conn":1,"fields":{"host":"api.partner.test"}}
+{"v":1,"ts":"2026-10-05T21:30:38.51686076Z","type":"dns.result","run":"x-ec7c07","path":"exit-nl","conn":1,"fields":{"host":"api.partner.test","ips":["51.15.0.10"],"ms":0}}
+{"v":1,"ts":"2026-10-05T21:30:38.516882469Z","type":"policy.allow","run":"x-ec7c07","path":"exit-nl","conn":1,"fields":{"reason":"api.partner.test matches allow rule \"api.partner.test\"","rule":"allow[0]","text":"api.partner.test"}}
+{"v":1,"ts":"2026-10-05T21:30:38.517002555Z","type":"connection.open","run":"x-ec7c07","path":"exit-nl","conn":1,"fields":{"host":"api.partner.test","ip":"51.15.0.10","ms":0,"source":"203.0.113.10"}}
+{"v":1,"ts":"2026-10-05T21:30:38.518157581Z","type":"connection.close","run":"x-ec7c07","path":"exit-nl","conn":1,"fields":{"bytes_down":98,"bytes_up":120,"ms":1}}
+{"v":1,"ts":"2026-10-05T21:30:38.873286028Z","type":"connection.attempt","run":"x-ec7c07","path":"exit-nl","conn":2,"fields":{"client":"agent-2","client_conn":3,"client_run":"r-f59128","host":"files.partner.test","peer":"192.0.2.2:52060","port":80,"proto":"http-connect"}}
+{"v":1,"ts":"2026-10-05T21:30:38.876022336Z","type":"dns.query","run":"x-ec7c07","path":"exit-nl","conn":2,"fields":{"host":"files.partner.test"}}
+{"v":1,"ts":"2026-10-05T21:30:38.876038424Z","type":"dns.result","run":"x-ec7c07","path":"exit-nl","conn":2,"fields":{"host":"files.partner.test","ips":["51.15.0.11"],"ms":1}}
+{"v":1,"ts":"2026-10-05T21:30:38.877161776Z","type":"policy.allow","run":"x-ec7c07","path":"exit-nl","conn":2,"fields":{"reason":"files.partner.test matches allow rule \"files.partner.test\"","rule":"allow[0]","text":"files.partner.test"}}
+{"v":1,"ts":"2026-10-05T21:30:38.878540923Z","type":"connection.open","run":"x-ec7c07","path":"exit-nl","conn":2,"fields":{"host":"files.partner.test","ip":"51.15.0.11","ms":1,"source":"203.0.113.11"}}
+{"v":1,"ts":"2026-10-05T21:30:38.884659236Z","type":"connection.close","run":"x-ec7c07","path":"exit-nl","conn":2,"fields":{"bytes_down":98,"bytes_up":122,"ms":11}}
+{"v":1,"ts":"2026-10-05T21:30:39.241683866Z","type":"connection.attempt","run":"x-ec7c07","path":"exit-nl","conn":3,"fields":{"client":"agent-1","client_conn":6,"client_run":"r-4bca10","host":"www.partner.test","peer":"192.0.2.2:52072","port":8080,"proto":"http-connect"}}
+{"v":1,"ts":"2026-10-05T21:30:39.242823724Z","type":"dns.query","run":"x-ec7c07","path":"exit-nl","conn":3,"fields":{"host":"www.partner.test"}}
+{"v":1,"ts":"2026-10-05T21:30:39.243564372Z","type":"dns.result","run":"x-ec7c07","path":"exit-nl","conn":3,"fields":{"host":"www.partner.test","ips":["51.15.0.12"],"ms":0}}
+{"v":1,"ts":"2026-10-05T21:30:39.243656776Z","type":"policy.allow","run":"x-ec7c07","path":"exit-nl","conn":3,"fields":{"reason":"www.partner.test matches allow rule \"*.partner.test\"","rule":"allow[1]","text":"*.partner.test"}}
+{"v":1,"ts":"2026-10-05T21:30:39.243922446Z","type":"connection.open","run":"x-ec7c07","path":"exit-nl","conn":3,"fields":{"host":"www.partner.test","ip":"51.15.0.12","ms":0,"source":"203.0.113.10"}}
+{"v":1,"ts":"2026-10-05T21:30:39.2452636Z","type":"connection.close","run":"x-ec7c07","path":"exit-nl","conn":3,"fields":{"bytes_down":100,"bytes_up":125,"ms":3}}
+{"v":1,"ts":"2026-10-05T21:30:39.598541186Z","type":"connection.attempt","run":"x-ec7c07","path":"exit-nl","conn":4,"fields":{"client":"agent-2","client_conn":4,"client_run":"r-f59128","host":"api.partner.test","peer":"192.0.2.2:52084","port":80,"proto":"http-connect"}}
+{"v":1,"ts":"2026-10-05T21:30:39.598866988Z","type":"dns.query","run":"x-ec7c07","path":"exit-nl","conn":4,"fields":{"host":"api.partner.test"}}
+{"v":1,"ts":"2026-10-05T21:30:39.598875459Z","type":"dns.result","run":"x-ec7c07","path":"exit-nl","conn":4,"fields":{"host":"api.partner.test","ips":["51.15.0.10"],"ms":0}}
+{"v":1,"ts":"2026-10-05T21:30:39.598914402Z","type":"policy.allow","run":"x-ec7c07","path":"exit-nl","conn":4,"fields":{"reason":"api.partner.test matches allow rule \"api.partner.test:80\"","rule":"allow[1]","text":"api.partner.test:80"}}
+{"v":1,"ts":"2026-10-05T21:30:39.599093423Z","type":"connection.open","run":"x-ec7c07","path":"exit-nl","conn":4,"fields":{"host":"api.partner.test","ip":"51.15.0.10","ms":0,"source":"203.0.113.11"}}
+{"v":1,"ts":"2026-10-05T21:30:39.600280234Z","type":"connection.close","run":"x-ec7c07","path":"exit-nl","conn":4,"fields":{"bytes_down":98,"bytes_up":120,"ms":1}}
+{"v":1,"ts":"2026-10-05T21:30:39.97576431Z","type":"run.end","run":"x-ec7c07","path":"exit-nl","fields":{"auth_denied":0,"bytes_down":394,"bytes_up":487,"connections":4,"denied":0,"failed":0,"health_checks":0,"opened":4,"tls_failed":2}}

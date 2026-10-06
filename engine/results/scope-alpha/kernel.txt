@@ -1,0 +1,7 @@
+record-command: 60 connections, 60 lines written, table removed on exit
+kernel-large: 2000 people, 288 systems; 798 group rules for 80 groups, 6,402 personal rules for 1,917 people, 538 under review; nftables script 610660 bytes, 12818 set elements, loaded in 557ms; 36881 distinct tuples (27105 from the replayed week, 9776 random), 26653 allowed and 10228 refused by the simulator, 0 disagreements with the kernel, 8.754s
+kernel-demo: 4464 tuples, 242 allowed and 4222 refused by the simulator, 0 disagreements with the kernel, 922ms
+kernel-ranges: 4464 tuples, 249 allowed and 4215 refused by the simulator, 0 disagreements with the kernel
+stolen: flat VPN 144 of 144 attempts reached 12 of 12 systems; under the draft 8 attempts reached 6 systems
+watch: 4464 tuples all reached; counter 4222 equals the 4222 the simulator would refuse
+recorder: 600 attempts (569 refused by the gateway), 600 recorded, every one matched; 0 packets skipped

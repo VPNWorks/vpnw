@@ -1,0 +1,191 @@
+<!doctype html>
+<!-- Copyright VPNW.com 2026
+     SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VPN Works Exit Live Demo</title>
+<meta name="description" content="Two agents reach a partner through exits in two countries, from fixed addresses, with the policy checked at both ends. One exit fails and a tampered client tries the exit directly. A recorded run, and Exit's own code in your browser.">
+<meta name="robots" content="noindex, follow">
+<base target="_top">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231F3A5F'/%3E%3Cpath d='M8 9l8 15 8-15' stroke='%2350C4CC' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<script>if (window.self !== window.top) document.documentElement.className += ' embedded';</script>
+<link rel="stylesheet" href="exit.v1.css">
+</head>
+<body>
+
+<header class="appbar">
+  <div class="wrap">
+    <a class="brand" href="https://vpnw.com/">VPN Works</a>
+    <span class="tag">Exit live demo</span>
+    <span class="grow"></span>
+    <a class="home" href="https://vpnw.com/">vpnw.com</a>
+  </div>
+</header>
+
+<main>
+  <noscript><div class="wrap"><p class="noscript">This demo needs JavaScript switched on.</p></div></noscript>
+
+  <div class="wrap">
+    <section class="intro">
+      <h1>Fixed exit addresses, with the policy checked again</h1>
+      <p class="lead">Two AI agents reach a partner's API through exits in two countries, each from a fixed address the partner allows. Every request is checked by the agent's own policy, then again at the exit, and both ends keep a record that joins up. Partway through, one exit fails, and a client with a stolen token tries the exit directly. Everything below was recorded in a real run in a private test network; the decisions you try yourself run the exit's own code in this page.</p>
+      <p class="status" id="status" role="status">Loading Exit's engine</p>
+    </section>
+
+    <nav class="steps" id="steps" aria-label="Steps">
+      <button type="button" data-step="1"><b>Step 1</b><span>The setup</span></button>
+      <button type="button" data-step="2"><b>Step 2</b><span>Fixed addresses</span></button>
+      <button type="button" data-step="3"><b>Step 3</b><span>Checked at both ends</span></button>
+      <button type="button" data-step="4"><b>Step 4</b><span>A tampered client</span></button>
+      <button type="button" data-step="5"><b>Step 5</b><span>An exit fails</span></button>
+      <button type="button" data-step="6"><b>Step 6</b><span>One joined record</span></button>
+    </nav>
+
+    <section class="stage" aria-live="polite">
+      <div class="net" id="net" aria-label="The test network">
+        <div class="col">
+          <h4>Clients</h4>
+          <div class="node" data-node="agent-1"><b>agent-1</b><span class="sub">research agent, vpnw guard</span></div>
+          <div class="node" data-node="agent-2"><b>agent-2</b><span class="sub">CI job, vpnw guard</span></div>
+          <div class="node bad" data-node="tampered"><b>tampered client</b><span class="sub">agent-2's token, no Agent</span></div>
+        </div>
+        <div class="gap" aria-hidden="true">&rarr;</div>
+        <div class="col">
+          <h4>Exits</h4>
+          <div class="node" data-node="exit-de"><span class="flag">DE</span><b>exit-de</b><span class="sub">Frankfurt</span><span class="addr" id="addr-de"></span></div>
+          <div class="node" data-node="exit-nl"><span class="flag">NL</span><b>exit-nl</b><span class="sub">Amsterdam</span><span class="addr" id="addr-nl"></span></div>
+        </div>
+        <div class="gap" aria-hidden="true">&rarr;</div>
+        <div class="col">
+          <h4>Destinations</h4>
+          <div class="node" data-node="partner"><b>The partner</b><span class="sub">api, files and www.partner.test</span><span class="addr">allows the agents' 4 addresses</span></div>
+          <div class="node bad" data-node="forbidden"><b>Off limits</b><span class="sub">attacker.test, the intranet, cloud metadata</span></div>
+        </div>
+      </div>
+
+      <div class="scene" id="scene-1" data-step="1">
+        <p class="eyebrow">Step 1 of 6</p>
+        <h2>Two agents, two exits</h2>
+        <p class="scene-text">A partner lets in traffic only from addresses it knows. Two agents need to reach it: a research agent and a CI job. Each runs under vpnw guard, sealed, so its only way out is the Agent, and the Agent's only way out is a list of two exits: exit-de first, exit-nl if exit-de stops answering. The agent's policy is a file. The exits read the same file for that client.</p>
+        <div class="tiles" id="setup-tiles"></div>
+        <div class="table-wrap"><table class="cmp stack" id="setup-table">
+          <thead><tr><th>Client</th><th>Policy (the same file at the Agent and at the exits)</th><th>From exit-de</th><th>From exit-nl</th></tr></thead>
+          <tbody id="setup-body"></tbody>
+        </table></div>
+        <p class="muted small" id="setup-note"></p>
+        <p class="scene-outro">The exits know each client by a token and keep only its SHA-256. The Agent reaches them over TLS and checks their certificates, and it sends its run's ID and each connection's number with every request.</p>
+      </div>
+
+      <div class="scene" id="scene-2" data-step="2" hidden>
+        <p class="eyebrow">Step 2 of 6</p>
+        <h2>Each agent leaves from its own address</h2>
+        <p class="scene-text">Both agents fetch from the partner through exit-de. The Agent allows each request, the exit decides it again with the same policy, and connects from the client's fixed address. The partner's servers report the address they saw.</p>
+        <div class="tiles" id="t2-tiles"></div>
+        <div class="log-head"><h3>The recorded run</h3><span><button class="btn small" type="button" data-replay="2">Replay</button> <button class="btn small" type="button" data-skip="2">Show all</button></span></div>
+        <div class="log" id="log-2"></div>
+        <p class="scene-outro">The partner's allowlist names each agent's own address, not one address shared by everyone on the exit.</p>
+      </div>
+
+      <div class="scene" id="scene-3" data-step="3" hidden>
+        <p class="eyebrow">Step 3 of 6</p>
+        <h2>The policy, checked at both ends</h2>
+        <p class="scene-text">agent-1's policy allows the partner's names and nothing else, and refuses private addresses. Its first request below is refused by the Agent before anything leaves the machine. The second is allowed by name: names are resolved at the exit, so the Agent cannot see where intranet.partner.test points. The exit can, and refuses it.</p>
+        <div class="tiles" id="t3-tiles"></div>
+        <div class="log-head"><h3>The recorded run</h3><span><button class="btn small" type="button" data-replay="3">Replay</button> <button class="btn small" type="button" data-skip="3">Show all</button></span></div>
+        <div class="log" id="log-3"></div>
+        <div class="pair" id="pair-3"></div>
+        <p class="scene-outro">The exit runs the Agent's own policy engine and request plan. In the tests, 110 requests under 5 policies went to the Agent and straight to an exit, with one DNS server: the two decided every one the same way, with the same rule and reason.</p>
+      </div>
+
+      <div class="scene" id="scene-4" data-step="4" hidden>
+        <p class="eyebrow">Step 4 of 6</p>
+        <h2>A tampered client asks the exit directly</h2>
+        <p class="scene-text">Someone copies agent-2's token into a script that skips the Agent and its policy, and asks exit-de for the cloud metadata address, the attacker's server and the intranet. The exit does not trust the client to have checked anything. It decides with agent-2's policy before it dials.</p>
+        <div class="tiles" id="t4-tiles"></div>
+        <div class="log-head"><h3>The recorded run</h3><span><button class="btn small" type="button" data-replay="4">Replay</button> <button class="btn small" type="button" data-skip="4">Show all</button></span></div>
+        <div class="log" id="log-4"></div>
+        <div class="ask">
+          <div>
+            <h3>agent-2.toml <small>the file exit-de reads for agent-2; you can edit it</small></h3>
+            <textarea id="policy-text" spellcheck="false" aria-label="agent-2's policy file"></textarea>
+            <p class="pol-check" id="policy-check"></p>
+          </div>
+          <div class="side">
+            <h3>Ask exit-de as agent-2</h3>
+            <div class="row"><input id="ask-target" value="169.254.169.254:80" aria-label="Destination, host:port" spellcheck="false"><button class="btn primary" id="ask-btn" type="button">Ask</button></div>
+            <div class="chips" id="ask-chips"></div>
+            <div class="verdict" id="verdict" aria-live="polite"></div>
+            <p class="muted small">The answer comes from the exit's own Go code, running in this page, with the DNS answers of the recorded run. Nothing is sent anywhere.</p>
+            <button class="btn small" id="policy-reset" type="button">Back to the recorded file</button>
+          </div>
+        </div>
+        <p class="scene-outro">A token gets a client in; it does not get it anything its policy refuses. Nothing the tampered client asked for reached a server.</p>
+      </div>
+
+      <div class="scene" id="scene-5" data-step="5" hidden>
+        <p class="eyebrow">Step 5 of 6</p>
+        <h2>exit-de fails, and traffic moves to exit-nl</h2>
+        <p class="scene-text">exit-de's process is killed. The next request of each agent tries exit-de, is refused a connection, and moves to exit-nl, the next exit on the Agent's list. Every request after that goes straight to exit-nl. The partner allows the Dutch addresses too, so the work goes on.</p>
+        <div class="tiles" id="t5-tiles"></div>
+        <div class="log-head"><h3>The recorded run</h3><span><button class="btn small" type="button" data-replay="5">Replay</button> <button class="btn small" type="button" data-skip="5">Show all</button></span></div>
+        <div class="log" id="log-5"></div>
+        <p class="note">An exit that dies without a word, so that nothing comes back at all, takes longer to give up on: the Agent waits up to 3 seconds for an exit in a list to accept a connection and finish TLS. The tests measure both kinds of failure.</p>
+        <p class="scene-outro" id="outro-5"></p>
+      </div>
+
+      <div class="scene" id="scene-6" data-step="6" hidden>
+        <p class="eyebrow">Step 6 of 6</p>
+        <h2>One record, joined from both ends</h2>
+        <p class="scene-text">The Agent kept a record of every connection, and so did each exit, tagged with the client's run ID and connection number. The exit's code in this page joins the four recorded files: each connection that reached an exit is matched with the exit's record of it, across the failover. Pick a row to see both records.</p>
+        <div class="tiles" id="t6-tiles"></div>
+        <div class="table-wrap"><table class="cmp stack" id="join-table">
+          <thead><tr><th>Run / connection</th><th>Destination</th><th>At the Agent</th><th>At the exit</th></tr></thead>
+          <tbody id="join-body"></tbody>
+        </table></div>
+        <div class="pair" id="pair-6"></div>
+        <p class="scene-outro" id="outro-6"></p>
+      </div>
+
+      <div class="stage-foot">
+        <button class="btn" id="btn-back" type="button">Back</button>
+        <button class="btn primary" id="btn-next" type="button">Next: fixed addresses</button>
+      </div>
+    </section>
+
+    <section class="section" id="real">
+      <h2>What is real here</h2>
+      <div class="real">
+        <div>
+          <h3>Recorded</h3>
+          <ul>
+            <li>The run: vpnw <span class="v-agent">0.2.0</span> for both agents and vpnw-exit <span class="v-exit">0.1.0</span> for both exits, the real binaries with real TLS, on <span id="recorded-on">October 5, 2026</span>. Steps 2 to 6 replay it from the four records they wrote and the test's own log. The replay is slower than the run, which took <span id="run-secs">a few</span> seconds.</li>
+            <li>The private test network: Linux network namespaces on one machine. The two "countries" are two namespaces with addresses from documentation ranges.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Running in this page</h3>
+          <ul>
+            <li>Exit's own Go code, compiled to WebAssembly: it reads the exits' configuration in step 1, decides your requests in step 4, decides the recorded exit requests again and joins the records in step 6.</li>
+          </ul>
+          <h3>Stand-ins</h3>
+          <ul>
+            <li>The partner's servers and the DNS server are small programs written for the test, and the tampered client is a test script holding a copy of agent-2's token. The tokens were made for the run.</li>
+            <li>No network: this page makes no requests.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="appfoot">
+  <div class="wrap">Exit engine <span id="engine-version">0.1.0</span>, running in this page. Nothing is sent anywhere. VPN Works is open source under the Apache License 2.0. Copyright VPNW.com 2026. The code is at https://github.com/VPNWorks/vpnw.</div>
+</footer>
+
+<script src="data.exit.v1.js"></script>
+<script src="engine.exit.v1.js"></script>
+<script src="exit.v1.js"></script>
+</body>
+</html>

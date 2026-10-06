@@ -1,0 +1,13 @@
+version = 1
+name = "agent-2"
+
+[paths.exits]
+type = "proxy"
+urls = ["https://198.51.100.2:8443", "https://203.0.113.2:8443"]
+ca_file = "ca.pem"
+token_file = "agent-2.token"
+
+[policy]
+default = "deny"
+deny_private = true
+allow = ["files.partner.test", "api.partner.test:80"]

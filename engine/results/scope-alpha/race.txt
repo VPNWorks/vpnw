@@ -1,0 +1,6 @@
+ok  	vpnw.com/vpnw/internal/scope	45.643s
+ok  	vpnw.com/vpnw/internal/scope/office	12.027s
+ok  	vpnw.com/vpnw/internal/scope/record	1.012s
+ok  	vpnw.com/vpnw/cmd/vpnw-scope	2.611s
+ok  	vpnw.com/vpnw/internal/testnet	2.085s
+ok  	vpnw.com/vpnw/test/scope	11.159s

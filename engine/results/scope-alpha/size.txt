@@ -1,0 +1,8 @@
+vpnw-scope linux/amd64: 2724024 bytes; gzip -9: 1162378 bytes
+vpnw-scope linux/arm64: 2752696 bytes; gzip -9: 1073986 bytes
+vpnw-scope darwin/amd64: compiles (learn, replay, export and check; record needs Linux)
+vpnw-scope darwin/arm64: compiles (learn, replay, export and check; record needs Linux)
+vpnw-scope windows/amd64: compiles (learn, replay, export and check; record needs Linux)
+browser engine (TinyGo, WebAssembly): 749287 bytes; gzip -9: 279193 bytes
+third-party modules: 0
+packages of the engine the command uses: vpnw.com/vpnw/internal/config vpnw.com/vpnw/internal/scope vpnw.com/vpnw/internal/scope/record vpnw.com/vpnw/cmd/vpnw-scope 

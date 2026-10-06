@@ -1,0 +1,35 @@
+$ vpnw learn --name agent
+# Learned by vpnw 0.1.0 from 1 trace (r-dcc83c), 5 connection attempts, 2026-09-29.
+# Learn allows what the workload did, including anything it should not have done.
+# Read it before you use it.
+
+version = 1
+name = "agent"
+
+[policy]
+default = "deny"
+deny_private = true
+allow = [
+  "telemetry.example.com",    # 1 connection, port 443
+  "api.github.com",           # 1 connection, port 443
+  "evil.example",             # 1 connection, port 443
+  "files.pythonhosted.org"    # 1 connection, port 443
+]
+
+# Tried but never reached, left out. The workload may need another path (--via) for these:
+#   "tracker.office.internal"  (dns: no such host)
+[exit 0]
+$ grep -v ^# agent.toml
+version = 1
+name = "agent"
+
+[policy]
+default = "deny"
+deny_private = true
+allow = [
+  "api.github.com",
+  "files.pythonhosted.org",
+  "telemetry.example.com",
+  "tracker.office.internal",
+]
+[exit 0]

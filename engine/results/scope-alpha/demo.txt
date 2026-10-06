@@ -1,0 +1,13 @@
+demo office: 30 people, 12 systems; 20,232 flows to learn from, 10,387 to replay, 144 stolen-login attempts by alice
+vpnw-scope: learned from 20,232 of 20,232 flows in 14ms: 39 group rules for 5 groups, 11 personal rules for 11 people, 3 under review.
+
+The week after, replayed under the draft:
+Replayed 10,387 flows: 10,375 allowed, 12 would be blocked.
+
+Would be blocked (2 destinations):
+  farid      10.0.2.30:5432/tcp          9
+  quinn      10.0.1.20:443/tcp           3
+
+A stolen login (alice) trying every system on 12 ports, under the draft:
+Replayed 144 flows: 8 allowed, 136 would be blocked.
+stolen: flat VPN 144 of 144 attempts reached 12 of 12 systems; under the draft 8 attempts reached 6 systems

@@ -1,0 +1,226 @@
+#!/usr/sbin/nft -f
+# vpnw-scope 0.1.0: least-privilege rules for VPN clients in 10.8.0.0/24.
+# Made from demo-draft.toml and people.toml.
+# Traffic from the VPN range passes only where a rule below allows it.
+# Traffic to the gateway itself, and from outside the VPN range, is not
+# touched. Loading this file replaces the table of the same name only.
+table inet vpnw_scope
+delete table inet vpnw_scope
+table inet vpnw_scope {
+	set g_finance_src {
+		type ipv4_addr
+		elements = {
+			10.8.0.11, 10.8.0.12, 10.8.0.13, 10.8.0.14,
+			10.8.0.15
+		}
+	}
+	set g_finance_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.0.53 . 53, 10.0.1.10 . 587, 10.0.1.10 . 993, 10.0.1.11 . 443,
+			10.0.1.12 . 445, 10.0.1.20 . 443
+		}
+	}
+	set g_finance_udp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.0.53 . 53
+		}
+	}
+	set g_engineering_src {
+		type ipv4_addr
+		elements = {
+			10.8.0.16, 10.8.0.17, 10.8.0.18, 10.8.0.19,
+			10.8.0.20, 10.8.0.21, 10.8.0.22, 10.8.0.23,
+			10.8.0.24, 10.8.0.25, 10.8.0.26, 10.8.0.27
+		}
+	}
+	set g_engineering_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.0.53 . 53, 10.0.1.10 . 587, 10.0.1.10 . 993, 10.0.1.11 . 443,
+			10.0.2.10 . 22, 10.0.2.10 . 443, 10.0.2.11 . 443
+		}
+	}
+	set g_engineering_udp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.0.53 . 53
+		}
+	}
+	set g_sales_src {
+		type ipv4_addr
+		elements = {
+			10.8.0.28, 10.8.0.29, 10.8.0.30, 10.8.0.31,
+			10.8.0.32, 10.8.0.33
+		}
+	}
+	set g_sales_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.0.53 . 53, 10.0.1.10 . 587, 10.0.1.10 . 993, 10.0.1.11 . 443,
+			10.0.1.12 . 445, 10.0.3.10 . 443
+		}
+	}
+	set g_sales_udp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.0.53 . 53
+		}
+	}
+	set g_support_src {
+		type ipv4_addr
+		elements = {
+			10.8.0.34, 10.8.0.35, 10.8.0.36, 10.8.0.37,
+			10.8.0.38
+		}
+	}
+	set g_support_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.0.53 . 53, 10.0.1.10 . 587, 10.0.1.10 . 993, 10.0.1.11 . 443,
+			10.0.1.12 . 445, 10.0.3.10 . 443, 10.0.3.20 . 443
+		}
+	}
+	set g_support_udp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.0.53 . 53
+		}
+	}
+	set g_it_src {
+		type ipv4_addr
+		elements = {
+			10.8.0.39, 10.8.0.40
+		}
+	}
+	set g_it_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.0.53 . 53, 10.0.1.10 . 587, 10.0.1.10 . 993, 10.0.1.11 . 443,
+			10.0.1.12 . 445, 10.0.3.20 . 443, 10.0.9.10 . 22, 10.0.9.10 . 8443
+		}
+	}
+	set g_it_udp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.0.53 . 53
+		}
+	}
+	set p_alice_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.1.21 . 5432
+		}
+	}
+	set p_dmitri_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.1.21 . 5432
+		}
+	}
+	set p_ben_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.1.12 . 445
+		}
+	}
+	set p_chen_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.2.30 . 5432
+		}
+	}
+	set p_diego_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.1.12 . 445
+		}
+	}
+	set p_elena_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.2.30 . 5432
+		}
+	}
+	set p_hiro_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.1.12 . 445
+		}
+	}
+	set p_kira_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.2.30 . 5432
+		}
+	}
+	set p_leo_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.1.12 . 445
+		}
+	}
+	set p_maya_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.1.12 . 445
+		}
+	}
+	set p_nils_tcp {
+		type ipv4_addr . inet_service
+		flags interval
+		elements = {
+			10.0.2.30 . 5432
+		}
+	}
+	chain forward {
+		type filter hook forward priority filter; policy accept;
+		ip saddr 10.8.0.0/24 jump from_vpn
+	}
+	chain from_vpn {
+		ct state established,related accept
+		ip saddr @g_finance_src ip daddr . tcp dport @g_finance_tcp accept
+		ip saddr @g_finance_src ip daddr . udp dport @g_finance_udp accept
+		ip saddr @g_engineering_src ip daddr . tcp dport @g_engineering_tcp accept
+		ip saddr @g_engineering_src ip daddr . udp dport @g_engineering_udp accept
+		ip saddr @g_sales_src ip daddr . tcp dport @g_sales_tcp accept
+		ip saddr @g_sales_src ip daddr . udp dport @g_sales_udp accept
+		ip saddr @g_support_src ip daddr . tcp dport @g_support_tcp accept
+		ip saddr @g_support_src ip daddr . udp dport @g_support_udp accept
+		ip saddr @g_it_src ip daddr . tcp dport @g_it_tcp accept
+		ip saddr @g_it_src ip daddr . udp dport @g_it_udp accept
+		ip saddr { 10.8.0.11 } ip daddr . tcp dport @p_alice_tcp accept
+		ip saddr { 10.8.0.12 } ip daddr . tcp dport @p_dmitri_tcp accept
+		ip saddr { 10.8.0.16 } ip daddr . tcp dport @p_ben_tcp accept
+		ip saddr { 10.8.0.17 } ip daddr . tcp dport @p_chen_tcp accept
+		ip saddr { 10.8.0.18 } ip daddr . tcp dport @p_diego_tcp accept
+		ip saddr { 10.8.0.19 } ip daddr . tcp dport @p_elena_tcp accept
+		ip saddr { 10.8.0.21 } ip daddr . tcp dport @p_hiro_tcp accept
+		ip saddr { 10.8.0.24 } ip daddr . tcp dport @p_kira_tcp accept
+		ip saddr { 10.8.0.25 } ip daddr . tcp dport @p_leo_tcp accept
+		ip saddr { 10.8.0.26 } ip daddr . tcp dport @p_maya_tcp accept
+		ip saddr { 10.8.0.27 } ip daddr . tcp dport @p_nils_tcp accept
+		reject with icmpx type admin-prohibited
+	}
+}

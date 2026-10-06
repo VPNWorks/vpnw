@@ -1,0 +1,11 @@
+# Build output
+*.test
+engine/bin/
+__pycache__/
+
+# The Linux demo's binary and its world, made when the demo runs
+kit/vpnw
+kit/demo/.world/
+
+# Node, for the headless demo checks
+web/node_modules/

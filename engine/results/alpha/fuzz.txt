@@ -1,0 +1,4 @@
+internal/config FuzzParse         2024018 executions  ok  	vpnw.com/vpnw/internal/config	60.140s
+internal/policy FuzzParseRule     1963143 executions  ok  	vpnw.com/vpnw/internal/policy	60.121s
+internal/policy FuzzDecide        1863448 executions  ok  	vpnw.com/vpnw/internal/policy	61.064s
+internal/broker FuzzHandle        1104087 executions  ok  	vpnw.com/vpnw/internal/broker	60.119s

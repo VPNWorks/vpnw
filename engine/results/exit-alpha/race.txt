@@ -1,0 +1,4 @@
+ok  	vpnw.com/vpnw/internal/exit	1.029s
+ok  	vpnw.com/vpnw/internal/exit/server	1.363s
+ok  	vpnw.com/vpnw/cmd/vpnw-exit	1.204s
+ok  	vpnw.com/vpnw/test/exit	17.403s

@@ -1,0 +1,10 @@
+  vpnw.com/vpnw/cmd/vpnw    coverage: 60.9% of statements
+  vpnw.com/vpnw/internal/broker    coverage: 84.6% of statements
+  vpnw.com/vpnw/internal/config    coverage: 81.5% of statements
+  vpnw.com/vpnw/internal/events    coverage: 72.1% of statements
+  vpnw.com/vpnw/internal/learn    coverage: 94.8% of statements
+  vpnw.com/vpnw/internal/path    coverage: 86.9% of statements
+  vpnw.com/vpnw/internal/plan    coverage: 88.2% of statements
+  vpnw.com/vpnw/internal/policy    coverage: 93.2% of statements
+  vpnw.com/vpnw/internal/process    coverage: 64.4% of statements
+total: statements: 80.0%

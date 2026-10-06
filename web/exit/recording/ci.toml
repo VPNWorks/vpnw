@@ -1,0 +1,12 @@
+version = 1
+name = "ci"
+
+[paths.exits]
+type = "proxy"
+urls = ["https://198.51.100.2:8443", "https://203.0.113.2:8443"]
+ca_file = "ca.pem"
+token_file = "ci.token"
+
+[policy]
+default = "deny"
+allow = ["api.partner.test"]

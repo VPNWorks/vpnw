@@ -1,0 +1,202 @@
+<!doctype html>
+<!-- Copyright VPNW.com 2026
+     SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VPN Works Scope Live Demo</title>
+<meta name="description" content="A flat office VPN, two weeks of traffic, and Scope's own code in your browser: learn who uses what, review the draft, replay the week after and a stolen login, and get the rules for the gateway.">
+<meta name="robots" content="noindex, follow">
+<base target="_top">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231F3A5F'/%3E%3Cpath d='M8 9l8 15 8-15' stroke='%2350C4CC' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<script>if (window.self !== window.top) document.documentElement.className += ' embedded';</script>
+<link rel="stylesheet" href="scope.v1.css">
+</head>
+<body>
+
+<header class="appbar">
+  <div class="wrap">
+    <a class="brand" href="https://vpnw.com/">VPN Works</a>
+    <span class="tag">Scope live demo</span>
+    <span class="grow"></span>
+    <a class="home" href="https://vpnw.com/">vpnw.com</a>
+  </div>
+</header>
+
+<main>
+  <noscript><div class="wrap"><p class="noscript">This demo needs JavaScript switched on.</p></div></noscript>
+
+  <div class="wrap">
+    <section class="intro">
+      <h1>Who on this VPN needs to reach what?</h1>
+      <p class="lead">An office of 30 people and 12 internal systems on a flat VPN, where any login can reach anything. Scope learns who uses what from two weeks of traffic and drafts rules. A person reviews them. Then the week after is replayed under the draft, and so is a stolen login. Every number below is computed in this page by Scope's own code.</p>
+      <p class="status" id="status" role="status">Loading Scope's engine</p>
+    </section>
+
+    <nav class="steps" id="steps" aria-label="Steps">
+      <button type="button" data-step="1"><b>Step 1</b><span>The office</span></button>
+      <button type="button" data-step="2"><b>Step 2</b><span>Learn</span></button>
+      <button type="button" data-step="3"><b>Step 3</b><span>Review</span></button>
+      <button type="button" data-step="4"><b>Step 4</b><span>The week after</span></button>
+      <button type="button" data-step="5"><b>Step 5</b><span>A stolen login</span></button>
+      <button type="button" data-step="6"><b>Step 6</b><span>Gateway rules</span></button>
+    </nav>
+
+    <section class="stage" aria-live="polite">
+
+      <div class="scene" id="scene-1" data-step="1">
+        <p class="eyebrow">Step 1 of 6</p>
+        <h2>A flat VPN: every login reaches every system</h2>
+        <p class="scene-text">Thirty people in five teams connect to the office over one VPN. Twelve internal systems sit behind it. Like many company VPNs, this one is flat: once someone is logged in, every system and every port is in reach.</p>
+        <div class="office-grid">
+          <div class="card">
+            <h3>People, by team</h3>
+            <div id="teams" class="teams"></div>
+          </div>
+          <div class="card">
+            <h3>Internal systems</h3>
+            <div id="systems" class="sys-list"></div>
+          </div>
+        </div>
+        <div class="card traffic">
+          <h3>Three weeks of traffic <small>new connections per day</small></h3>
+          <div class="bars" id="bars" role="img" aria-label="Connections per day over three weeks"></div>
+          <div class="bars-axis" id="bars-axis"></div>
+          <div class="legend">
+            <span><i class="sw learn"></i>the two weeks Scope learns from</span>
+            <span><i class="sw replay"></i>the week after, replayed in step 4</span>
+          </div>
+          <p class="muted small" id="traffic-note"></p>
+        </div>
+        <p class="scene-outro">On this VPN, a stolen login reaches all 12 systems. Step 5 shows it.</p>
+      </div>
+
+      <div class="scene" id="scene-2" data-step="2" hidden>
+        <p class="eyebrow">Step 2 of 6</p>
+        <h2>Learn who uses what</h2>
+        <p class="scene-text">Scope reads every connection in the two weeks and counts, for each person and destination, the days it was used. When every active member of a team used a destination on two days or more, it becomes a team rule. What only some people used becomes a personal rule for each of them, if they used it on two days or more. Anything used on a single day goes under review and stays blocked until a person decides.</p>
+        <div class="tiles" id="learn-tiles"></div>
+        <div class="matrix-head">
+          <h3>Who may reach which system</h3>
+          <div class="seg" role="group" aria-label="Show">
+            <button type="button" class="on" data-view="draft" aria-pressed="true">The draft</button>
+            <button type="button" data-view="flat" aria-pressed="false">The flat VPN</button>
+          </div>
+        </div>
+        <div class="matrix-wrap"><table class="matrix" id="matrix"></table></div>
+        <div class="legend" id="matrix-legend">
+          <span><i class="sw group"></i>team rule</span>
+          <span><i class="sw person"></i>personal rule</span>
+          <span><i class="sw review"></i>under review, blocked</span>
+          <span><i class="sw none"></i>not allowed</span>
+          <span><i class="sw flat"></i>reachable on the flat VPN</span>
+        </div>
+        <p class="muted small" id="matrix-note"></p>
+        <p class="scene-outro">Every connection in the two weeks is allowed by the draft, except the three destinations under review.</p>
+      </div>
+
+      <div class="scene" id="scene-3" data-step="3" hidden>
+        <p class="eyebrow">Step 3 of 6</p>
+        <h2>A person reviews the draft</h2>
+        <p class="scene-text">Nothing is enforced until someone reads the draft. It is a plain text file: team rules, personal rules, and for each person what went under review, each with the evidence behind it. Three entries were seen on one day only. Allow one here and the draft below changes with it.</p>
+        <div class="review-list" id="review-list"></div>
+        <div class="lab-grid">
+          <div>
+            <h3>draft.toml <small>you can edit it</small></h3>
+            <textarea id="draft-text" spellcheck="false" aria-label="The draft"></textarea>
+            <p class="pol-check" id="draft-check"></p>
+          </div>
+          <div class="lab-side">
+            <h3>Reading it</h3>
+            <p class="muted small"><code>[groups.sales]</code> lists what every member of the sales team may reach; <code>[people.alice]</code> what Alice may reach on top of her team's rules. Each entry is <code>address:port/protocol</code>, and an address range or a port range works too, as in <code>10.0.2.0/24:8000-8100/tcp</code>.</p>
+            <p class="muted small">Anything not listed is refused. Entries under <code>review</code> are refused too, until they move into <code>allow</code>.</p>
+            <button class="btn small" id="btn-reset" type="button">Back to the learned draft</button>
+          </div>
+        </div>
+        <p class="scene-outro">The review is the only step that needs a person. Steps 4 to 6 use the draft as it stands here.</p>
+      </div>
+
+      <div class="scene" id="scene-4" data-step="4" hidden>
+        <p class="eyebrow">Step 4 of 6</p>
+        <h2>Replay the week after</h2>
+        <p class="scene-text">Before anything is enforced, the week after the learning window is replayed as if the draft had been in force. What it would have blocked is a list for the reviewer, not a surprise for the office.</p>
+        <div class="tiles" id="replay-tiles"></div>
+        <div class="table-wrap"><table class="cmp" id="replay-table">
+          <thead><tr><th>Person</th><th>System</th><th>Service</th><th>Connections</th><th>Why it would be blocked</th></tr></thead>
+          <tbody id="replay-body"></tbody>
+        </table></div>
+        <p class="note" id="newhire"></p>
+        <p class="scene-outro" id="replay-outro"></p>
+      </div>
+
+      <div class="scene" id="scene-5" data-step="5" hidden>
+        <p class="eyebrow">Step 5 of 6</p>
+        <h2>Someone logs in as Alice</h2>
+        <p class="scene-text" id="stolen-intro">Late one evening, someone uses Alice's VPN login to try every system on 12 common ports: 144 attempts.</p>
+        <div class="seg" role="group" aria-label="Show">
+          <button type="button" data-mode="flat" aria-pressed="false">The flat VPN</button>
+          <button type="button" class="on" data-mode="draft" aria-pressed="true">Under the draft</button>
+        </div>
+        <div class="tiles" id="stolen-tiles"></div>
+        <div class="targets" id="targets"></div>
+        <div class="legend">
+          <span><i class="pm open"></i>reached, and the service answered</span>
+          <span><i class="pm closed"></i>reached the system; nothing listens on that port</span>
+          <span><i class="pm refused"></i>refused at the gateway</span>
+        </div>
+        <p class="muted small">In the tests, these 144 attempts were made as real connections through Linux, first with no rules and then with the rules from step 6 loaded. The firewall let through exactly the attempts this page shows.</p>
+        <p class="scene-outro" id="stolen-outro"></p>
+      </div>
+
+      <div class="scene" id="scene-6" data-step="6" hidden>
+        <p class="eyebrow">Step 6 of 6</p>
+        <h2>The rules for the gateway</h2>
+        <p class="scene-text">The reviewed draft becomes an nftables script for the Linux gateway. Loading it replaces one table and leaves every other rule alone. In watch mode it refuses nothing and only counts what it would refuse, so it can run for a week before it bites.</p>
+        <div class="seg" role="group" aria-label="Format">
+          <button type="button" class="on" data-format="nft" aria-pressed="true">nftables</button>
+          <button type="button" data-format="watch" aria-pressed="false">nftables, watch mode</button>
+          <button type="button" data-format="allowedips" aria-pressed="false">WireGuard AllowedIPs</button>
+        </div>
+        <pre class="code" id="export-out" tabindex="0"></pre>
+        <p class="muted small" id="export-note"></p>
+        <p class="scene-outro">In the tests, the script for the learned draft was loaded into Linux's firewall in a private test network. Every person, and one address that belongs to no one, then tried every system on the 12 ports of step 5: 4,464 real connections. The firewall and Scope's simulator agreed on every one.</p>
+      </div>
+
+      <div class="stage-foot">
+        <button class="btn" id="btn-back" type="button">Back</button>
+        <button class="btn primary" id="btn-next" type="button">Next: learn</button>
+      </div>
+    </section>
+
+    <section class="section" id="real">
+      <h2>What is real here</h2>
+      <div class="real">
+        <div>
+          <h3>Real</h3>
+          <ul>
+            <li>The code: Scope's own Go code, compiled to WebAssembly for this page. It learns the draft, reads your edits, decides every replayed connection and writes the rules.</li>
+            <li>The numbers: the same as in the Scope Alpha report, which ran the same code on the same generated office with the vpnw-scope command.</li>
+            <li>The rules: in the tests, the nftables script was loaded into Linux in a private test network and checked against Scope's simulator on 4,464 real connections, and on 36,881 for a generated office of 2,000 people. They agreed on every one.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Generated</h3>
+          <ul>
+            <li>The office: its people, teams, systems and three weeks of traffic, made from seed <span id="seed">20260907</span> by the same generator the tests and the report use.</li>
+            <li>No network: nothing in this page connects anywhere. In step 5, "reached" and "refused" are Scope's decisions, which the tests matched against the kernel.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="appfoot">
+  <div class="wrap">Scope engine <span id="engine-version">0.1.0</span>, running in this page. Nothing is sent anywhere.</div>
+</footer>
+
+<script src="engine.scope.v1.js"></script>
+<script src="scope.v1.js"></script>
+</body>
+</html>

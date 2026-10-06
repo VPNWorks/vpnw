@@ -1,0 +1,32 @@
+Recorded in the private test network by: VPNW_EXIT_RECORD=web/exit/recording go test -run TestDemoScenario ./test/exit/
+Recorded on 2026-10-05; these figures are vpnw-exit's own reading of that recording.
+The run took 5138 ms; exit-de was killed 3319 ms after the start.
+Decisions in the exits' records: 12 (policy.allow and policy.deny events)
+
+Agent records: 2 runs (r-4bca10, r-f59128), 10 connections: 9 reached an exit and 1 stopped at the Agent.
+Exit records: exit-de x-6d26bf, exit-nl x-ec7c07; 12 connections, 3 of them from other clients or runs.
+Joined: 9 of the 9 connections that reached an exit.
+  r-4bca10/1  api.partner.test:80  exit-de  Agent: open; exit: open from 198.51.100.10
+  r-4bca10/2  www.partner.test:8080  exit-de  Agent: open; exit: open from 198.51.100.10
+  r-4bca10/4  intranet.partner.test:80  exit-de  Agent: failed: the exit refused it (deny_private): intranet.partner.test resolved to 10.50.0.5: private network address (10.0.0.0/8); exit: refused: deny_private
+  r-4bca10/5  api.partner.test:80  exit-nl  Agent: open; exit: open from 203.0.113.10
+  r-4bca10/6  www.partner.test:8080  exit-nl  Agent: open; exit: open from 203.0.113.10
+  r-f59128/1  files.partner.test:80  exit-de  Agent: open; exit: open from 198.51.100.11
+  r-f59128/2  api.partner.test:80  exit-de  Agent: open; exit: open from 198.51.100.11
+  r-f59128/3  files.partner.test:80  exit-nl  Agent: open; exit: open from 203.0.113.11
+  r-f59128/4  api.partner.test:80  exit-nl  Agent: open; exit: open from 203.0.113.11
+  no run ID  169.254.169.254:80  exit-de  Agent: not in these records (no run ID); exit: refused: deny_private
+  no run ID  attacker.test:443  exit-de  Agent: not in these records (no run ID); exit: refused: default
+  r-tampered/1  intranet.partner.test:80  exit-de  Agent: not in these records (r-tampered); exit: refused: default
+
+What exit-de decides for agent-2 (the tampered client holds its token), with the recording's DNS answers:
+DENY    169.254.169.254:80  deny_private: 169.254.169.254: link-local address (169.254.0.0/16), where cloud metadata services live
+DENY    attacker.test:443  default: no allow rule matches attacker.test:443; default is deny (set in the policy)
+DENY    intranet.partner.test:80  default: no allow rule matches intranet.partner.test:80; default is deny (set in the policy)
+allow   files.partner.test:80  from 198.51.100.11  (allow[0] "files.partner.test")
+DENY    api.partner.test:443  default: no allow rule matches api.partner.test:443; default is deny (set in the policy)
+allow   api.partner.test:80  from 198.51.100.11  (allow[1] "api.partner.test:80")
+
+Switches between exits in the Agents' records:
+  agent-1 connection #5: gave up on 198.51.100.2:8443 after 0 ms (proxy 198.51.100.2:8443: connect: connection refused); moved to 203.0.113.2:8443; open 5 ms after its dial began
+  agent-2 connection #3: gave up on 198.51.100.2:8443 after 0 ms (proxy 198.51.100.2:8443: connect: connection refused); moved to 203.0.113.2:8443; open 9 ms after its dial began

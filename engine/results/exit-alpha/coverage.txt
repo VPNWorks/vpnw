@@ -1,0 +1,4 @@
+  vpnw.com/vpnw/cmd/vpnw-exit    coverage: 96.4% of statements
+  vpnw.com/vpnw/internal/exit    coverage: 97.5% of statements
+  vpnw.com/vpnw/internal/exit/server    coverage: 90.0% of statements
+total: statements: 94.1%

@@ -1,0 +1,24 @@
+  [ 1] caught: the user name in Proxy-Authorization is taken for the token
+  [ 2] caught: a CONNECT that carries no token at all is not refused
+  [ 3] caught: the health check keeps "Bearer " in front of the token, so a good token is refused
+  [ 4] caught: a request may carry two tokens or two run IDs, and the exit reads the first
+  [ 5] caught: a refused token is written into the exit's record
+  [ 6] caught: the exit decides as if names resolved elsewhere, so deny_private never sees where a name points
+  [ 7] caught: the exit connects even when the client's policy refuses the destination
+  [ 8] caught: connections leave from the exit machine's default address, not the client's fixed one
+  [ 9] caught: a client may leave from any address it asks for, another client's among them
+  [10] caught: the exit's record leaves out the client's connection ID, so the records do not join
+  [11] caught: the SOCKS5 user name's run and connection IDs are read the wrong way round
+  [12] caught: SOCKS5 BIND is taken for CONNECT
+  [13] caught: the exit's totals stop counting the bytes sent back to clients
+  [14] caught: two clients may be given one fixed address
+  [15] caught: a token hash of the wrong length is accepted
+  [16] caught: an unknown key in a client's table, such as a misspelled allow, is ignored
+  [17] caught: a client with a policy file and policy keys of its own silently uses the keys
+  [18] caught: the join accepts an exit record for another destination
+  [19] caught: a connection the exits never recorded is not reported
+  [20] caught: an exit record of a connection the Agent never made goes unnoticed
+  [21] caught: serve starts although a source address is not on this machine
+  [22] caught: decide exits 0 although it refused a request
+
+22 of 22 planted bugs caught

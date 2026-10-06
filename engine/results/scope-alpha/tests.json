@@ -1,0 +1,287 @@
+{"Time":"2026-09-30T22:23:14.013454654+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/scope"}
+{"Time":"2026-09-30T22:23:14.013619837+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/scope/office"}
+{"Time":"2026-09-30T22:23:14.025339118+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestRoundTrip"}
+{"Time":"2026-09-30T22:23:14.025380655+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestFlowsAreRepeatable"}
+{"Time":"2026-09-30T22:23:14.025435507+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestFlowsAreRepeatable","Output":"=== RUN   TestFlowsAreRepeatable\n"}
+{"Time":"2026-09-30T22:23:14.025362462+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestRoundTrip","Output":"=== RUN   TestDestRoundTrip\n"}
+{"Time":"2026-09-30T22:23:14.025454645+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestRoundTrip","Output":"--- PASS: TestDestRoundTrip (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025459077+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestRoundTrip","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025463891+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestErrors"}
+{"Time":"2026-09-30T22:23:14.025466313+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestErrors","Output":"=== RUN   TestDestErrors\n"}
+{"Time":"2026-09-30T22:23:14.025469056+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestErrors","Output":"--- PASS: TestDestErrors (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025471178+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestErrors","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025473568+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestMatch"}
+{"Time":"2026-09-30T22:23:14.025475713+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestMatch","Output":"=== RUN   TestDestMatch\n"}
+{"Time":"2026-09-30T22:23:14.025478131+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestMatch","Output":"--- PASS: TestDestMatch (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025480267+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDestMatch","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025524574+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestFlowJSONRoundTrip"}
+{"Time":"2026-09-30T22:23:14.025526858+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestFlowJSONRoundTrip","Output":"=== RUN   TestFlowJSONRoundTrip\n"}
+{"Time":"2026-09-30T22:23:14.025530293+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestFlowJSONRoundTrip","Output":"--- PASS: TestFlowJSONRoundTrip (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025532511+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestFlowJSONRoundTrip","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025536114+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestFlowJSONErrors"}
+{"Time":"2026-09-30T22:23:14.025538714+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestFlowJSONErrors","Output":"=== RUN   TestFlowJSONErrors\n"}
+{"Time":"2026-09-30T22:23:14.025541196+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestFlowJSONErrors","Output":"--- PASS: TestFlowJSONErrors (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025543471+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestFlowJSONErrors","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025545458+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestReadFlows"}
+{"Time":"2026-09-30T22:23:14.025547444+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestReadFlows","Output":"=== RUN   TestReadFlows\n"}
+{"Time":"2026-09-30T22:23:14.025549926+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestReadFlows","Output":"--- PASS: TestReadFlows (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025559717+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestReadFlows","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025561885+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestProto"}
+{"Time":"2026-09-30T22:23:14.025563684+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestProto","Output":"=== RUN   TestProto\n"}
+{"Time":"2026-09-30T22:23:14.025566133+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestProto","Output":"--- PASS: TestProto (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025568282+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestProto","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025570324+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestConntrack"}
+{"Time":"2026-09-30T22:23:14.025572084+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestConntrack","Output":"=== RUN   TestConntrack\n"}
+{"Time":"2026-09-30T22:23:14.025574937+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestConntrack","Output":"--- PASS: TestConntrack (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025576898+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestConntrack","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025616599+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestPeople"}
+{"Time":"2026-09-30T22:23:14.02562126+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestPeople","Output":"=== RUN   TestPeople\n"}
+{"Time":"2026-09-30T22:23:14.025625484+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestPeople","Output":"--- PASS: TestPeople (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025627904+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestPeople","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025630407+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestPeopleErrors"}
+{"Time":"2026-09-30T22:23:14.025633264+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestPeopleErrors","Output":"=== RUN   TestPeopleErrors\n"}
+{"Time":"2026-09-30T22:23:14.025635861+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestPeopleErrors","Output":"--- PASS: TestPeopleErrors (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025637974+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestPeopleErrors","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025640079+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftRoundTrip"}
+{"Time":"2026-09-30T22:23:14.025641986+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftRoundTrip","Output":"=== RUN   TestDraftRoundTrip\n"}
+{"Time":"2026-09-30T22:23:14.025644218+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftRoundTrip","Output":"--- PASS: TestDraftRoundTrip (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025646271+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftRoundTrip","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025648354+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftErrors"}
+{"Time":"2026-09-30T22:23:14.025650113+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftErrors","Output":"=== RUN   TestDraftErrors\n"}
+{"Time":"2026-09-30T22:23:14.025652294+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftErrors","Output":"--- PASS: TestDraftErrors (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025654317+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftErrors","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025656368+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDecideAndReplay"}
+{"Time":"2026-09-30T22:23:14.025658168+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDecideAndReplay","Output":"=== RUN   TestDecideAndReplay\n"}
+{"Time":"2026-09-30T22:23:14.025663301+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDecideAndReplay","Output":"--- PASS: TestDecideAndReplay (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025665707+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDecideAndReplay","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025668225+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestSetElements"}
+{"Time":"2026-09-30T22:23:14.025669921+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestSetElements","Output":"=== RUN   TestSetElements\n"}
+{"Time":"2026-09-30T22:23:14.025672243+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestSetElements","Output":"--- PASS: TestSetElements (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025674134+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestSetElements","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025717273+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestExportNft"}
+{"Time":"2026-09-30T22:23:14.025721728+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestExportNft","Output":"=== RUN   TestExportNft\n"}
+{"Time":"2026-09-30T22:23:14.025724856+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestExportNft","Output":"--- PASS: TestExportNft (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025727243+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestExportNft","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025729604+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestExportAllowedIPs"}
+{"Time":"2026-09-30T22:23:14.025731441+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestExportAllowedIPs","Output":"=== RUN   TestExportAllowedIPs\n"}
+{"Time":"2026-09-30T22:23:14.025733837+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestExportAllowedIPs","Output":"--- PASS: TestExportAllowedIPs (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025735897+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestExportAllowedIPs","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025738378+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestComma"}
+{"Time":"2026-09-30T22:23:14.025740413+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestComma","Output":"=== RUN   TestComma\n"}
+{"Time":"2026-09-30T22:23:14.02574305+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestComma","Output":"--- PASS: TestComma (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025745203+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestComma","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025747229+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftKeepsComments"}
+{"Time":"2026-09-30T22:23:14.025748968+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftKeepsComments","Output":"=== RUN   TestDraftKeepsComments\n"}
+{"Time":"2026-09-30T22:23:14.025751378+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftKeepsComments","Output":"--- PASS: TestDraftKeepsComments (0.00s)\n"}
+{"Time":"2026-09-30T22:23:14.025755014+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestDraftKeepsComments","Elapsed":0}
+{"Time":"2026-09-30T22:23:14.025757206+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesDemo"}
+{"Time":"2026-09-30T22:23:14.025759202+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesDemo","Output":"=== RUN   TestLearnPromisesDemo\n"}
+{"Time":"2026-09-30T22:23:14.074331785+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesDemo","Output":"--- PASS: TestLearnPromisesDemo (0.05s)\n"}
+{"Time":"2026-09-30T22:23:14.074423348+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesDemo","Elapsed":0.05}
+{"Time":"2026-09-30T22:23:14.074440368+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesRandomOffices"}
+{"Time":"2026-09-30T22:23:14.07444362+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesRandomOffices","Output":"=== RUN   TestLearnPromisesRandomOffices\n"}
+{"Time":"2026-09-30T22:23:14.929466692+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestFlowsAreRepeatable","Output":"--- PASS: TestFlowsAreRepeatable (0.91s)\n"}
+{"Time":"2026-09-30T22:23:14.929617638+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestFlowsAreRepeatable","Elapsed":0.91}
+{"Time":"2026-09-30T22:23:14.92966034+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestDemoNumbers"}
+{"Time":"2026-09-30T22:23:14.929665176+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestDemoNumbers","Output":"=== RUN   TestDemoNumbers\n"}
+{"Time":"2026-09-30T22:23:14.965645606+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestDemoNumbers","Output":"--- PASS: TestDemoNumbers (0.04s)\n"}
+{"Time":"2026-09-30T22:23:14.965763802+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestDemoNumbers","Elapsed":0.04}
+{"Time":"2026-09-30T22:23:14.965872429+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestLargeOffice"}
+{"Time":"2026-09-30T22:23:14.965879327+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestLargeOffice","Output":"=== RUN   TestLargeOffice\n"}
+{"Time":"2026-09-30T22:23:15.921253699+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestLargeOffice","Output":"--- PASS: TestLargeOffice (0.96s)\n"}
+{"Time":"2026-09-30T22:23:15.921605908+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestLargeOffice","Elapsed":0.96}
+{"Time":"2026-09-30T22:23:15.921617728+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestHelpers"}
+{"Time":"2026-09-30T22:23:15.921621143+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestHelpers","Output":"=== RUN   TestHelpers\n"}
+{"Time":"2026-09-30T22:23:15.921625562+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestHelpers","Output":"--- PASS: TestHelpers (0.00s)\n"}
+{"Time":"2026-09-30T22:23:15.921628896+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/office","Test":"TestHelpers","Elapsed":0}
+{"Time":"2026-09-30T22:23:15.921631297+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/office","Output":"PASS\n"}
+{"Time":"2026-09-30T22:23:15.922714699+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/office","Output":"ok  \tvpnw.com/vpnw/internal/scope/office\t1.909s\n"}
+{"Time":"2026-09-30T22:23:15.922727613+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/office","Elapsed":1.909}
+{"Time":"2026-09-30T22:23:16.282196212+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/scope/record"}
+{"Time":"2026-09-30T22:23:16.284901518+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestParsePacket"}
+{"Time":"2026-09-30T22:23:16.284916578+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestParsePacket","Output":"=== RUN   TestParsePacket\n"}
+{"Time":"2026-09-30T22:23:16.28502523+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestParsePacket","Output":"--- PASS: TestParsePacket (0.00s)\n"}
+{"Time":"2026-09-30T22:23:16.285041568+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestParsePacket","Elapsed":0}
+{"Time":"2026-09-30T22:23:16.285127249+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestFindAttr"}
+{"Time":"2026-09-30T22:23:16.285130386+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestFindAttr","Output":"=== RUN   TestFindAttr\n"}
+{"Time":"2026-09-30T22:23:16.285223595+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestFindAttr","Output":"--- PASS: TestFindAttr (0.00s)\n"}
+{"Time":"2026-09-30T22:23:16.285239487+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestFindAttr","Elapsed":0}
+{"Time":"2026-09-30T22:23:16.285320968+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestRules"}
+{"Time":"2026-09-30T22:23:16.285324265+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestRules","Output":"=== RUN   TestRules\n"}
+{"Time":"2026-09-30T22:23:16.285631052+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestRules","Output":"--- PASS: TestRules (0.00s)\n"}
+{"Time":"2026-09-30T22:23:16.285637246+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/record","Test":"TestRules","Elapsed":0}
+{"Time":"2026-09-30T22:23:16.285640524+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket"}
+{"Time":"2026-09-30T22:23:16.285642704+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket","Output":"=== RUN   FuzzParsePacket\n"}
+{"Time":"2026-09-30T22:23:16.285646789+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket/seed#0"}
+{"Time":"2026-09-30T22:23:16.285648924+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket/seed#0","Output":"=== RUN   FuzzParsePacket/seed#0\n"}
+{"Time":"2026-09-30T22:23:16.285652188+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket/seed#0","Output":"--- PASS: FuzzParsePacket/seed#0 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:16.285655224+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket/seed#0","Elapsed":0}
+{"Time":"2026-09-30T22:23:16.285660424+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket/seed#1"}
+{"Time":"2026-09-30T22:23:16.285662263+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket/seed#1","Output":"=== RUN   FuzzParsePacket/seed#1\n"}
+{"Time":"2026-09-30T22:23:16.28566491+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket/seed#1","Output":"--- PASS: FuzzParsePacket/seed#1 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:16.285667474+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket/seed#1","Elapsed":0}
+{"Time":"2026-09-30T22:23:16.285685051+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket","Output":"--- PASS: FuzzParsePacket (0.00s)\n"}
+{"Time":"2026-09-30T22:23:16.285945484+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/record","Test":"FuzzParsePacket","Elapsed":0}
+{"Time":"2026-09-30T22:23:16.285952344+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Output":"PASS\n"}
+{"Time":"2026-09-30T22:23:16.286004022+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope/record","Output":"ok  \tvpnw.com/vpnw/internal/scope/record\t0.004s\n"}
+{"Time":"2026-09-30T22:23:16.286013826+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope/record","Elapsed":0.004}
+{"Time":"2026-09-30T22:23:16.700956927+03:00","Action":"start","Package":"vpnw.com/vpnw/cmd/vpnw-scope"}
+{"Time":"2026-09-30T22:23:16.710379987+03:00","Action":"run","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestLearnReplayExport"}
+{"Time":"2026-09-30T22:23:16.710430104+03:00","Action":"output","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestLearnReplayExport","Output":"=== RUN   TestLearnReplayExport\n"}
+{"Time":"2026-09-30T22:23:16.805388877+03:00","Action":"output","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestLearnReplayExport","Output":"--- PASS: TestLearnReplayExport (0.10s)\n"}
+{"Time":"2026-09-30T22:23:16.805460273+03:00","Action":"pass","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestLearnReplayExport","Elapsed":0.1}
+{"Time":"2026-09-30T22:23:16.805489106+03:00","Action":"run","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestConntrackInput"}
+{"Time":"2026-09-30T22:23:16.805492309+03:00","Action":"output","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestConntrackInput","Output":"=== RUN   TestConntrackInput\n"}
+{"Time":"2026-09-30T22:23:16.842634879+03:00","Action":"output","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestConntrackInput","Output":"--- PASS: TestConntrackInput (0.04s)\n"}
+{"Time":"2026-09-30T22:23:16.842708842+03:00","Action":"pass","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestConntrackInput","Elapsed":0.04}
+{"Time":"2026-09-30T22:23:16.842736065+03:00","Action":"run","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestWireGuardDump"}
+{"Time":"2026-09-30T22:23:16.842739032+03:00","Action":"output","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestWireGuardDump","Output":"=== RUN   TestWireGuardDump\n"}
+{"Time":"2026-09-30T22:23:16.843545886+03:00","Action":"output","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestWireGuardDump","Output":"--- PASS: TestWireGuardDump (0.00s)\n"}
+{"Time":"2026-09-30T22:23:16.843556357+03:00","Action":"pass","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestWireGuardDump","Elapsed":0}
+{"Time":"2026-09-30T22:23:16.843560476+03:00","Action":"run","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestErrors"}
+{"Time":"2026-09-30T22:23:16.843563251+03:00","Action":"output","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestErrors","Output":"=== RUN   TestErrors\n"}
+{"Time":"2026-09-30T22:23:16.917709058+03:00","Action":"output","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestErrors","Output":"--- PASS: TestErrors (0.07s)\n"}
+{"Time":"2026-09-30T22:23:16.917737685+03:00","Action":"pass","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Test":"TestErrors","Elapsed":0.07}
+{"Time":"2026-09-30T22:23:16.917743101+03:00","Action":"output","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Output":"PASS\n"}
+{"Time":"2026-09-30T22:23:16.918403379+03:00","Action":"output","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Output":"ok  \tvpnw.com/vpnw/cmd/vpnw-scope\t0.217s\n"}
+{"Time":"2026-09-30T22:23:16.918435991+03:00","Action":"pass","Package":"vpnw.com/vpnw/cmd/vpnw-scope","Elapsed":0.217}
+{"Time":"2026-09-30T22:23:17.106388886+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesRandomOffices","Output":"--- PASS: TestLearnPromisesRandomOffices (3.03s)\n"}
+{"Time":"2026-09-30T22:23:17.106488354+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesRandomOffices","Elapsed":3.03}
+{"Time":"2026-09-30T22:23:17.106496348+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesOptions"}
+{"Time":"2026-09-30T22:23:17.106499059+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesOptions","Output":"=== RUN   TestLearnPromisesOptions\n"}
+{"Time":"2026-09-30T22:23:17.34781727+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/testnet"}
+{"Time":"2026-09-30T22:23:17.358532849+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/testnet","Test":"TestForwardAndFirewall"}
+{"Time":"2026-09-30T22:23:17.358723721+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/testnet","Test":"TestForwardAndFirewall","Output":"=== RUN   TestForwardAndFirewall\n"}
+{"Time":"2026-09-30T22:23:17.412578438+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/testnet","Test":"TestForwardAndFirewall","Output":"--- PASS: TestForwardAndFirewall (0.05s)\n"}
+{"Time":"2026-09-30T22:23:17.412612372+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/testnet","Test":"TestForwardAndFirewall","Elapsed":0.05}
+{"Time":"2026-09-30T22:23:17.412618173+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/testnet","Output":"PASS\n"}
+{"Time":"2026-09-30T22:23:17.413318231+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/testnet","Output":"ok  \tvpnw.com/vpnw/internal/testnet\t0.065s\n"}
+{"Time":"2026-09-30T22:23:17.413386018+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/testnet","Elapsed":0.066}
+{"Time":"2026-09-30T22:23:17.924711214+03:00","Action":"start","Package":"vpnw.com/vpnw/test/scope"}
+{"Time":"2026-09-30T22:23:17.939446116+03:00","Action":"run","Package":"vpnw.com/vpnw/test/scope","Test":"TestRecordCommand"}
+{"Time":"2026-09-30T22:23:17.939496578+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestRecordCommand","Output":"=== RUN   TestRecordCommand\n"}
+{"Time":"2026-09-30T22:23:20.287302141+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesOptions","Output":"--- PASS: TestLearnPromisesOptions (3.18s)\n"}
+{"Time":"2026-09-30T22:23:20.287383152+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnPromisesOptions","Elapsed":3.18}
+{"Time":"2026-09-30T22:23:20.287392238+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnMinDaysOneHasNoReview"}
+{"Time":"2026-09-30T22:23:20.287395443+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnMinDaysOneHasNoReview","Output":"=== RUN   TestLearnMinDaysOneHasNoReview\n"}
+{"Time":"2026-09-30T22:23:20.3041421+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnMinDaysOneHasNoReview","Output":"--- PASS: TestLearnMinDaysOneHasNoReview (0.02s)\n"}
+{"Time":"2026-09-30T22:23:20.304175879+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnMinDaysOneHasNoReview","Elapsed":0.02}
+{"Time":"2026-09-30T22:23:20.304183118+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnWindowAndStats"}
+{"Time":"2026-09-30T22:23:20.304185726+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnWindowAndStats","Output":"=== RUN   TestLearnWindowAndStats\n"}
+{"Time":"2026-09-30T22:23:20.304193719+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnWindowAndStats","Output":"--- PASS: TestLearnWindowAndStats (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304196172+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"TestLearnWindowAndStats","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304198954+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON"}
+{"Time":"2026-09-30T22:23:20.304201144+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON","Output":"=== RUN   FuzzParseFlowJSON\n"}
+{"Time":"2026-09-30T22:23:20.304206473+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#0"}
+{"Time":"2026-09-30T22:23:20.304208455+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#0","Output":"=== RUN   FuzzParseFlowJSON/seed#0\n"}
+{"Time":"2026-09-30T22:23:20.304211181+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#0","Output":"--- PASS: FuzzParseFlowJSON/seed#0 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304213395+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#0","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304215528+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#1"}
+{"Time":"2026-09-30T22:23:20.304217305+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#1","Output":"=== RUN   FuzzParseFlowJSON/seed#1\n"}
+{"Time":"2026-09-30T22:23:20.304219737+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#1","Output":"--- PASS: FuzzParseFlowJSON/seed#1 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304221888+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#1","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304224822+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#2"}
+{"Time":"2026-09-30T22:23:20.304226575+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#2","Output":"=== RUN   FuzzParseFlowJSON/seed#2\n"}
+{"Time":"2026-09-30T22:23:20.304239666+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#2","Output":"--- PASS: FuzzParseFlowJSON/seed#2 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304241745+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON/seed#2","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304245083+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON","Output":"--- PASS: FuzzParseFlowJSON (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304247027+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseFlowJSON","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304248929+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine"}
+{"Time":"2026-09-30T22:23:20.30425073+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine","Output":"=== RUN   FuzzParseConntrackLine\n"}
+{"Time":"2026-09-30T22:23:20.3042529+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#0"}
+{"Time":"2026-09-30T22:23:20.304254628+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#0","Output":"=== RUN   FuzzParseConntrackLine/seed#0\n"}
+{"Time":"2026-09-30T22:23:20.304258297+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#0","Output":"--- PASS: FuzzParseConntrackLine/seed#0 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304260568+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#0","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304262744+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#1"}
+{"Time":"2026-09-30T22:23:20.304264458+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#1","Output":"=== RUN   FuzzParseConntrackLine/seed#1\n"}
+{"Time":"2026-09-30T22:23:20.304292574+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#1","Output":"--- PASS: FuzzParseConntrackLine/seed#1 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.30429614+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#1","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304298391+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#2"}
+{"Time":"2026-09-30T22:23:20.304300198+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#2","Output":"=== RUN   FuzzParseConntrackLine/seed#2\n"}
+{"Time":"2026-09-30T22:23:20.30430349+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#2","Output":"--- PASS: FuzzParseConntrackLine/seed#2 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304305623+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine/seed#2","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304307928+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine","Output":"--- PASS: FuzzParseConntrackLine (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304310131+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseConntrackLine","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304312186+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest"}
+{"Time":"2026-09-30T22:23:20.304314573+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest","Output":"=== RUN   FuzzParseDest\n"}
+{"Time":"2026-09-30T22:23:20.304317928+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#0"}
+{"Time":"2026-09-30T22:23:20.304319701+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#0","Output":"=== RUN   FuzzParseDest/seed#0\n"}
+{"Time":"2026-09-30T22:23:20.304325893+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#0","Output":"--- PASS: FuzzParseDest/seed#0 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304328328+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#0","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304330938+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#1"}
+{"Time":"2026-09-30T22:23:20.304332957+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#1","Output":"=== RUN   FuzzParseDest/seed#1\n"}
+{"Time":"2026-09-30T22:23:20.304335938+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#1","Output":"--- PASS: FuzzParseDest/seed#1 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304337968+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#1","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304340696+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#2"}
+{"Time":"2026-09-30T22:23:20.304342334+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#2","Output":"=== RUN   FuzzParseDest/seed#2\n"}
+{"Time":"2026-09-30T22:23:20.304345078+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#2","Output":"--- PASS: FuzzParseDest/seed#2 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304347018+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#2","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304349576+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#3"}
+{"Time":"2026-09-30T22:23:20.304351214+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#3","Output":"=== RUN   FuzzParseDest/seed#3\n"}
+{"Time":"2026-09-30T22:23:20.304361856+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#3","Output":"--- PASS: FuzzParseDest/seed#3 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304365944+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest/seed#3","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.30437146+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest","Output":"--- PASS: FuzzParseDest (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304373641+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDest","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304375657+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople"}
+{"Time":"2026-09-30T22:23:20.304377431+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople","Output":"=== RUN   FuzzParsePeople\n"}
+{"Time":"2026-09-30T22:23:20.304380106+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople/seed#0"}
+{"Time":"2026-09-30T22:23:20.304381853+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople/seed#0","Output":"=== RUN   FuzzParsePeople/seed#0\n"}
+{"Time":"2026-09-30T22:23:20.304430767+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople/seed#0","Output":"--- PASS: FuzzParsePeople/seed#0 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304485243+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople/seed#0","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304502918+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople/seed#1"}
+{"Time":"2026-09-30T22:23:20.304505269+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople/seed#1","Output":"=== RUN   FuzzParsePeople/seed#1\n"}
+{"Time":"2026-09-30T22:23:20.304541682+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople/seed#1","Output":"--- PASS: FuzzParsePeople/seed#1 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304577595+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople/seed#1","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304592994+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople","Output":"--- PASS: FuzzParsePeople (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304621236+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParsePeople","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304633097+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft"}
+{"Time":"2026-09-30T22:23:20.304635629+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft","Output":"=== RUN   FuzzParseDraft\n"}
+{"Time":"2026-09-30T22:23:20.304678964+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft/seed#0"}
+{"Time":"2026-09-30T22:23:20.304681675+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft/seed#0","Output":"=== RUN   FuzzParseDraft/seed#0\n"}
+{"Time":"2026-09-30T22:23:20.304771733+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft/seed#0","Output":"--- PASS: FuzzParseDraft/seed#0 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304785998+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft/seed#0","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304812984+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft/seed#1"}
+{"Time":"2026-09-30T22:23:20.304817075+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft/seed#1","Output":"=== RUN   FuzzParseDraft/seed#1\n"}
+{"Time":"2026-09-30T22:23:20.304881349+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft/seed#1","Output":"--- PASS: FuzzParseDraft/seed#1 (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304912408+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft/seed#1","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.30494086+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft","Output":"--- PASS: FuzzParseDraft (0.00s)\n"}
+{"Time":"2026-09-30T22:23:20.304973006+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Test":"FuzzParseDraft","Elapsed":0}
+{"Time":"2026-09-30T22:23:20.304985772+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Output":"PASS\n"}
+{"Time":"2026-09-30T22:23:20.310396439+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/scope","Output":"ok  \tvpnw.com/vpnw/internal/scope\t6.297s\n"}
+{"Time":"2026-09-30T22:23:20.310461087+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/scope","Elapsed":6.297}
+{"Time":"2026-09-30T22:23:22.623579385+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestRecordCommand","Output":"    cli_test.go:92: RESULT record-command: 60 connections, 60 lines written, table removed on exit\n"}
+{"Time":"2026-09-30T22:23:22.646492796+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestRecordCommand","Output":"--- PASS: TestRecordCommand (4.71s)\n"}
+{"Time":"2026-09-30T22:23:22.646573076+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/scope","Test":"TestRecordCommand","Elapsed":4.71}
+{"Time":"2026-09-30T22:23:22.646591119+03:00","Action":"run","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesLargeOffice"}
+{"Time":"2026-09-30T22:23:22.64659513+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesLargeOffice","Output":"=== RUN   TestKernelAgreesLargeOffice\n"}
+{"Time":"2026-09-30T22:23:38.446088174+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesLargeOffice","Output":"    large_test.go:68: RESULT kernel-large: 2000 people, 288 systems; 798 group rules for 80 groups, 6,402 personal rules for 1,917 people, 538 under review; nftables script 610660 bytes, 12818 set elements, loaded in 542ms; 36881 distinct tuples (27105 from the replayed week, 9776 random), 26653 allowed and 10228 refused by the simulator, 0 disagreements with the kernel, 9.348s\n"}
+{"Time":"2026-09-30T22:23:38.521951654+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesLargeOffice","Output":"--- PASS: TestKernelAgreesLargeOffice (15.88s)\n"}
+{"Time":"2026-09-30T22:23:38.522010132+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesLargeOffice","Elapsed":15.88}
+{"Time":"2026-09-30T22:23:38.522016133+03:00","Action":"run","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesWithSimulator"}
+{"Time":"2026-09-30T22:23:38.522018644+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesWithSimulator","Output":"=== RUN   TestKernelAgreesWithSimulator\n"}
+{"Time":"2026-09-30T22:23:39.555602844+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesWithSimulator","Output":"    scope_test.go:102: RESULT kernel-demo: 4464 tuples, 242 allowed and 4222 refused by the simulator, 0 disagreements with the kernel, 927ms\n"}
+{"Time":"2026-09-30T22:23:39.619310847+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesWithSimulator","Output":"--- PASS: TestKernelAgreesWithSimulator (1.10s)\n"}
+{"Time":"2026-09-30T22:23:39.619349479+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesWithSimulator","Elapsed":1.1}
+{"Time":"2026-09-30T22:23:39.619356426+03:00","Action":"run","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesOnRanges"}
+{"Time":"2026-09-30T22:23:39.619358967+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesOnRanges","Output":"=== RUN   TestKernelAgreesOnRanges\n"}
+{"Time":"2026-09-30T22:23:40.606713518+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesOnRanges","Output":"    scope_test.go:142: RESULT kernel-ranges: 4464 tuples, 249 allowed and 4215 refused by the simulator, 0 disagreements with the kernel\n"}
+{"Time":"2026-09-30T22:23:40.675668547+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesOnRanges","Output":"--- PASS: TestKernelAgreesOnRanges (1.06s)\n"}
+{"Time":"2026-09-30T22:23:40.675721707+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/scope","Test":"TestKernelAgreesOnRanges","Elapsed":1.06}
+{"Time":"2026-09-30T22:23:40.675737318+03:00","Action":"run","Package":"vpnw.com/vpnw/test/scope","Test":"TestStolenLogin"}
+{"Time":"2026-09-30T22:23:40.675741331+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestStolenLogin","Output":"=== RUN   TestStolenLogin\n"}
+{"Time":"2026-09-30T22:23:40.853807345+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestStolenLogin","Output":"    scope_test.go:187: RESULT stolen: flat VPN 144 of 144 attempts reached 12 of 12 systems; under the draft 8 attempts reached 6 systems\n"}
+{"Time":"2026-09-30T22:23:40.8873125+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestStolenLogin","Output":"--- PASS: TestStolenLogin (0.21s)\n"}
+{"Time":"2026-09-30T22:23:40.887352457+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/scope","Test":"TestStolenLogin","Elapsed":0.21}
+{"Time":"2026-09-30T22:23:40.887360735+03:00","Action":"run","Package":"vpnw.com/vpnw/test/scope","Test":"TestWatchMode"}
+{"Time":"2026-09-30T22:23:40.887363545+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestWatchMode","Output":"=== RUN   TestWatchMode\n"}
+{"Time":"2026-09-30T22:23:41.950200055+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestWatchMode","Output":"    scope_test.go:229: RESULT watch: 4464 tuples all reached; counter 4222 equals the 4222 the simulator would refuse\n"}
+{"Time":"2026-09-30T22:23:42.023364905+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestWatchMode","Output":"--- PASS: TestWatchMode (1.14s)\n"}
+{"Time":"2026-09-30T22:23:42.023441607+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/scope","Test":"TestWatchMode","Elapsed":1.14}
+{"Time":"2026-09-30T22:23:42.023645253+03:00","Action":"run","Package":"vpnw.com/vpnw/test/scope","Test":"TestRecorderSeesEveryConnection"}
+{"Time":"2026-09-30T22:23:42.023654153+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestRecorderSeesEveryConnection","Output":"=== RUN   TestRecorderSeesEveryConnection\n"}
+{"Time":"2026-09-30T22:23:42.806783785+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestRecorderSeesEveryConnection","Output":"    scope_test.go:308: RESULT recorder: 600 attempts (569 refused by the gateway), 600 recorded, every one matched; 0 packets skipped\n"}
+{"Time":"2026-09-30T22:23:42.85955587+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Test":"TestRecorderSeesEveryConnection","Output":"--- PASS: TestRecorderSeesEveryConnection (0.84s)\n"}
+{"Time":"2026-09-30T22:23:42.859759992+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/scope","Test":"TestRecorderSeesEveryConnection","Elapsed":0.84}
+{"Time":"2026-09-30T22:23:42.85976903+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Output":"PASS\n"}
+{"Time":"2026-09-30T22:23:42.862413674+03:00","Action":"output","Package":"vpnw.com/vpnw/test/scope","Output":"ok  \tvpnw.com/vpnw/test/scope\t24.938s\n"}
+{"Time":"2026-09-30T22:23:42.862452034+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/scope","Elapsed":24.938}

@@ -1,0 +1,28 @@
+{"v":1,"ts":"2026-09-29T11:44:36.314628148Z","type":"run.start","run":"r-220df7","path":"direct","fields":{"backend":"sealed","enforced":true,"mode":"guard","path":"direct from this machine","path_kind":"direct","policy":{"allow_rules":4,"default":"deny","default_note":"set in the policy","deny_private":true,"deny_rules":0,"name":"agent"},"remote_dns":false,"unix_sockets":"blocked","version":"0.1.0"}}
+{"v":1,"ts":"2026-09-29T11:44:36.322305804Z","type":"process.start","run":"r-220df7","pid":16770,"path":"direct","fields":{"args":1,"cmd":"python3","interfaces":["lo"]}}
+{"v":1,"ts":"2026-09-29T11:44:36.367160093Z","type":"connection.attempt","run":"r-220df7","pid":16770,"path":"direct","conn":1,"fields":{"host":"api.github.com","port":443,"proto":"http-connect"}}
+{"v":1,"ts":"2026-09-29T11:44:36.367225609Z","type":"dns.query","run":"r-220df7","pid":16770,"path":"direct","conn":1,"fields":{"host":"api.github.com"}}
+{"v":1,"ts":"2026-09-29T11:44:36.367673389Z","type":"dns.result","run":"r-220df7","pid":16770,"path":"direct","conn":1,"fields":{"host":"api.github.com","ips":["140.82.112.6"],"ms":0}}
+{"v":1,"ts":"2026-09-29T11:44:36.367720769Z","type":"policy.allow","run":"r-220df7","pid":16770,"path":"direct","conn":1,"fields":{"reason":"api.github.com matches allow rule \"api.github.com\"","rule":"allow[0]","text":"api.github.com"}}
+{"v":1,"ts":"2026-09-29T11:44:36.367795377Z","type":"connection.open","run":"r-220df7","pid":16770,"path":"direct","conn":1,"fields":{"host":"api.github.com","ip":"140.82.112.6","ms":0}}
+{"v":1,"ts":"2026-09-29T11:44:36.374121449Z","type":"connection.close","run":"r-220df7","pid":16770,"path":"direct","conn":1,"fields":{"bytes_down":1730,"bytes_up":754,"ms":6}}
+{"v":1,"ts":"2026-09-29T11:44:36.376011892Z","type":"connection.attempt","run":"r-220df7","pid":16770,"path":"direct","conn":2,"fields":{"host":"files.pythonhosted.org","port":443,"proto":"http-connect"}}
+{"v":1,"ts":"2026-09-29T11:44:36.376058545Z","type":"dns.query","run":"r-220df7","pid":16770,"path":"direct","conn":2,"fields":{"host":"files.pythonhosted.org"}}
+{"v":1,"ts":"2026-09-29T11:44:36.376284615Z","type":"dns.result","run":"r-220df7","pid":16770,"path":"direct","conn":2,"fields":{"host":"files.pythonhosted.org","ips":["151.101.0.223"],"ms":0}}
+{"v":1,"ts":"2026-09-29T11:44:36.376303073Z","type":"policy.allow","run":"r-220df7","pid":16770,"path":"direct","conn":2,"fields":{"reason":"files.pythonhosted.org matches allow rule \"files.pythonhosted.org\"","rule":"allow[1]","text":"files.pythonhosted.org"}}
+{"v":1,"ts":"2026-09-29T11:44:36.37635938Z","type":"connection.open","run":"r-220df7","pid":16770,"path":"direct","conn":2,"fields":{"host":"files.pythonhosted.org","ip":"151.101.0.223","ms":0}}
+{"v":1,"ts":"2026-09-29T11:44:36.38061769Z","type":"connection.close","run":"r-220df7","pid":16770,"path":"direct","conn":2,"fields":{"bytes_down":41745,"bytes_up":781,"ms":4}}
+{"v":1,"ts":"2026-09-29T11:44:36.380722932Z","type":"connection.attempt","run":"r-220df7","pid":16770,"path":"direct","conn":3,"fields":{"host":"tracker.office.internal","port":443,"proto":"http-connect"}}
+{"v":1,"ts":"2026-09-29T11:44:36.380821324Z","type":"dns.query","run":"r-220df7","pid":16770,"path":"direct","conn":3,"fields":{"host":"tracker.office.internal"}}
+{"v":1,"ts":"2026-09-29T11:44:36.38113185Z","type":"dns.result","run":"r-220df7","pid":16770,"path":"direct","conn":3,"fields":{"error":"no such host","host":"tracker.office.internal"}}
+{"v":1,"ts":"2026-09-29T11:44:36.381149359Z","type":"connection.error","run":"r-220df7","pid":16770,"path":"direct","conn":3,"fields":{"error":"dns: no such host"}}
+{"v":1,"ts":"2026-09-29T11:44:36.382661481Z","type":"connection.attempt","run":"r-220df7","pid":16770,"path":"direct","conn":4,"fields":{"host":"telemetry.example.com","port":443,"proto":"http-connect"}}
+{"v":1,"ts":"2026-09-29T11:44:36.382699681Z","type":"dns.query","run":"r-220df7","pid":16770,"path":"direct","conn":4,"fields":{"host":"telemetry.example.com"}}
+{"v":1,"ts":"2026-09-29T11:44:36.383227197Z","type":"dns.result","run":"r-220df7","pid":16770,"path":"direct","conn":4,"fields":{"host":"telemetry.example.com","ips":["93.184.215.14"],"ms":0}}
+{"v":1,"ts":"2026-09-29T11:44:36.383256351Z","type":"policy.allow","run":"r-220df7","pid":16770,"path":"direct","conn":4,"fields":{"reason":"telemetry.example.com matches allow rule \"telemetry.example.com\"","rule":"allow[2]","text":"telemetry.example.com"}}
+{"v":1,"ts":"2026-09-29T11:44:36.383369217Z","type":"connection.open","run":"r-220df7","pid":16770,"path":"direct","conn":4,"fields":{"host":"telemetry.example.com","ip":"93.184.215.14","ms":0}}
+{"v":1,"ts":"2026-09-29T11:44:36.387580359Z","type":"connection.attempt","run":"r-220df7","pid":16770,"path":"direct","conn":5,"fields":{"host":"evil.example","port":443,"proto":"http-connect"}}
+{"v":1,"ts":"2026-09-29T11:44:36.387611704Z","type":"policy.deny","run":"r-220df7","pid":16770,"path":"direct","conn":5,"fields":{"reason":"no allow rule matches evil.example:443; default is deny (set in the policy)","rule":"default"}}
+{"v":1,"ts":"2026-09-29T11:44:36.387655289Z","type":"connection.close","run":"r-220df7","pid":16770,"path":"direct","conn":4,"fields":{"bytes_down":1677,"bytes_up":854,"ms":4}}
+{"v":1,"ts":"2026-09-29T11:44:36.400267534Z","type":"process.exit","run":"r-220df7","pid":16770,"path":"direct","fields":{"code":0,"ms":83}}
+{"v":1,"ts":"2026-09-29T11:44:36.400345614Z","type":"run.end","run":"r-220df7","path":"direct","fields":{"allowed":3,"bytes_down":45152,"bytes_up":2389,"code":0,"connections":5,"denied":1,"failed":1,"opened":3}}

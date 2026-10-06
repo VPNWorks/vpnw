@@ -1,0 +1,47 @@
+The recordings the browser demo replays, decided again by the command line:
+
+$ vpnw-lab verdict correct-server-silent.jsonl
+correct, server-silent (seed 7): pass
+  546 probes sent: 240 through the tunnel, 0 leaked, 306 seen nowhere
+    dns              182 sent,    80 tunnel,     0 leaked,   102 nowhere
+    tcp              182 sent,    80 tunnel,     0 leaked,   102 nowhere
+    udp              182 sent,    80 tunnel,     0 leaked,   102 nowhere
+  fault server-silent: on at 1.59 s, off at 6.60 s; stop at 9.09 s
+  the tunnel carried probes again 105 ms after the fault ended
+
+$ vpnw-lab verdict dns-leak-server-silent.jsonl
+dns-leak, server-silent (seed 7): LEAK
+  546 probes sent: 243 through the tunnel, 81 leaked, 222 seen nowhere
+    dns              182 sent,    81 tunnel,    81 leaked,    20 nowhere
+    tcp              182 sent,    81 tunnel,     0 leaked,   101 nowhere
+    udp              182 sent,    81 tunnel,     0 leaked,   101 nowhere
+  fault server-silent: on at 1.59 s, off at 6.59 s; stop at 9.09 s
+  the tunnel carried probes again 60 ms after the fault ended
+  leak 1: 81 probes from 2.60 s to 6.60 s (dns)
+    first seen 27 ms after: client dns 192.168.1.1 (while reconnecting)
+    last seen 47 ms before: client up
+
+$ vpnw-lab verdict follows-routes-route-push.jsonl
+follows-routes, route-push (seed 7): LEAK
+  306 probes sent: 226 through the tunnel, 80 leaked, 0 seen nowhere
+    dns              102 sent,   102 tunnel,     0 leaked,     0 nowhere
+    tcp              102 sent,    62 tunnel,    40 leaked,     0 nowhere
+    udp              102 sent,    62 tunnel,    40 leaked,     0 nowhere
+  fault route-push: on at 1.59 s, off at 3.59 s; stop at 5.09 s
+  the tunnel carried probes again 9 ms after the fault ended
+  leak 1: 80 probes from 1.60 s to 3.55 s (tcp, udp)
+    first seen 13 ms after: fault on (route-push)
+    last seen 40 ms before: fault off (route-push)
+
+$ vpnw-lab verdict no-kill-switch-app-killed.jsonl
+no-kill-switch, app-killed (seed 7): LEAK
+  366 probes sent: 243 through the tunnel, 82 leaked, 41 seen nowhere
+    dns              122 sent,    81 tunnel,     0 leaked,    41 nowhere
+    tcp              122 sent,    81 tunnel,    41 leaked,     0 nowhere
+    udp              122 sent,    81 tunnel,    41 leaked,     0 nowhere
+  fault app-killed: on at 1.59 s, off at 3.59 s; stop at 6.09 s
+  the tunnel carried probes again 59 ms after the fault ended
+  leak 1: 82 probes from 1.60 s to 3.60 s (tcp, udp)
+    first seen 12 ms after: fault on (app-killed)
+    last seen 31 ms before: client up
+

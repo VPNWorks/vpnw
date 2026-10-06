@@ -1,0 +1,26 @@
+  [ 1] caught: *.example.com also matches badexample.com (the dot is dropped)
+  [ 2] caught: an exact rule for github.com also matches evilgithub.com
+  [ 3] caught: deny_private forgets the link-local range, where cloud metadata lives
+  [ 4] caught: deny_private is not checked on the addresses a name resolved to
+  [ 5] caught: with default allow, names are no longer resolved for deny_private
+  [ 6] caught: only the first address of a name is checked (DNS with a private second answer)
+  [ 7] caught: a private IPv4 address wrapped in NAT64 form (64:ff9b::/96) is let through
+  [ 8] caught: numeric host names such as 2130706433 (127.0.0.1) are accepted as names
+  [ 9] caught: a path that resolves at its exit silently weakens deny_private
+  [10] caught: the broker connects even when the policy says deny
+  [11] caught: proxy credentials are forwarded to the destination server
+  [12] caught: the SOCKS5 port stops asking for the per-run token
+  [13] caught: a configuration file of an unknown version is accepted
+  [14] caught: the sandbox starts even with a network interface other than loopback
+  [15] caught: the program keeps the capability the sandbox helper needed
+  [16] caught: the Unix-socket filter is never installed, so a program can reach the Docker socket
+  [17] caught: the filter checks the wrong address family and lets Unix sockets through
+  [18] caught: 32-bit system calls walk around the filter
+  [19] caught: a NO_PROXY setting survives and tells programs to go around vpnw
+  [20] caught: a proxy password appears in events and messages
+  [21] caught: learn allows destinations that were denied during the trace
+  [22] caught: the run summary stops counting connections that opened
+  [23] caught: guard exits 0 after a denial, so scripts and CI never notice
+  [24] caught: a dead proxy is not caught before the program starts
+
+24 of 24 planted bugs caught

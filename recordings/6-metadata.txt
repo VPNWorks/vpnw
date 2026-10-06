@@ -1,0 +1,7 @@
+$ vpnw guard --deny-private --default allow -- curl -s http://169.254.169.254/latest/meta-data/iam/
+vpnw 14:44:36.743  guard  run r-36e0ba  path direct  backend sealed  policy command line (default allow, 0 allow rules, 0 deny rules, deny_private true)
+vpnw 14:44:36.754  #1     DENY   169.254.169.254:80  169.254.169.254: link-local address (169.254.0.0/16), where cloud metadata services live
+vpnw: blocked 169.254.169.254:80 (deny_private: 169.254.169.254: link-local address (169.254.0.0/16), where cloud metadata services live)
+vpnw 14:44:36.758  exit   pid 16919  code 0  after 11 ms
+vpnw 14:44:36.758  summary  1 connection: 0 opened, 1 denied, 0 failed  sent 0 B  received 0 B
+[exit 120]

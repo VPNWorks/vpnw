@@ -1,0 +1,14 @@
+{"t":"2026-10-05T21:30:34.840370844Z","actor":"agent-1","what":"fetch","target":"http://api.partner.test/","result":"OK http://api.partner.test/ seen-from 198.51.100.10 at 51.15.0.10:80"}
+{"t":"2026-10-05T21:30:35.314457643Z","actor":"agent-2","what":"fetch","target":"http://files.partner.test/","result":"OK http://files.partner.test/ seen-from 198.51.100.11 at 51.15.0.11:80"}
+{"t":"2026-10-05T21:30:35.672852315Z","actor":"agent-1","what":"fetch","target":"http://www.partner.test:8080/","result":"OK http://www.partner.test:8080/ seen-from 198.51.100.10 at 51.15.0.12:8080"}
+{"t":"2026-10-05T21:30:36.029760549Z","actor":"agent-1","what":"fetch","target":"http://attacker.test/","result":"HTTP http://attacker.test/ 403 vpnw: blocked attacker.test:80 (default: no allow rule matches attacker.test:80; default is deny (set in the policy))"}
+{"t":"2026-10-05T21:30:36.382037883Z","actor":"agent-1","what":"fetch","target":"http://intranet.partner.test/","result":"HTTP http://intranet.partner.test/ 502 vpnw: cannot reach intranet.partner.test:80: the exit refused it (deny_private): intranet.partner.test resolved to 10.50.0.5: private network address (10.0.0.0/8)"}
+{"t":"2026-10-05T21:30:36.738177497Z","actor":"agent-2","what":"fetch","target":"http://api.partner.test/","result":"OK http://api.partner.test/ seen-from 198.51.100.11 at 51.15.0.10:80"}
+{"t":"2026-10-05T21:30:37.094854879Z","actor":"tampered","what":"http-connect","target":"169.254.169.254:80","result":"403 deny_private: 169.254.169.254: link-local address (169.254.0.0/16), where cloud metadata services live"}
+{"t":"2026-10-05T21:30:37.448623076Z","actor":"tampered","what":"http-connect","target":"attacker.test:443","result":"403 default: no allow rule matches attacker.test:443; default is deny (set in the policy)"}
+{"t":"2026-10-05T21:30:37.802165141Z","actor":"tampered","what":"socks5","target":"intranet.partner.test:80","result":"SOCKS5 reply 2"}
+{"t":"2026-10-05T21:30:38.157113295Z","actor":"exit-de","what":"killed","result":"SIGKILL"}
+{"t":"2026-10-05T21:30:38.507989104Z","actor":"agent-1","what":"fetch","target":"http://api.partner.test/","result":"OK http://api.partner.test/ seen-from 203.0.113.10 at 51.15.0.10:80"}
+{"t":"2026-10-05T21:30:38.868520564Z","actor":"agent-2","what":"fetch","target":"http://files.partner.test/","result":"OK http://files.partner.test/ seen-from 203.0.113.11 at 51.15.0.11:80"}
+{"t":"2026-10-05T21:30:39.236011678Z","actor":"agent-1","what":"fetch","target":"http://www.partner.test:8080/","result":"OK http://www.partner.test:8080/ seen-from 203.0.113.10 at 51.15.0.12:8080"}
+{"t":"2026-10-05T21:30:39.595939147Z","actor":"agent-2","what":"fetch","target":"http://api.partner.test/","result":"OK http://api.partner.test/ seen-from 203.0.113.11 at 51.15.0.10:80"}

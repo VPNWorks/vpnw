@@ -1,0 +1,56 @@
+{
+ "exit": "0.1.0",
+ "agent": "0.2.0",
+ "exits": {
+  "exit-de": {
+   "listen": "198.51.100.2:8443",
+   "clients": [
+    "agent-1: source 198.51.100.10; policy agent-1.toml (default deny, 2 allow rules, 0 deny rules, deny_private true)",
+    "agent-2: source 198.51.100.11; policy agent-2.toml (default deny, 2 allow rules, 0 deny rules, deny_private true)",
+    "ci: pool shared (2 addresses; it uses 198.51.100.21); policy ci.toml (default deny, 1 allow rule, 0 deny rules, deny_private false)"
+   ]
+  },
+  "exit-nl": {
+   "listen": "203.0.113.2:8443",
+   "clients": [
+    "agent-1: source 203.0.113.10; policy agent-1.toml (default deny, 2 allow rules, 0 deny rules, deny_private true)",
+    "agent-2: source 203.0.113.11; policy agent-2.toml (default deny, 2 allow rules, 0 deny rules, deny_private true)",
+    "ci: pool shared (2 addresses; it uses 203.0.113.21); policy ci.toml (default deny, 1 allow rule, 0 deny rules, deny_private false)"
+   ]
+  }
+ },
+ "decide": [
+  "169.254.169.254:80 | denied | deny_private | 169.254.169.254: link-local address (169.254.0.0/16), where cloud metadata services live | ",
+  "attacker.test:443 | denied | default | no allow rule matches attacker.test:443; default is deny (set in the policy) | ",
+  "intranet.partner.test:80 | denied | default | no allow rule matches intranet.partner.test:80; default is deny (set in the policy) | ",
+  "files.partner.test:80 | allow | allow[0] | files.partner.test matches allow rule \"files.partner.test\" | 198.51.100.11",
+  "api.partner.test:443 | denied | default | no allow rule matches api.partner.test:443; default is deny (set in the policy) | ",
+  "api.partner.test:80 | allow | allow[1] | api.partner.test matches allow rule \"api.partner.test:80\" | 198.51.100.11"
+ ],
+ "redecided": "12 of 12",
+ "join": {
+  "agent_connections": 10,
+  "via_exit": 9,
+  "decided_at_agent": 1,
+  "exit_connections": 12,
+  "other_runs": 3,
+  "joined": 9,
+  "complete": true,
+  "problems": [],
+  "rows": [
+   "r-4bca10 #1 api.partner.test:80: open | exit-de open from 198.51.100.10",
+   "r-4bca10 #2 www.partner.test:8080: open | exit-de open from 198.51.100.10",
+   "r-4bca10 #4 intranet.partner.test:80: failed: the exit refused it (deny_private): intranet.partner.test resolved to 10.50.0.5: private network address (10.0.0.0/8) | exit-de refused: deny_private",
+   "r-4bca10 #5 api.partner.test:80: open | exit-nl open from 203.0.113.10",
+   "r-4bca10 #6 www.partner.test:8080: open | exit-nl open from 203.0.113.10",
+   "r-f59128 #1 files.partner.test:80: open | exit-de open from 198.51.100.11",
+   "r-f59128 #2 api.partner.test:80: open | exit-de open from 198.51.100.11",
+   "r-f59128 #3 files.partner.test:80: open | exit-nl open from 203.0.113.11",
+   "r-f59128 #4 api.partner.test:80: open | exit-nl open from 203.0.113.11",
+   "no run ID #0 169.254.169.254:80: not in these records (no run ID) | exit-de refused: deny_private",
+   "no run ID #0 attacker.test:443: not in these records (no run ID) | exit-de refused: default",
+   "r-tampered #1 intranet.partner.test:80: not in these records (r-tampered) | exit-de refused: default"
+  ]
+ }
+}
+joined in 30 ms

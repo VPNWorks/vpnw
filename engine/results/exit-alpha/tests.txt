@@ -1,0 +1,6 @@
+test functions: 41 (41 passed, 0 failed, 0 skipped)
+with subtests: 71 (71 passed, 0 failed, 0 skipped)
+  vpnw.com/vpnw/cmd/vpnw-exit: 7
+  vpnw.com/vpnw/internal/exit: 11
+  vpnw.com/vpnw/internal/exit/server: 14
+  vpnw.com/vpnw/test/exit: 9

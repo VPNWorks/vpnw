@@ -1,0 +1,14 @@
+Ledger: 2599 lines of Go in 12 files (tests not counted)
+  cmd/vpnw-ledger              589 lines
+  internal/ledger/tamper       170 lines
+  wasm/ledger                  327 lines
+  internal/ledger (root)      1513 lines
+    hash.go                    212 lines
+    key.go                     161 lines
+    checkpoint.go              161 lines
+    file.go                    330 lines
+    verify.go                  277 lines
+    proof.go                   139 lines
+    seal.go                    233 lines
+  what verify and check-proof run, with the file formats and the parts seal shares (all of internal/ledger but seal.go): 1280 lines
+tests: 2610 lines of Go

@@ -1,0 +1,431 @@
+{"Time":"2026-09-29T14:45:42.107393265+03:00","Action":"start","Package":"vpnw.com/vpnw/cmd/vpnw"}
+{"Time":"2026-09-29T14:45:42.10746562+03:00","Action":"output","Package":"vpnw.com/vpnw/cmd/vpnw","Output":"?   \tvpnw.com/vpnw/cmd/vpnw\t[no test files]\n"}
+{"Time":"2026-09-29T14:45:42.107481439+03:00","Action":"skip","Package":"vpnw.com/vpnw/cmd/vpnw","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.341647232+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/broker"}
+{"Time":"2026-09-29T14:45:42.345097635+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestConnectAllowedAndTraced"}
+{"Time":"2026-09-29T14:45:42.345125667+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestConnectAllowedAndTraced","Output":"=== RUN   TestConnectAllowedAndTraced\n"}
+{"Time":"2026-09-29T14:45:42.35162407+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestConnectAllowedAndTraced","Output":"--- PASS: TestConnectAllowedAndTraced (0.01s)\n"}
+{"Time":"2026-09-29T14:45:42.351731021+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestConnectAllowedAndTraced","Elapsed":0.01}
+{"Time":"2026-09-29T14:45:42.351827627+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestConnectDenied"}
+{"Time":"2026-09-29T14:45:42.351835112+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestConnectDenied","Output":"=== RUN   TestConnectDenied\n"}
+{"Time":"2026-09-29T14:45:42.35277459+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestConnectDenied","Output":"--- PASS: TestConnectDenied (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.352842684+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestConnectDenied","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.352873142+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestDenyPrivateAfterDNS"}
+{"Time":"2026-09-29T14:45:42.352913988+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestDenyPrivateAfterDNS","Output":"=== RUN   TestDenyPrivateAfterDNS\n"}
+{"Time":"2026-09-29T14:45:42.353720452+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestDenyPrivateAfterDNS","Output":"--- PASS: TestDenyPrivateAfterDNS (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.353810336+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestDenyPrivateAfterDNS","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.353839112+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestPlainHTTPForward"}
+{"Time":"2026-09-29T14:45:42.353843725+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestPlainHTTPForward","Output":"=== RUN   TestPlainHTTPForward\n"}
+{"Time":"2026-09-29T14:45:42.355735268+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestPlainHTTPForward","Output":"--- PASS: TestPlainHTTPForward (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.355934606+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestPlainHTTPForward","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.355950279+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestSOCKS5"}
+{"Time":"2026-09-29T14:45:42.355954209+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestSOCKS5","Output":"=== RUN   TestSOCKS5\n"}
+{"Time":"2026-09-29T14:45:42.362146422+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestSOCKS5","Output":"--- PASS: TestSOCKS5 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.362171691+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestSOCKS5","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.362178404+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestSOCKS5UDPRefused"}
+{"Time":"2026-09-29T14:45:42.362181881+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestSOCKS5UDPRefused","Output":"=== RUN   TestSOCKS5UDPRefused\n"}
+{"Time":"2026-09-29T14:45:42.36218749+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestSOCKS5UDPRefused","Output":"--- PASS: TestSOCKS5UDPRefused (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.362203619+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestSOCKS5UDPRefused","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.362208239+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestProxyChainHTTPConnect"}
+{"Time":"2026-09-29T14:45:42.362211568+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestProxyChainHTTPConnect","Output":"=== RUN   TestProxyChainHTTPConnect\n"}
+{"Time":"2026-09-29T14:45:42.36221594+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestProxyChainHTTPConnect","Output":"--- PASS: TestProxyChainHTTPConnect (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.362223903+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestProxyChainHTTPConnect","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.36222768+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestMalformed"}
+{"Time":"2026-09-29T14:45:42.362231079+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestMalformed","Output":"=== RUN   TestMalformed\n"}
+{"Time":"2026-09-29T14:45:42.362235278+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestMalformed","Output":"--- PASS: TestMalformed (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.362239227+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestMalformed","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.362242593+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestInvalidHostDenied"}
+{"Time":"2026-09-29T14:45:42.362248615+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestInvalidHostDenied","Output":"=== RUN   TestInvalidHostDenied\n"}
+{"Time":"2026-09-29T14:45:42.362252859+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestInvalidHostDenied","Output":"--- PASS: TestInvalidHostDenied (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.362256314+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestInvalidHostDenied","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.362259565+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestToken"}
+{"Time":"2026-09-29T14:45:42.362262237+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestToken","Output":"=== RUN   TestToken\n"}
+{"Time":"2026-09-29T14:45:42.362268168+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestToken","Output":"--- PASS: TestToken (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.362271858+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestToken","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.362275451+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestDialFailure"}
+{"Time":"2026-09-29T14:45:42.362278559+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestDialFailure","Output":"=== RUN   TestDialFailure\n"}
+{"Time":"2026-09-29T14:45:42.367708848+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestDialFailure","Output":"--- PASS: TestDialFailure (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.367748625+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestDialFailure","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.367755358+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestOutcomesAddUp"}
+{"Time":"2026-09-29T14:45:42.367759068+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestOutcomesAddUp","Output":"=== RUN   TestOutcomesAddUp\n"}
+{"Time":"2026-09-29T14:45:42.410488793+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/config"}
+{"Time":"2026-09-29T14:45:42.412626916+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"TestArchitectureExample"}
+{"Time":"2026-09-29T14:45:42.412650227+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestArchitectureExample","Output":"=== RUN   TestArchitectureExample\n"}
+{"Time":"2026-09-29T14:45:42.413385194+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestArchitectureExample","Output":"--- PASS: TestArchitectureExample (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413396021+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"TestArchitectureExample","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413400576+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"TestSyntax"}
+{"Time":"2026-09-29T14:45:42.413403076+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestSyntax","Output":"=== RUN   TestSyntax\n"}
+{"Time":"2026-09-29T14:45:42.413406895+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestSyntax","Output":"--- PASS: TestSyntax (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413409641+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"TestSyntax","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413412169+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"TestErrors"}
+{"Time":"2026-09-29T14:45:42.413414007+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestErrors","Output":"=== RUN   TestErrors\n"}
+{"Time":"2026-09-29T14:45:42.41341739+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestErrors","Output":"--- PASS: TestErrors (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413419638+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"TestErrors","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413422075+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"TestLineNumbers"}
+{"Time":"2026-09-29T14:45:42.413424851+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestLineNumbers","Output":"=== RUN   TestLineNumbers\n"}
+{"Time":"2026-09-29T14:45:42.413430508+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestLineNumbers","Output":"--- PASS: TestLineNumbers (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413432901+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"TestLineNumbers","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413435244+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"TestMerge"}
+{"Time":"2026-09-29T14:45:42.413437901+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestMerge","Output":"=== RUN   TestMerge\n"}
+{"Time":"2026-09-29T14:45:42.413441095+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestMerge","Output":"--- PASS: TestMerge (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413443191+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"TestMerge","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.41344575+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"TestNamedNetwork"}
+{"Time":"2026-09-29T14:45:42.41344846+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestNamedNetwork","Output":"=== RUN   TestNamedNetwork\n"}
+{"Time":"2026-09-29T14:45:42.413451224+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"TestNamedNetwork","Output":"--- PASS: TestNamedNetwork (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413453882+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"TestNamedNetwork","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413456534+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse"}
+{"Time":"2026-09-29T14:45:42.41345827+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse","Output":"=== RUN   FuzzParse\n"}
+{"Time":"2026-09-29T14:45:42.413460287+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#0"}
+{"Time":"2026-09-29T14:45:42.413462935+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#0","Output":"=== RUN   FuzzParse/seed#0\n"}
+{"Time":"2026-09-29T14:45:42.413465395+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#0","Output":"--- PASS: FuzzParse/seed#0 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413472375+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#0","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413474582+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#1"}
+{"Time":"2026-09-29T14:45:42.413476426+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#1","Output":"=== RUN   FuzzParse/seed#1\n"}
+{"Time":"2026-09-29T14:45:42.41347885+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#1","Output":"--- PASS: FuzzParse/seed#1 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413481285+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#1","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413483497+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#2"}
+{"Time":"2026-09-29T14:45:42.413485882+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#2","Output":"=== RUN   FuzzParse/seed#2\n"}
+{"Time":"2026-09-29T14:45:42.41348827+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#2","Output":"--- PASS: FuzzParse/seed#2 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.41349032+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#2","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413494007+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#3"}
+{"Time":"2026-09-29T14:45:42.413527145+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#3","Output":"=== RUN   FuzzParse/seed#3\n"}
+{"Time":"2026-09-29T14:45:42.413531361+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#3","Output":"--- PASS: FuzzParse/seed#3 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413533879+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#3","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413536437+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#4"}
+{"Time":"2026-09-29T14:45:42.413538431+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#4","Output":"=== RUN   FuzzParse/seed#4\n"}
+{"Time":"2026-09-29T14:45:42.413540953+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#4","Output":"--- PASS: FuzzParse/seed#4 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413543225+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#4","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413545347+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#5"}
+{"Time":"2026-09-29T14:45:42.413546926+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#5","Output":"=== RUN   FuzzParse/seed#5\n"}
+{"Time":"2026-09-29T14:45:42.413549177+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#5","Output":"--- PASS: FuzzParse/seed#5 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413551107+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/seed#5","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413552992+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/771e938e4458e983"}
+{"Time":"2026-09-29T14:45:42.413554649+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/771e938e4458e983","Output":"=== RUN   FuzzParse/771e938e4458e983\n"}
+{"Time":"2026-09-29T14:45:42.413561627+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/771e938e4458e983","Output":"--- PASS: FuzzParse/771e938e4458e983 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413564082+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse/771e938e4458e983","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413566523+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse","Output":"--- PASS: FuzzParse (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.413571815+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Test":"FuzzParse","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.413573836+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Output":"PASS\n"}
+{"Time":"2026-09-29T14:45:42.413993152+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/config","Output":"ok  \tvpnw.com/vpnw/internal/config\t0.003s\n"}
+{"Time":"2026-09-29T14:45:42.414022792+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/config","Elapsed":0.004}
+{"Time":"2026-09-29T14:45:42.418280228+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestOutcomesAddUp","Output":"--- PASS: TestOutcomesAddUp (0.05s)\n"}
+{"Time":"2026-09-29T14:45:42.418594651+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestOutcomesAddUp","Elapsed":0.05}
+{"Time":"2026-09-29T14:45:42.418606155+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"TestPlanMatchesBroker"}
+{"Time":"2026-09-29T14:45:42.418609403+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestPlanMatchesBroker","Output":"=== RUN   TestPlanMatchesBroker\n"}
+{"Time":"2026-09-29T14:45:42.584290392+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/events"}
+{"Time":"2026-09-29T14:45:42.586699218+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/events","Test":"TestJSONLRoundTrip"}
+{"Time":"2026-09-29T14:45:42.586720811+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/events","Test":"TestJSONLRoundTrip","Output":"=== RUN   TestJSONLRoundTrip\n"}
+{"Time":"2026-09-29T14:45:42.586908835+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/events","Test":"TestJSONLRoundTrip","Output":"--- PASS: TestJSONLRoundTrip (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.587215681+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/events","Test":"TestJSONLRoundTrip","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.587228465+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/events","Test":"TestReadErrors"}
+{"Time":"2026-09-29T14:45:42.58723207+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/events","Test":"TestReadErrors","Output":"=== RUN   TestReadErrors\n"}
+{"Time":"2026-09-29T14:45:42.587239676+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/events","Test":"TestReadErrors","Output":"--- PASS: TestReadErrors (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.587244331+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/events","Test":"TestReadErrors","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.587251851+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/events","Test":"TestTextLevels"}
+{"Time":"2026-09-29T14:45:42.58725548+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/events","Test":"TestTextLevels","Output":"=== RUN   TestTextLevels\n"}
+{"Time":"2026-09-29T14:45:42.587260279+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/events","Test":"TestTextLevels","Output":"--- PASS: TestTextLevels (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.587264156+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/events","Test":"TestTextLevels","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.587267467+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/events","Test":"TestHumanBytes"}
+{"Time":"2026-09-29T14:45:42.587271084+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/events","Test":"TestHumanBytes","Output":"=== RUN   TestHumanBytes\n"}
+{"Time":"2026-09-29T14:45:42.587275246+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/events","Test":"TestHumanBytes","Output":"--- PASS: TestHumanBytes (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.587278856+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/events","Test":"TestHumanBytes","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.587282572+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/events","Output":"PASS\n"}
+{"Time":"2026-09-29T14:45:42.587566824+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/events","Output":"ok  \tvpnw.com/vpnw/internal/events\t0.003s\n"}
+{"Time":"2026-09-29T14:45:42.587596029+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/events","Elapsed":0.003}
+{"Time":"2026-09-29T14:45:42.804433583+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/learn"}
+{"Time":"2026-09-29T14:45:42.808776553+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearn"}
+{"Time":"2026-09-29T14:45:42.808814676+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearn","Output":"=== RUN   TestLearn\n"}
+{"Time":"2026-09-29T14:45:42.809227418+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearn","Output":"--- PASS: TestLearn (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.809260846+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearn","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.809272551+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearnPortsAndWildcards"}
+{"Time":"2026-09-29T14:45:42.810111807+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearnPortsAndWildcards","Output":"=== RUN   TestLearnPortsAndWildcards\n"}
+{"Time":"2026-09-29T14:45:42.810149955+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearnPortsAndWildcards","Output":"--- PASS: TestLearnPortsAndWildcards (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.810158255+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearnPortsAndWildcards","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.810162758+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearnEmpty"}
+{"Time":"2026-09-29T14:45:42.810166451+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearnEmpty","Output":"=== RUN   TestLearnEmpty\n"}
+{"Time":"2026-09-29T14:45:42.810171948+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearnEmpty","Output":"--- PASS: TestLearnEmpty (0.00s)\n"}
+{"Time":"2026-09-29T14:45:42.81017518+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/learn","Test":"TestLearnEmpty","Elapsed":0}
+{"Time":"2026-09-29T14:45:42.810179086+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/learn","Output":"PASS\n"}
+{"Time":"2026-09-29T14:45:42.810248405+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/learn","Output":"ok  \tvpnw.com/vpnw/internal/learn\t0.006s\n"}
+{"Time":"2026-09-29T14:45:42.810261448+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/learn","Elapsed":0.006}
+{"Time":"2026-09-29T14:45:43.036149834+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/path"}
+{"Time":"2026-09-29T14:45:43.039759046+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/path","Test":"TestFromURL"}
+{"Time":"2026-09-29T14:45:43.039782245+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestFromURL","Output":"=== RUN   TestFromURL\n"}
+{"Time":"2026-09-29T14:45:43.039810465+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestFromURL","Output":"--- PASS: TestFromURL (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.039813812+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/path","Test":"TestFromURL","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.039818213+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/path","Test":"TestPasswordsNeverShown"}
+{"Time":"2026-09-29T14:45:43.03982035+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestPasswordsNeverShown","Output":"=== RUN   TestPasswordsNeverShown\n"}
+{"Time":"2026-09-29T14:45:43.039824023+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestPasswordsNeverShown","Output":"--- PASS: TestPasswordsNeverShown (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.039827031+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/path","Test":"TestPasswordsNeverShown","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.039829565+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/path","Test":"TestFromSpecDNS"}
+{"Time":"2026-09-29T14:45:43.039832389+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestFromSpecDNS","Output":"=== RUN   TestFromSpecDNS\n"}
+{"Time":"2026-09-29T14:45:43.039846644+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestFromSpecDNS","Output":"--- PASS: TestFromSpecDNS (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.039853315+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/path","Test":"TestFromSpecDNS","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.039857097+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/path","Test":"TestDirectNeedsAnAddress"}
+{"Time":"2026-09-29T14:45:43.03986045+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestDirectNeedsAnAddress","Output":"=== RUN   TestDirectNeedsAnAddress\n"}
+{"Time":"2026-09-29T14:45:43.039864512+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestDirectNeedsAnAddress","Output":"--- PASS: TestDirectNeedsAnAddress (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.039868729+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/path","Test":"TestDirectNeedsAnAddress","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.039895726+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/path","Test":"TestSOCKS5Connect"}
+{"Time":"2026-09-29T14:45:43.039902128+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestSOCKS5Connect","Output":"=== RUN   TestSOCKS5Connect\n"}
+{"Time":"2026-09-29T14:45:43.041033299+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestSOCKS5Connect","Output":"--- PASS: TestSOCKS5Connect (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.041045345+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/path","Test":"TestSOCKS5Connect","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.041048896+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/path","Test":"TestHTTPConnect"}
+{"Time":"2026-09-29T14:45:43.041051142+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestHTTPConnect","Output":"=== RUN   TestHTTPConnect\n"}
+{"Time":"2026-09-29T14:45:43.041313716+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestHTTPConnect","Output":"--- PASS: TestHTTPConnect (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.041319436+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/path","Test":"TestHTTPConnect","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.041349768+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/path","Test":"TestHealth"}
+{"Time":"2026-09-29T14:45:43.041353699+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestHealth","Output":"=== RUN   TestHealth\n"}
+{"Time":"2026-09-29T14:45:43.041400083+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Test":"TestHealth","Output":"--- PASS: TestHealth (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.041404544+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/path","Test":"TestHealth","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.041840247+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Output":"PASS\n"}
+{"Time":"2026-09-29T14:45:43.041915747+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/path","Output":"ok  \tvpnw.com/vpnw/internal/path\t0.006s\n"}
+{"Time":"2026-09-29T14:45:43.041930997+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/path","Elapsed":0.006}
+{"Time":"2026-09-29T14:45:43.042467778+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/plan"}
+{"Time":"2026-09-29T14:45:43.042479299+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/plan","Output":"?   \tvpnw.com/vpnw/internal/plan\t[no test files]\n"}
+{"Time":"2026-09-29T14:45:43.042483258+03:00","Action":"skip","Package":"vpnw.com/vpnw/internal/plan","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.263098248+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/policy"}
+{"Time":"2026-09-29T14:45:43.266389898+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"TestNormalizeHost"}
+{"Time":"2026-09-29T14:45:43.266409502+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestNormalizeHost","Output":"=== RUN   TestNormalizeHost\n"}
+{"Time":"2026-09-29T14:45:43.266444226+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestNormalizeHost","Output":"--- PASS: TestNormalizeHost (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266447776+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"TestNormalizeHost","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266452084+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"TestParseRule"}
+{"Time":"2026-09-29T14:45:43.266454241+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestParseRule","Output":"=== RUN   TestParseRule\n"}
+{"Time":"2026-09-29T14:45:43.266457552+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestParseRule","Output":"--- PASS: TestParseRule (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266460097+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"TestParseRule","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266462442+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"TestDefaults"}
+{"Time":"2026-09-29T14:45:43.266464314+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestDefaults","Output":"=== RUN   TestDefaults\n"}
+{"Time":"2026-09-29T14:45:43.266467787+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestDefaults","Output":"--- PASS: TestDefaults (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266469766+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"TestDefaults","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266472018+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"TestDecide"}
+{"Time":"2026-09-29T14:45:43.266473811+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestDecide","Output":"=== RUN   TestDecide\n"}
+{"Time":"2026-09-29T14:45:43.266609521+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestDecide","Output":"--- PASS: TestDecide (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.26661411+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"TestDecide","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266616817+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"TestNeedsAddresses"}
+{"Time":"2026-09-29T14:45:43.266618917+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestNeedsAddresses","Output":"=== RUN   TestNeedsAddresses\n"}
+{"Time":"2026-09-29T14:45:43.266621738+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestNeedsAddresses","Output":"--- PASS: TestNeedsAddresses (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.2666242+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"TestNeedsAddresses","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266626462+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"TestRemoteDNSDecision"}
+{"Time":"2026-09-29T14:45:43.266628517+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestRemoteDNSDecision","Output":"=== RUN   TestRemoteDNSDecision\n"}
+{"Time":"2026-09-29T14:45:43.266631496+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestRemoteDNSDecision","Output":"--- PASS: TestRemoteDNSDecision (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266633939+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"TestRemoteDNSDecision","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266636324+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"TestPrivateRanges"}
+{"Time":"2026-09-29T14:45:43.266638094+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestPrivateRanges","Output":"=== RUN   TestPrivateRanges\n"}
+{"Time":"2026-09-29T14:45:43.266642549+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"TestPrivateRanges","Output":"--- PASS: TestPrivateRanges (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266644684+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"TestPrivateRanges","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266650017+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule"}
+{"Time":"2026-09-29T14:45:43.266651854+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule","Output":"=== RUN   FuzzParseRule\n"}
+{"Time":"2026-09-29T14:45:43.266654553+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#0"}
+{"Time":"2026-09-29T14:45:43.266656262+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#0","Output":"=== RUN   FuzzParseRule/seed#0\n"}
+{"Time":"2026-09-29T14:45:43.266855998+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#0","Output":"--- PASS: FuzzParseRule/seed#0 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266868891+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#0","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266872808+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#1"}
+{"Time":"2026-09-29T14:45:43.266874831+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#1","Output":"=== RUN   FuzzParseRule/seed#1\n"}
+{"Time":"2026-09-29T14:45:43.26688014+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#1","Output":"--- PASS: FuzzParseRule/seed#1 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266882838+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#1","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266885249+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#2"}
+{"Time":"2026-09-29T14:45:43.26688699+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#2","Output":"=== RUN   FuzzParseRule/seed#2\n"}
+{"Time":"2026-09-29T14:45:43.266889491+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#2","Output":"--- PASS: FuzzParseRule/seed#2 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.26689151+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#2","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266893556+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#3"}
+{"Time":"2026-09-29T14:45:43.266895223+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#3","Output":"=== RUN   FuzzParseRule/seed#3\n"}
+{"Time":"2026-09-29T14:45:43.266897346+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#3","Output":"--- PASS: FuzzParseRule/seed#3 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266899373+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#3","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266901273+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#4"}
+{"Time":"2026-09-29T14:45:43.266902886+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#4","Output":"=== RUN   FuzzParseRule/seed#4\n"}
+{"Time":"2026-09-29T14:45:43.266905063+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#4","Output":"--- PASS: FuzzParseRule/seed#4 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266907906+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#4","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266909878+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#5"}
+{"Time":"2026-09-29T14:45:43.266911531+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#5","Output":"=== RUN   FuzzParseRule/seed#5\n"}
+{"Time":"2026-09-29T14:45:43.26691378+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#5","Output":"--- PASS: FuzzParseRule/seed#5 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266915891+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule/seed#5","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266923312+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule","Output":"--- PASS: FuzzParseRule (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266925748+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzParseRule","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266927706+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzDecide"}
+{"Time":"2026-09-29T14:45:43.266929428+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzDecide","Output":"=== RUN   FuzzDecide\n"}
+{"Time":"2026-09-29T14:45:43.266931796+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzDecide/seed#0"}
+{"Time":"2026-09-29T14:45:43.266933444+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzDecide/seed#0","Output":"=== RUN   FuzzDecide/seed#0\n"}
+{"Time":"2026-09-29T14:45:43.266935689+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzDecide/seed#0","Output":"--- PASS: FuzzDecide/seed#0 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266937724+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzDecide/seed#0","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266939931+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzDecide","Output":"--- PASS: FuzzDecide (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.266941802+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Test":"FuzzDecide","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.266943805+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Output":"PASS\n"}
+{"Time":"2026-09-29T14:45:43.267213635+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/policy","Output":"ok  \tvpnw.com/vpnw/internal/policy\t0.004s\n"}
+{"Time":"2026-09-29T14:45:43.267227538+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/policy","Elapsed":0.004}
+{"Time":"2026-09-29T14:45:43.483965722+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/process"}
+{"Time":"2026-09-29T14:45:43.487176614+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/process","Test":"TestProxyEnv"}
+{"Time":"2026-09-29T14:45:43.487199121+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/process","Test":"TestProxyEnv","Output":"=== RUN   TestProxyEnv\n"}
+{"Time":"2026-09-29T14:45:43.487478551+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/process","Test":"TestProxyEnv","Output":"--- PASS: TestProxyEnv (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.487482471+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/process","Test":"TestProxyEnv","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.487486968+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/process","Test":"TestInterfacesOK"}
+{"Time":"2026-09-29T14:45:43.487508828+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/process","Test":"TestInterfacesOK","Output":"=== RUN   TestInterfacesOK\n"}
+{"Time":"2026-09-29T14:45:43.487515175+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/process","Test":"TestInterfacesOK","Output":"--- PASS: TestInterfacesOK (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.48755708+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/process","Test":"TestInterfacesOK","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.487560345+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/process","Test":"TestUnixSocketFilter"}
+{"Time":"2026-09-29T14:45:43.487562628+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/process","Test":"TestUnixSocketFilter","Output":"=== RUN   TestUnixSocketFilter\n"}
+{"Time":"2026-09-29T14:45:43.487568386+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/process","Test":"TestUnixSocketFilter","Output":"--- PASS: TestUnixSocketFilter (0.00s)\n"}
+{"Time":"2026-09-29T14:45:43.487570882+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/process","Test":"TestUnixSocketFilter","Elapsed":0}
+{"Time":"2026-09-29T14:45:43.48757363+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/process","Output":"PASS\n"}
+{"Time":"2026-09-29T14:45:43.487812464+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/process","Output":"ok  \tvpnw.com/vpnw/internal/process\t0.004s\n"}
+{"Time":"2026-09-29T14:45:43.487822509+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/process","Elapsed":0.004}
+{"Time":"2026-09-29T14:45:43.488485991+03:00","Action":"start","Package":"vpnw.com/vpnw/internal/version"}
+{"Time":"2026-09-29T14:45:43.490396056+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/version","Output":"?   \tvpnw.com/vpnw/internal/version\t[no test files]\n"}
+{"Time":"2026-09-29T14:45:43.490430563+03:00","Action":"skip","Package":"vpnw.com/vpnw/internal/version","Elapsed":0.002}
+{"Time":"2026-09-29T14:45:43.717323032+03:00","Action":"start","Package":"vpnw.com/vpnw/test/integration"}
+{"Time":"2026-09-29T14:45:44.272976575+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix"}
+{"Time":"2026-09-29T14:45:44.273015907+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix","Output":"=== RUN   TestBypassMatrix\n"}
+{"Time":"2026-09-29T14:45:44.283106727+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_this_machine's_loopback_(127.0.0.1)"}
+{"Time":"2026-09-29T14:45:44.283143043+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_this_machine's_loopback_(127.0.0.1)","Output":"=== RUN   TestBypassMatrix/IPv4_TCP_to_this_machine's_loopback_(127.0.0.1)\n"}
+{"Time":"2026-09-29T14:45:44.353255795+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_this_machine's_loopback_(127.0.0.1)","Output":"--- PASS: TestBypassMatrix/IPv4_TCP_to_this_machine's_loopback_(127.0.0.1) (0.07s)\n"}
+{"Time":"2026-09-29T14:45:44.353287331+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_this_machine's_loopback_(127.0.0.1)","Elapsed":0.07}
+{"Time":"2026-09-29T14:45:44.353298121+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_this_machine's_own_address_(192.0.2.2)"}
+{"Time":"2026-09-29T14:45:44.353300989+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_this_machine's_own_address_(192.0.2.2)","Output":"=== RUN   TestBypassMatrix/IPv4_TCP_to_this_machine's_own_address_(192.0.2.2)\n"}
+{"Time":"2026-09-29T14:45:44.429664106+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_this_machine's_own_address_(192.0.2.2)","Output":"--- PASS: TestBypassMatrix/IPv4_TCP_to_this_machine's_own_address_(192.0.2.2) (0.08s)\n"}
+{"Time":"2026-09-29T14:45:44.429752093+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_this_machine's_own_address_(192.0.2.2)","Elapsed":0.08}
+{"Time":"2026-09-29T14:45:44.429801771+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_a_public_address_(1.1.1.1:443)"}
+{"Time":"2026-09-29T14:45:44.429806211+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_a_public_address_(1.1.1.1:443)","Output":"=== RUN   TestBypassMatrix/IPv4_TCP_to_a_public_address_(1.1.1.1:443)\n"}
+{"Time":"2026-09-29T14:45:44.527063654+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_a_public_address_(1.1.1.1:443)","Output":"--- PASS: TestBypassMatrix/IPv4_TCP_to_a_public_address_(1.1.1.1:443) (0.10s)\n"}
+{"Time":"2026-09-29T14:45:44.527098784+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_a_public_address_(1.1.1.1:443)","Elapsed":0.1}
+{"Time":"2026-09-29T14:45:44.527150215+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_a_private_address_(10.0.0.1:80)"}
+{"Time":"2026-09-29T14:45:44.527162489+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_a_private_address_(10.0.0.1:80)","Output":"=== RUN   TestBypassMatrix/IPv4_TCP_to_a_private_address_(10.0.0.1:80)\n"}
+{"Time":"2026-09-29T14:45:44.581470777+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_a_private_address_(10.0.0.1:80)","Output":"--- PASS: TestBypassMatrix/IPv4_TCP_to_a_private_address_(10.0.0.1:80) (0.05s)\n"}
+{"Time":"2026-09-29T14:45:44.581530414+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_a_private_address_(10.0.0.1:80)","Elapsed":0.05}
+{"Time":"2026-09-29T14:45:44.581536814+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_cloud_metadata_(169.254.169.254:80)"}
+{"Time":"2026-09-29T14:45:44.581539163+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_cloud_metadata_(169.254.169.254:80)","Output":"=== RUN   TestBypassMatrix/IPv4_TCP_to_cloud_metadata_(169.254.169.254:80)\n"}
+{"Time":"2026-09-29T14:45:44.630434831+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_cloud_metadata_(169.254.169.254:80)","Output":"--- PASS: TestBypassMatrix/IPv4_TCP_to_cloud_metadata_(169.254.169.254:80) (0.05s)\n"}
+{"Time":"2026-09-29T14:45:44.630469003+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv4_TCP_to_cloud_metadata_(169.254.169.254:80)","Elapsed":0.05}
+{"Time":"2026-09-29T14:45:44.630555328+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/UDP_to_this_machine's_own_address"}
+{"Time":"2026-09-29T14:45:44.630558821+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/UDP_to_this_machine's_own_address","Output":"=== RUN   TestBypassMatrix/UDP_to_this_machine's_own_address\n"}
+{"Time":"2026-09-29T14:45:44.722791583+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/UDP_to_this_machine's_own_address","Output":"--- PASS: TestBypassMatrix/UDP_to_this_machine's_own_address (0.09s)\n"}
+{"Time":"2026-09-29T14:45:44.7228369+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/UDP_to_this_machine's_own_address","Elapsed":0.09}
+{"Time":"2026-09-29T14:45:44.722845375+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/UDP_to_a_public_DNS_resolver_(8.8.8.8:53)"}
+{"Time":"2026-09-29T14:45:44.722853858+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/UDP_to_a_public_DNS_resolver_(8.8.8.8:53)","Output":"=== RUN   TestBypassMatrix/UDP_to_a_public_DNS_resolver_(8.8.8.8:53)\n"}
+{"Time":"2026-09-29T14:45:44.769429436+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/UDP_to_a_public_DNS_resolver_(8.8.8.8:53)","Output":"--- PASS: TestBypassMatrix/UDP_to_a_public_DNS_resolver_(8.8.8.8:53) (0.05s)\n"}
+{"Time":"2026-09-29T14:45:44.76953197+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/UDP_to_a_public_DNS_resolver_(8.8.8.8:53)","Elapsed":0.05}
+{"Time":"2026-09-29T14:45:44.769618237+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/DNS_lookup_through_the_system_resolver"}
+{"Time":"2026-09-29T14:45:44.769623023+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/DNS_lookup_through_the_system_resolver","Output":"=== RUN   TestBypassMatrix/DNS_lookup_through_the_system_resolver\n"}
+{"Time":"2026-09-29T14:45:44.815062791+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/DNS_lookup_through_the_system_resolver","Output":"--- PASS: TestBypassMatrix/DNS_lookup_through_the_system_resolver (0.05s)\n"}
+{"Time":"2026-09-29T14:45:44.815105791+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/DNS_lookup_through_the_system_resolver","Elapsed":0.05}
+{"Time":"2026-09-29T14:45:44.815122089+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Raw_IP_socket_(ICMP_echo_to_1.1.1.1)"}
+{"Time":"2026-09-29T14:45:44.815124482+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Raw_IP_socket_(ICMP_echo_to_1.1.1.1)","Output":"=== RUN   TestBypassMatrix/Raw_IP_socket_(ICMP_echo_to_1.1.1.1)\n"}
+{"Time":"2026-09-29T14:45:44.862559175+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Raw_IP_socket_(ICMP_echo_to_1.1.1.1)","Output":"--- PASS: TestBypassMatrix/Raw_IP_socket_(ICMP_echo_to_1.1.1.1) (0.05s)\n"}
+{"Time":"2026-09-29T14:45:44.862602236+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Raw_IP_socket_(ICMP_echo_to_1.1.1.1)","Elapsed":0.05}
+{"Time":"2026-09-29T14:45:44.862612984+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/A_child_process_connecting_on_its_own"}
+{"Time":"2026-09-29T14:45:44.862616524+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/A_child_process_connecting_on_its_own","Output":"=== RUN   TestBypassMatrix/A_child_process_connecting_on_its_own\n"}
+{"Time":"2026-09-29T14:45:44.956310495+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/A_child_process_connecting_on_its_own","Output":"--- PASS: TestBypassMatrix/A_child_process_connecting_on_its_own (0.09s)\n"}
+{"Time":"2026-09-29T14:45:44.956345311+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/A_child_process_connecting_on_its_own","Elapsed":0.09}
+{"Time":"2026-09-29T14:45:44.956351595+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Abstract_Unix_socket_(@vpnw-bypass)"}
+{"Time":"2026-09-29T14:45:44.956354297+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Abstract_Unix_socket_(@vpnw-bypass)","Output":"=== RUN   TestBypassMatrix/Abstract_Unix_socket_(@vpnw-bypass)\n"}
+{"Time":"2026-09-29T14:45:45.047918479+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Abstract_Unix_socket_(@vpnw-bypass)","Output":"--- PASS: TestBypassMatrix/Abstract_Unix_socket_(@vpnw-bypass) (0.09s)\n"}
+{"Time":"2026-09-29T14:45:45.048542483+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Abstract_Unix_socket_(@vpnw-bypass)","Elapsed":0.09}
+{"Time":"2026-09-29T14:45:45.048555203+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Unix_socket_in_the_file_system_(like_the_Docker_socket)"}
+{"Time":"2026-09-29T14:45:45.048558397+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Unix_socket_in_the_file_system_(like_the_Docker_socket)","Output":"=== RUN   TestBypassMatrix/Unix_socket_in_the_file_system_(like_the_Docker_socket)\n"}
+{"Time":"2026-09-29T14:45:45.123668079+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Unix_socket_in_the_file_system_(like_the_Docker_socket)","Output":"--- PASS: TestBypassMatrix/Unix_socket_in_the_file_system_(like_the_Docker_socket) (0.08s)\n"}
+{"Time":"2026-09-29T14:45:45.123702641+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/Unix_socket_in_the_file_system_(like_the_Docker_socket)","Elapsed":0.08}
+{"Time":"2026-09-29T14:45:45.123708898+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/io_uring,_which_can_create_sockets_without_socket()"}
+{"Time":"2026-09-29T14:45:45.123711773+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/io_uring,_which_can_create_sockets_without_socket()","Output":"=== RUN   TestBypassMatrix/io_uring,_which_can_create_sockets_without_socket()\n"}
+{"Time":"2026-09-29T14:45:45.198963867+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/io_uring,_which_can_create_sockets_without_socket()","Output":"--- PASS: TestBypassMatrix/io_uring,_which_can_create_sockets_without_socket() (0.08s)\n"}
+{"Time":"2026-09-29T14:45:45.19902552+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/io_uring,_which_can_create_sockets_without_socket()","Elapsed":0.08}
+{"Time":"2026-09-29T14:45:45.199034967+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv6_TCP_to_loopback_(::1)"}
+{"Time":"2026-09-29T14:45:45.199039721+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv6_TCP_to_loopback_(::1)","Output":"=== RUN   TestBypassMatrix/IPv6_TCP_to_loopback_(::1)\n"}
+{"Time":"2026-09-29T14:45:45.199043814+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv6_TCP_to_loopback_(::1)","Output":"    bypass_test.go:295: this machine's kernel has no IPv6\n"}
+{"Time":"2026-09-29T14:45:45.199076522+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv6_TCP_to_loopback_(::1)","Output":"--- SKIP: TestBypassMatrix/IPv6_TCP_to_loopback_(::1) (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.199111528+03:00","Action":"skip","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv6_TCP_to_loopback_(::1)","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.19929105+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv6_TCP_to_a_public_address_(2606:4700:4700::1111)"}
+{"Time":"2026-09-29T14:45:45.199295972+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv6_TCP_to_a_public_address_(2606:4700:4700::1111)","Output":"=== RUN   TestBypassMatrix/IPv6_TCP_to_a_public_address_(2606:4700:4700::1111)\n"}
+{"Time":"2026-09-29T14:45:45.199298946+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv6_TCP_to_a_public_address_(2606:4700:4700::1111)","Output":"    bypass_test.go:295: this machine's kernel has no IPv6\n"}
+{"Time":"2026-09-29T14:45:45.199303112+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv6_TCP_to_a_public_address_(2606:4700:4700::1111)","Output":"--- SKIP: TestBypassMatrix/IPv6_TCP_to_a_public_address_(2606:4700:4700::1111) (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.199306152+03:00","Action":"skip","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/IPv6_TCP_to_a_public_address_(2606:4700:4700::1111)","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.199405852+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/An_x32_system_call_(a_second_system_call_table)"}
+{"Time":"2026-09-29T14:45:45.199410151+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/An_x32_system_call_(a_second_system_call_table)","Output":"=== RUN   TestBypassMatrix/An_x32_system_call_(a_second_system_call_table)\n"}
+{"Time":"2026-09-29T14:45:45.288332505+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/An_x32_system_call_(a_second_system_call_table)","Output":"--- PASS: TestBypassMatrix/An_x32_system_call_(a_second_system_call_table) (0.09s)\n"}
+{"Time":"2026-09-29T14:45:45.288415558+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix/An_x32_system_call_(a_second_system_call_table)","Elapsed":0.09}
+{"Time":"2026-09-29T14:45:45.288628745+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix","Output":"--- PASS: TestBypassMatrix (1.02s)\n"}
+{"Time":"2026-09-29T14:45:45.288652985+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestBypassMatrix","Elapsed":1.02}
+{"Time":"2026-09-29T14:45:45.288788269+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestSealedRoutesThroughBroker"}
+{"Time":"2026-09-29T14:45:45.288835826+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestSealedRoutesThroughBroker","Output":"=== RUN   TestSealedRoutesThroughBroker\n"}
+{"Time":"2026-09-29T14:45:45.395592466+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestSealedRoutesThroughBroker","Output":"--- PASS: TestSealedRoutesThroughBroker (0.11s)\n"}
+{"Time":"2026-09-29T14:45:45.395651743+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestSealedRoutesThroughBroker","Elapsed":0.11}
+{"Time":"2026-09-29T14:45:45.39565929+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestGuardDeniesAndExit"}
+{"Time":"2026-09-29T14:45:45.395662067+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestGuardDeniesAndExit","Output":"=== RUN   TestGuardDeniesAndExit\n"}
+{"Time":"2026-09-29T14:45:45.455669412+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"TestPlanMatchesBroker","Output":"--- PASS: TestPlanMatchesBroker (3.04s)\n"}
+{"Time":"2026-09-29T14:45:45.455779373+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"TestPlanMatchesBroker","Elapsed":3.04}
+{"Time":"2026-09-29T14:45:45.455805203+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle"}
+{"Time":"2026-09-29T14:45:45.455808826+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle","Output":"=== RUN   FuzzHandle\n"}
+{"Time":"2026-09-29T14:45:45.456415955+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#0"}
+{"Time":"2026-09-29T14:45:45.456425254+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#0","Output":"=== RUN   FuzzHandle/seed#0\n"}
+{"Time":"2026-09-29T14:45:45.456433012+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#0","Output":"--- PASS: FuzzHandle/seed#0 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.456435995+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#0","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.456439138+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#1"}
+{"Time":"2026-09-29T14:45:45.456441229+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#1","Output":"=== RUN   FuzzHandle/seed#1\n"}
+{"Time":"2026-09-29T14:45:45.456443898+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#1","Output":"--- PASS: FuzzHandle/seed#1 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.456446456+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#1","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.456448775+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#2"}
+{"Time":"2026-09-29T14:45:45.456516743+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#2","Output":"=== RUN   FuzzHandle/seed#2\n"}
+{"Time":"2026-09-29T14:45:45.456522076+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#2","Output":"--- PASS: FuzzHandle/seed#2 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.456524717+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#2","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.456527207+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#3"}
+{"Time":"2026-09-29T14:45:45.456529247+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#3","Output":"=== RUN   FuzzHandle/seed#3\n"}
+{"Time":"2026-09-29T14:45:45.456531996+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#3","Output":"--- PASS: FuzzHandle/seed#3 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.456534511+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#3","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.456545089+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#4"}
+{"Time":"2026-09-29T14:45:45.456547059+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#4","Output":"=== RUN   FuzzHandle/seed#4\n"}
+{"Time":"2026-09-29T14:45:45.456549682+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#4","Output":"--- PASS: FuzzHandle/seed#4 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.456551855+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#4","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.456553937+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#5"}
+{"Time":"2026-09-29T14:45:45.456555699+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#5","Output":"=== RUN   FuzzHandle/seed#5\n"}
+{"Time":"2026-09-29T14:45:45.45655784+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#5","Output":"--- PASS: FuzzHandle/seed#5 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.456559972+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#5","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.456561876+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#6"}
+{"Time":"2026-09-29T14:45:45.456563623+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#6","Output":"=== RUN   FuzzHandle/seed#6\n"}
+{"Time":"2026-09-29T14:45:45.456565777+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#6","Output":"--- PASS: FuzzHandle/seed#6 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.456568775+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#6","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.456570801+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#7"}
+{"Time":"2026-09-29T14:45:45.456572361+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#7","Output":"=== RUN   FuzzHandle/seed#7\n"}
+{"Time":"2026-09-29T14:45:45.456574871+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#7","Output":"--- PASS: FuzzHandle/seed#7 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.456618927+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#7","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.456621587+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#8"}
+{"Time":"2026-09-29T14:45:45.456623608+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#8","Output":"=== RUN   FuzzHandle/seed#8\n"}
+{"Time":"2026-09-29T14:45:45.456626333+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#8","Output":"--- PASS: FuzzHandle/seed#8 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.456628438+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#8","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.456630553+03:00","Action":"run","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#9"}
+{"Time":"2026-09-29T14:45:45.456632387+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#9","Output":"=== RUN   FuzzHandle/seed#9\n"}
+{"Time":"2026-09-29T14:45:45.456634918+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#9","Output":"--- PASS: FuzzHandle/seed#9 (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.456636887+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle/seed#9","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.456639537+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle","Output":"--- PASS: FuzzHandle (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.456641856+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Test":"FuzzHandle","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.456646964+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Output":"PASS\n"}
+{"Time":"2026-09-29T14:45:45.458675087+03:00","Action":"output","Package":"vpnw.com/vpnw/internal/broker","Output":"ok  \tvpnw.com/vpnw/internal/broker\t3.116s\n"}
+{"Time":"2026-09-29T14:45:45.458696508+03:00","Action":"pass","Package":"vpnw.com/vpnw/internal/broker","Elapsed":3.117}
+{"Time":"2026-09-29T14:45:45.497006627+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestGuardDeniesAndExit","Output":"--- PASS: TestGuardDeniesAndExit (0.10s)\n"}
+{"Time":"2026-09-29T14:45:45.497039058+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestGuardDeniesAndExit","Elapsed":0.1}
+{"Time":"2026-09-29T14:45:45.497047864+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestExitCodePreserved"}
+{"Time":"2026-09-29T14:45:45.497052101+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestExitCodePreserved","Output":"=== RUN   TestExitCodePreserved\n"}
+{"Time":"2026-09-29T14:45:45.517349873+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestExitCodePreserved","Output":"--- PASS: TestExitCodePreserved (0.02s)\n"}
+{"Time":"2026-09-29T14:45:45.51737897+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestExitCodePreserved","Elapsed":0.02}
+{"Time":"2026-09-29T14:45:45.517385693+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestUnknownCommand"}
+{"Time":"2026-09-29T14:45:45.517388183+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestUnknownCommand","Output":"=== RUN   TestUnknownCommand\n"}
+{"Time":"2026-09-29T14:45:45.521108044+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestUnknownCommand","Output":"--- PASS: TestUnknownCommand (0.00s)\n"}
+{"Time":"2026-09-29T14:45:45.521135582+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestUnknownCommand","Elapsed":0}
+{"Time":"2026-09-29T14:45:45.521140911+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestStdinPassthrough"}
+{"Time":"2026-09-29T14:45:45.521143911+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestStdinPassthrough","Output":"=== RUN   TestStdinPassthrough\n"}
+{"Time":"2026-09-29T14:45:45.541987925+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestStdinPassthrough","Output":"--- PASS: TestStdinPassthrough (0.02s)\n"}
+{"Time":"2026-09-29T14:45:45.542124998+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestStdinPassthrough","Elapsed":0.02}
+{"Time":"2026-09-29T14:45:45.542136055+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestAllowUnixSocketsFlag"}
+{"Time":"2026-09-29T14:45:45.542138736+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestAllowUnixSocketsFlag","Output":"=== RUN   TestAllowUnixSocketsFlag\n"}
+{"Time":"2026-09-29T14:45:45.65100077+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestAllowUnixSocketsFlag","Output":"--- PASS: TestAllowUnixSocketsFlag (0.11s)\n"}
+{"Time":"2026-09-29T14:45:45.651031663+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestAllowUnixSocketsFlag","Elapsed":0.11}
+{"Time":"2026-09-29T14:45:45.651039389+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestSocketpairStillWorks"}
+{"Time":"2026-09-29T14:45:45.65104195+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestSocketpairStillWorks","Output":"=== RUN   TestSocketpairStillWorks\n"}
+{"Time":"2026-09-29T14:45:45.701538243+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestSocketpairStillWorks","Output":"--- PASS: TestSocketpairStillWorks (0.05s)\n"}
+{"Time":"2026-09-29T14:45:45.701571861+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestSocketpairStillWorks","Elapsed":0.05}
+{"Time":"2026-09-29T14:45:45.701590454+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestDeadPathRefused"}
+{"Time":"2026-09-29T14:45:45.701593179+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestDeadPathRefused","Output":"=== RUN   TestDeadPathRefused\n"}
+{"Time":"2026-09-29T14:45:45.707227413+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestDeadPathRefused","Output":"--- PASS: TestDeadPathRefused (0.01s)\n"}
+{"Time":"2026-09-29T14:45:45.707261003+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestDeadPathRefused","Elapsed":0.01}
+{"Time":"2026-09-29T14:45:45.707267249+03:00","Action":"run","Package":"vpnw.com/vpnw/test/integration","Test":"TestUnprivilegedWorkloadHasNoCapabilities"}
+{"Time":"2026-09-29T14:45:45.707269726+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestUnprivilegedWorkloadHasNoCapabilities","Output":"=== RUN   TestUnprivilegedWorkloadHasNoCapabilities\n"}
+{"Time":"2026-09-29T14:45:45.767043682+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Test":"TestUnprivilegedWorkloadHasNoCapabilities","Output":"--- PASS: TestUnprivilegedWorkloadHasNoCapabilities (0.06s)\n"}
+{"Time":"2026-09-29T14:45:45.767080502+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Test":"TestUnprivilegedWorkloadHasNoCapabilities","Elapsed":0.06}
+{"Time":"2026-09-29T14:45:45.767086836+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Output":"PASS\n"}
+{"Time":"2026-09-29T14:45:45.768995283+03:00","Action":"output","Package":"vpnw.com/vpnw/test/integration","Output":"ok  \tvpnw.com/vpnw/test/integration\t2.052s\n"}
+{"Time":"2026-09-29T14:45:45.769052647+03:00","Action":"pass","Package":"vpnw.com/vpnw/test/integration","Elapsed":2.052}

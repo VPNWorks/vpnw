@@ -1,0 +1,9 @@
+VPN Works
+Copyright VPNW.com 2026
+
+This product includes software developed at VPNW.com (https://vpnw.com/).
+
+The browser engines in web/ (the engine*.js files) are VPN Works code
+compiled to WebAssembly with TinyGo. They include parts of the Go standard
+library, the TinyGo runtime and loader, and wasi-libc, which includes code
+from musl. Their licenses are in web/THIRD-PARTY-LICENSES.txt.

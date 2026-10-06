@@ -1,0 +1,19 @@
+exit: vpnw-exit 0.1.0 (linux/amd64, go1.24.7)
+host: 6.18.44-fc-v70 x86_64 cpus: 2
+client: Python 3.11.15 with OpenSSL 3.0.13 30 Jan 2024
+
+per connection, 1000 sequential requests on new connections, median of 3 runs
+  bare                                  581.4 ms total, 0.581 ms each
+  through the exit, full TLS           2625.3 ms total, 2.625 ms each   (+2.044 ms per connection)
+  through the exit, resumed session    2291.1 ms total, 2.291 ms each   (+1.710 ms per connection; 2999 of 3000 sessions resumed)
+  TLS version: TLSv1.3; each request: TCP, TLS, CONNECT with the token, the exit's decision and its dial from
+  the client's source address, then one small HTTP request through the tunnel
+
+bulk, one 100 MB download, median of 3 runs
+  bare                 1977 MB/s  (104857739 bytes each run, intact)
+  through the exit      777 MB/s  (104857739 bytes each run, intact)
+
+memory, 200 clients connected at once, each with an open tunnel (TLS, CONNECT, a held connection), highest of 3 runs
+  exit, idle            11.7 MB
+  exit, 200 clients     23.1 MB
+  per connected client   58.0 KB

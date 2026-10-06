@@ -1,0 +1,196 @@
+<!doctype html>
+<!-- Copyright VPNW.com 2026
+     SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VPN Works Ledger Live Demo</title>
+<meta name="description" content="A real record of an AI agent's connections, sealed in your browser by Ledger's own code. Change a line, delete one or cut the end, and the check names the line. Then prove one connection with the public key alone.">
+<meta name="robots" content="noindex, follow">
+<base target="_top">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231F3A5F'/%3E%3Cpath d='M8 9l8 15 8-15' stroke='%2350C4CC' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<script>if (window.self !== window.top) document.documentElement.className += ' embedded';</script>
+<link rel="stylesheet" href="ledger.v1.css">
+</head>
+<body>
+
+<header class="appbar">
+  <div class="wrap">
+    <a class="brand" href="https://vpnw.com/">VPN Works</a>
+    <span class="tag">Ledger live demo</span>
+    <span class="grow"></span>
+    <a class="home" href="https://vpnw.com/">vpnw.com</a>
+  </div>
+</header>
+
+<main>
+  <noscript><div class="wrap"><p class="noscript">This demo needs JavaScript switched on.</p></div></noscript>
+
+  <div class="wrap">
+    <section class="intro">
+      <h1>Where did the agent send data? A record you can check.</h1>
+      <p class="lead">A coding agent ran a task under VPN Works. A poisoned task file told it to send a deploy token to evil.example, and it did. vpnw's trace recorded every connection. Ledger seals that trace, so nobody can change a line, delete one or cut the end without the check naming the line. Every hash and verdict below is computed in this page by Ledger's own code.</p>
+      <p class="status" id="status" role="status">Loading Ledger's engine</p>
+    </section>
+
+    <nav class="steps" id="steps" aria-label="Steps">
+      <button type="button" data-step="1"><b>Step 1</b><span>The record</span></button>
+      <button type="button" data-step="2"><b>Step 2</b><span>Seal it</span></button>
+      <button type="button" data-step="3"><b>Step 3</b><span>Change it</span></button>
+      <button type="button" data-step="4"><b>Step 4</b><span>Every kind of change</span></button>
+      <button type="button" data-step="5"><b>Step 5</b><span>Prove one connection</span></button>
+      <button type="button" data-step="6"><b>Step 6</b><span>Cut at a checkpoint</span></button>
+    </nav>
+
+    <section class="stage" aria-live="polite">
+
+      <div class="scene" id="scene-1" data-step="1">
+        <p class="eyebrow">Step 1 of 6</p>
+        <h2>The record: one line per event, no content</h2>
+        <p class="scene-text">This is the trace vpnw wrote during one run of the agent, on a Linux machine, on September 29, 2026. Each line is one JSON event: a connection tried, a DNS answer, a connection opened or closed. There's no content in it: no request, no reply, no token. Only who connected where, when, and how many bytes went each way.</p>
+        <div class="tiles" id="record-tiles"></div>
+        <div class="lines tall" id="trace-list" tabindex="0" aria-label="The trace, line by line"></div>
+        <p class="scene-outro">Lines 22 to 26 are the agent's connection to evil.example, where the token went. Anyone who wants that forgotten has two files to edit: this one, and the ledger next to it. Step 3 tries.</p>
+      </div>
+
+      <div class="scene" id="scene-2" data-step="2" hidden>
+        <p class="eyebrow">Step 2 of 6</p>
+        <h2>Seal it</h2>
+        <p class="scene-text">Ledger leaves the record as it is and writes a second file next to it, the ledger: a line per record with its SHA-256 hash, and after every 8 records a checkpoint signed with Ed25519. A checkpoint covers every record before it twice, by the root of a Merkle tree and by a hash chain, and it carries the hash of the checkpoint before it. The key was made in this page, from your browser's random numbers, when the page loaded. It never leaves the page.</p>
+        <div class="tiles" id="seal-tiles"></div>
+        <div class="lab-grid">
+          <div>
+            <h3>1-trace-1.jsonl.ledger <small>checkpoints in teal</small></h3>
+            <div class="lines ledger" id="ledger-view" tabindex="0" aria-label="The ledger, line by line"></div>
+          </div>
+          <div class="lab-side">
+            <h3 id="signed-title">What the last checkpoint signs</h3>
+            <pre class="code small wrap" id="signed-text" tabindex="0"></pre>
+            <p class="muted small">Anyone can rebuild this text from the checkpoint's line and check its signature with any Ed25519 tool and the public key.</p>
+            <button class="btn small" id="btn-reseal" type="button">Make a new key and seal again</button>
+          </div>
+        </div>
+        <p class="scene-outro">With the public key, anyone can now check the whole record offline, with nothing else.</p>
+      </div>
+
+      <div class="scene" id="scene-3" data-step="3" hidden>
+        <p class="eyebrow">Step 3 of 6</p>
+        <h2>Change the record</h2>
+        <p class="scene-text">Change the record the way someone hiding the token would. Each change below starts from the record as it was sealed, and the check runs at once: it recomputes every hash from the record and checks every checkpoint with the public key.</p>
+        <div class="actions" id="tamper-actions">
+          <button class="btn small" type="button" data-act="edit">Change "evil.example" in line 25</button>
+          <button class="btn small" type="button" data-act="delete">Delete line 25</button>
+          <button class="btn small" type="button" data-act="swap">Swap lines 25 and 26</button>
+          <button class="btn small" type="button" data-act="conn">Delete the whole connection, lines 22 to 26</button>
+          <button class="btn small" type="button" data-act="cut">Cut off the end, from line 22</button>
+          <button class="btn small" type="button" data-act="undo">Undo every change</button>
+        </div>
+        <div class="verdict" id="verdict" role="status"></div>
+        <div class="lines" id="edit-list" tabindex="0" aria-label="The record as it stands"></div>
+        <details class="edit-own">
+          <summary>Edit the text yourself</summary>
+          <textarea id="trace-text" spellcheck="false" aria-label="The record"></textarea>
+        </details>
+        <p class="scene-outro" id="change-outro"></p>
+      </div>
+
+      <div class="scene" id="scene-4" data-step="4" hidden>
+        <p class="eyebrow">Step 4 of 6</p>
+        <h2>Every kind of change</h2>
+        <p class="scene-text">Twelve ways to change the record or the ledger, each tried on the sealed trace around line 25 by this page's engine, and checked like everything else: with the public key alone. Two of them use a second key, made in this page too: the wrong key to check with.</p>
+        <div class="tiles" id="matrix-tiles"></div>
+        <div class="table-wrap"><table class="cmp" id="matrix-table">
+          <thead><tr><th>What was done</th><th>Line named</th><th>What the check said</th><th>Caught</th></tr></thead>
+          <tbody id="matrix-body"></tbody>
+        </table></div>
+        <p class="scene-outro">The tests run the same twelve cases through the command line, vpnw-ledger verify, and expect these same lines.</p>
+      </div>
+
+      <div class="scene" id="scene-5" data-step="5" hidden>
+        <p class="eyebrow">Step 5 of 6</p>
+        <h2>Prove one connection</h2>
+        <p class="scene-text">An auditor may need one connection, not the whole record: say, the one to evil.example. A proof holds that record, its hash, the few hashes that link it to the root of a checkpoint, and the checkpoint, signed. It shows nothing of the other records, and checking it takes only the public key.</p>
+        <div class="prove-bar">
+          <label for="prove-line">Record</label>
+          <select id="prove-line"></select>
+        </div>
+        <div class="tiles" id="proof-tiles"></div>
+        <div class="actions">
+          <button class="btn small" type="button" id="btn-check-proof">Check it with the public key</button>
+          <button class="btn small" type="button" id="btn-forge-proof">Change the record in the proof, then check</button>
+          <button class="btn small" type="button" id="btn-other-key">Check it with another key</button>
+        </div>
+        <div class="verdict" id="proof-verdict" role="status"></div>
+        <h3>proof.json</h3>
+        <pre class="code wrap" id="proof-text" tabindex="0"></pre>
+      </div>
+
+      <div class="scene" id="scene-6" data-step="6" hidden>
+        <p class="eyebrow">Step 6 of 6</p>
+        <h2>Cut back to a checkpoint, and the witness</h2>
+        <p class="scene-text">One change can't be caught from the two files alone. Cut both back to an earlier checkpoint, record and ledger together, and what's left is a shorter log that checks out. That holds for any log that signs its own checkpoints. The answer is a witness: seal prints each checkpoint it signs, so a copy can go where the person holding the files can't reach, such as a log server or the auditor's mail.</p>
+        <div class="actions">
+          <button class="btn small" type="button" id="btn-cut">Cut both files back to checkpoint 3</button>
+          <button class="btn small" type="button" id="btn-alone">Check the two files alone</button>
+          <button class="btn small" type="button" id="btn-witness">Check with checkpoint 4, kept elsewhere</button>
+        </div>
+        <div class="tiles" id="cut-tiles"></div>
+        <div class="verdict" id="cut-verdict" role="status"></div>
+        <h3>The witness: checkpoint 4, as seal printed it</h3>
+        <pre class="code wrap" id="witness-text" tabindex="0"></pre>
+        <h3>On the command line</h3>
+        <pre class="code" id="commands" tabindex="0"><span class="c"># the machine that runs the agent: make the key once, seal as the trace is written</span>
+vpnw-ledger keygen -o agent
+vpnw-ledger seal --follow --key agent.key trace.jsonl | logger -t ledger
+
+<span class="c"># the auditor: the record, the ledger, the public key, and the witness</span>
+vpnw-ledger verify --pub agent.pub --witness witness.log trace.jsonl
+
+<span class="c"># one connection, for someone who gets nothing else</span>
+vpnw-ledger prove --line 25 -o proof.json trace.jsonl
+vpnw-ledger check-proof --pub agent.pub proof.json</pre>
+        <p class="scene-outro" id="cut-outro">A witness turns "the last checkpoint" into "the last checkpoint anyone saw". The ledger can't drop a checkpoint the witness holds.</p>
+      </div>
+
+      <div class="stage-foot">
+        <button class="btn" id="btn-back" type="button">Back</button>
+        <button class="btn primary" id="btn-next" type="button">Next: seal it</button>
+      </div>
+    </section>
+
+    <section class="section" id="real">
+      <h2>What is real here</h2>
+      <div class="real">
+        <div>
+          <h3>Real</h3>
+          <ul>
+            <li>The code: Ledger's own Go code, compiled to WebAssembly for this page. It makes the key, seals the record, checks it after every change, makes and checks the proof, and runs the twelve cases.</li>
+            <li>The record: the trace vpnw wrote during a real run of the Agent on Linux on September 29, 2026, step 1 of the Agent's demo, exactly as it was recorded.</li>
+            <li>The results: the hashes, checkpoints and named lines are the ones the vpnw-ledger command gives for the same file, as the Ledger Alpha report shows.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Made for the demo</h3>
+          <ul>
+            <li>The keys: made in your browser when the page loaded, and never sent anywhere. They're new each time, so the key ID and the signatures differ from the report's. The hashes don't.</li>
+            <li>The run's servers and the attacker were stand-ins in a private test network, as in the Agent's demo, and the token was a dummy.</li>
+            <li>No network: nothing in this page connects anywhere.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="appfoot">
+  <div class="wrap">
+    <p>Ledger engine <span id="engine-version">0.1.0</span>, running in this page. Nothing is sent anywhere.</p>
+    <p>VPN Works is open source under the Apache License 2.0. Copyright VPNW.com 2026. The code is at https://github.com/VPNWorks/vpnw.</p>
+  </div>
+</footer>
+
+<script src="engine.ledger.v1.js"></script>
+<script src="ledger.v1.js"></script>
+</body>
+</html>

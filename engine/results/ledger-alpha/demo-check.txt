@@ -1,0 +1,69 @@
+status: Ledger 0.1.0 is running in this page. It made a key, k-3fabccf6, and sealed the 28 records in 15 ms.
+ok   trace lines: 28
+ok   lines of the connection to evil.example: 5
+ok   t-events: 28
+ok   t-conns: 5
+ok   t-evil: 865 B
+ok   s-records: 28
+ok   s-cps: 4
+ok   ledger lines: 33
+ok   checkpoint lines: 4
+ok   checkpoint 1 root and chain as on the command line: yes
+ok   checkpoint 2 root and chain as on the command line: yes
+ok   checkpoint 3 root and chain as on the command line: yes
+ok   checkpoint 4 root and chain as on the command line: yes
+ok   the signed text: yes
+ok   the untouched record: yes
+ok   change "edit" named: records 25 changed
+ok   change "edit" highlighted line: 25
+ok   change "delete" named: records 25 missing
+ok   change "delete" highlighted line: 25
+ok   change "swap" named: records 25 swapped
+ok   change "swap" highlighted line: 25
+ok   change "conn" named: records 22 missing
+ok   change "conn" highlighted line: 22
+ok   change "cut" named: records 22 cut
+ok   change "cut" highlighted line: 22
+ok   undo: yes
+ok   your own edit: line 3 deleted: 3 missing
+ok   m-cases: 12
+ok   m-caught: 12
+ok   case 1 named: records 25 yes
+ok   case 2 named: records 25 yes
+ok   case 3 named: records 25 yes
+ok   case 4 named: records 25 yes
+ok   case 5 named: records 25 yes
+ok   case 6 named: ledger 33 yes
+ok   case 7 named: ledger 10 yes
+ok   case 8 named: ledger 33 yes
+ok   case 9 named: ledger 29 yes
+ok   case 10 named: ledger 33 yes
+ok   case 11 named: records 29 yes
+ok   case 12 named: records 25 yes
+ok   p-path: 4
+ok   p-bytes: 1,087
+ok   p-others: 27
+ok   the proof holds: yes
+ok   the proof is of line 25, evil.example: yes
+ok   a changed record in the proof: no
+ok   what the check said: yes
+ok   another key: no
+ok   a proof for line 6 holds: yes
+ok   c-records: 24
+ok   the two files alone: yes
+ok   with the witness: records 25 cut
+ok   phone step 1 horizontal overflow px: 0
+ok   phone step 1 buttons whose label doesn't fit: none
+ok   phone step 2 horizontal overflow px: 0
+ok   phone step 2 buttons whose label doesn't fit: none
+ok   phone step 3 horizontal overflow px: 0
+ok   phone step 3 buttons whose label doesn't fit: none
+ok   phone step 4 horizontal overflow px: 0
+ok   phone step 4 buttons whose label doesn't fit: none
+ok   phone step 5 horizontal overflow px: 0
+ok   phone step 5 buttons whose label doesn't fit: none
+ok   phone step 6 horizontal overflow px: 0
+ok   phone step 6 buttons whose label doesn't fit: none
+ok   network requests: none
+ok   console errors: none
+all checks passed

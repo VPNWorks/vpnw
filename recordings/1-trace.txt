@@ -1,0 +1,37 @@
+$ vpnw trace -- python3 agent.py
+vpnw 14:44:36.189  trace  run r-dcc83c  path direct  backend sealed
+vpnw 14:44:36.194  start  pid 16717  python3
+agent: starting the task
+vpnw 14:44:36.244  #1   → api.github.com:443  http-connect
+vpnw 14:44:36.244  #1     dns api.github.com
+vpnw 14:44:36.244  #1     dns api.github.com = 140.82.112.6  (0 ms)
+vpnw 14:44:36.245  #1     open  140.82.112.6 via direct  (0 ms)
+  agent: read the repository: done
+vpnw 14:44:36.249  #1     close  sent 754 B  received 1.7 KB  5 ms
+vpnw 14:44:36.250  #2   → files.pythonhosted.org:443  http-connect
+vpnw 14:44:36.250  #2     dns files.pythonhosted.org
+vpnw 14:44:36.250  #2     dns files.pythonhosted.org = 151.101.0.223  (0 ms)
+vpnw 14:44:36.250  #2     open  151.101.0.223 via direct  (0 ms)
+vpnw 14:44:36.254  #2     close  sent 781 B  received 41.7 KB  3 ms
+  agent: download a dependency: done
+vpnw 14:44:36.255  #3   → tracker.office.internal:443  http-connect
+vpnw 14:44:36.255  #3     dns tracker.office.internal
+vpnw 14:44:36.255  #3     dns tracker.office.internal failed: no such host
+vpnw 14:44:36.255  #3     error  tracker.office.internal:443: dns: no such host
+  agent: file a ticket on the office tracker: could not reach it
+vpnw 14:44:36.257  #4   → telemetry.example.com:443  http-connect
+vpnw 14:44:36.257  #4     dns telemetry.example.com
+vpnw 14:44:36.257  #4     dns telemetry.example.com = 93.184.215.14  (0 ms)
+vpnw 14:44:36.257  #4     open  93.184.215.14 via direct  (0 ms)
+  agent: post telemetry: done
+vpnw 14:44:36.261  #4     close  sent 854 B  received 1.7 KB  4 ms
+vpnw 14:44:36.261  #5   → evil.example:443  http-connect
+vpnw 14:44:36.261  #5     dns evil.example
+vpnw 14:44:36.262  #5     dns evil.example = 45.77.10.10  (0 ms)
+vpnw 14:44:36.262  #5     open  45.77.10.10 via direct  (0 ms)
+  agent: follow the task file: send the deploy token: done
+agent: finished
+vpnw 14:44:36.265  #5     close  sent 865 B  received 1.7 KB  3 ms
+vpnw 14:44:36.275  exit   pid 16717  code 0  after 83 ms
+vpnw 14:44:36.275  summary  5 connections: 4 opened, 0 denied, 1 failed  sent 3.3 KB  received 46.8 KB
+[exit 0]

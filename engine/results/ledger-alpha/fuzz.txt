@@ -1,0 +1,7 @@
+internal/ledger  FuzzParseKey            2301180 executions  ok  	vpnw.com/vpnw/internal/ledger	60.553s
+internal/ledger  FuzzParseCheckpoint     1978291 executions  ok  	vpnw.com/vpnw/internal/ledger	60.199s
+internal/ledger  FuzzReadLedger          1554443 executions  ok  	vpnw.com/vpnw/internal/ledger	60.202s
+internal/ledger  FuzzReadWitness         1907854 executions  ok  	vpnw.com/vpnw/internal/ledger	60.223s
+internal/ledger  FuzzSealVerify          1247926 executions  ok  	vpnw.com/vpnw/internal/ledger	60.539s
+internal/ledger  FuzzVerify              1375275 executions  ok  	vpnw.com/vpnw/internal/ledger	60.251s
+internal/ledger  FuzzProof               1832452 executions  ok  	vpnw.com/vpnw/internal/ledger	60.130s

@@ -1,0 +1,15 @@
+# The demo agent's policy. It started as the draft `vpnw learn` wrote from a
+# trace, and a person reviewed it: evil.example is gone, and the office
+# tracker is added because the agent's ticket step needs it.
+version = 1
+name = "agent"
+
+[policy]
+default = "deny"
+deny_private = true
+allow = [
+  "api.github.com",
+  "files.pythonhosted.org",
+  "telemetry.example.com",
+  "tracker.office.internal",
+]

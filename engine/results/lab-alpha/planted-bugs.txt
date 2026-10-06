@@ -1,0 +1,31 @@
+  [ 1] caught: a query that reached the home router's resolver counts as through the tunnel
+  [ 2] caught: an arrival from the home network's address counts as through the tunnel
+  [ 3] caught: a probe seen outside the tunnel and then through it counts as through
+  [ 4] caught: a leak window breaks apart at every probe
+  [ 5] caught: a leak still going when the run stops is reported as over
+  [ 6] caught: an app that carried nothing through the tunnel before the fault is judged anyway
+  [ 7] caught: negative sequence numbers and seeds are accepted
+  [ 8] caught: a note with a quote mark writes a broken line
+  [ 9] caught: the seed is ignored, so the fault moves from run to run
+  [10] caught: a name asked through the proxy is read as a direct probe
+  [11] caught: DNS answers go out marked as queries
+  [12] caught: the tunnel refuses every IPv4 packet
+  [13] caught: routes for the client's own table land in the main table
+  [14] caught: a "not fwmark" rule loses its "not"
+  [15] caught: the VPN's NAT uses the server's address, not the exit address
+  [16] caught: the home router stops translating addresses
+  [17] caught: a silent server still takes the client's packets in and passes them on
+  [18] caught: the device gets no default route when its link comes back
+  [19] caught: the pushed route misses the observers' range
+  [20] caught: arrivals of other runs end up in the recording, and this run's are lost
+  [21] caught: strict routing sends only the client's own packets to the tunnel's table
+  [22] caught: the kill switch blocks the client's own tunnel
+  [23] caught: the client waits ten seconds before it notices a silent server
+  [24] caught: the correct client stops putting its resolver back after the network changes it
+  [25] caught: every client but dns-leak points DNS at the home router while it reconnects
+  [26] caught: direct DNS probes ask for the proxy's names
+  [27] caught: TCP probes are tagged as UDP
+  [28] caught: killing the Agent leaves its workload running
+  [29] caught: the DNS change hands out the VPN's own resolver
+
+29 of 29 planted bugs caught

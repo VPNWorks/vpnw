@@ -1,0 +1,24 @@
+vpnw: vpnw 0.2.0 (linux/amd64, go1.24.7)
+host: 6.18.44-fc-v70 x86_64 cpus: 2
+
+start-up, median of 60 runs of /bin/true
+  bare                   1.26 ms
+  vpnw, sealed           8.78 ms   (+7.52 ms)
+  vpnw, env              3.58 ms   (+2.32 ms)
+
+per connection, 1000 sequential requests on new connections, best of 3
+  bare        556.7 ms total, 0.557 ms each
+  env        1406.9 ms total, 1.407 ms each   (+0.850 ms per connection)
+  sealed     1554.0 ms total, 1.554 ms each   (+0.997 ms per connection)
+
+bulk, one 100 MB download, best of 3
+  bare        2095 MB/s  (104857600 bytes intact)
+  sealed      1195 MB/s  (104857600 bytes intact)
+
+parallel, 64 threads, 3,008 requests of 16 KB
+  bare       2177 requests/s  3008 intact, 0 failed
+  sealed      961 requests/s  3008 intact, 0 failed
+
+memory while a workload runs (resident set)
+  vpnw             5.3 MB
+  sandbox helper   5.4 MB

@@ -1,0 +1,65 @@
+status: Exit 0.1.0 is running in this page. It read both exits' configuration and joined the recorded records: 9 of 9 connections that reached an exit.
+ok   status names the join: yes
+ok   header links: https://vpnw.com/
+ok   exits: 2
+ok   clients at each exit: 3
+ok   fixed addresses for the agents: 4
+ok   setup rows: 3
+ok   exit-de listens where the Agents gave up: 198.51.100.2:8443
+ok   exit-nl listens where the Agents moved: 203.0.113.2:8443
+ok   agent-1 at exit-de: 198.51.100.10
+ok   agent-1 at exit-nl: 203.0.113.10
+ok   agent-2 at exit-de: 198.51.100.11
+ok   agent-2 at exit-nl: 203.0.113.11
+ok   reached the partner through exit-de: 4
+ok   step 2 entries: 4
+ok   agent-1's address: 198.51.100.10
+ok   agent-2's address: 198.51.100.11
+ok   refused at the Agent: 1
+ok   refused at the exit: 1
+ok   both records of the refused connection: yes
+ok   differential in the text: yes
+ok   differential: all agree: 110 of 110
+ok   tampered requests: 3
+ok   tampered requests are the join's other runs: 3
+ok   refused by exit-de: 3
+ok   reached a server: 0
+ok   decisions asked of the command line: 6
+ok   decide 169.254.169.254:80: denied deny_private
+ok   decide attacker.test:443: denied default
+ok   decide intranet.partner.test:80: denied default
+ok   decide files.partner.test:80: allow allow[0]
+ok   files.partner.test:80 leaves from: 198.51.100.11
+ok   decide api.partner.test:443: denied default
+ok   decide api.partner.test:80: allow allow[1]
+ok   api.partner.test:80 leaves from: 198.51.100.11
+ok   edited policy: attacker.test allowed by default: allow default
+ok   edited policy: metadata still refused: denied deny_private
+a broken file: exit-de.toml:15: client agent-2: agent-2.toml:15: unknown key "port" in [policy]
+ok   a broken file is refused with its name: yes
+ok   back to the recorded file: yes
+ok   agents that moved: 2
+ok   failed requests: 0
+ok   agent-1 gave up on exit-de after (ms): 0
+ok   agent-1 open through exit-nl after (ms): 5
+ok   agent-2 gave up on exit-de after (ms): 0
+ok   agent-2 open through exit-nl after (ms): 9
+ok   addresses at exit-nl: yes
+ok   joined: 9 of 9
+ok   stopped at the Agent: 1
+ok   from a client with no Agent: 3
+ok   recorded decisions made again: 12 of 12
+ok   join rows: 12
+ok   join rows match vpnw-exit join: yes
+ok   a row shows both records: yes
+ok   length of the run: 5.1
+ok   date of the run: October 5, 2026
+ok   phone step 1 horizontal overflow px: 0
+ok   phone step 2 horizontal overflow px: 0
+ok   phone step 3 horizontal overflow px: 0
+ok   phone step 4 horizontal overflow px: 0
+ok   phone step 5 horizontal overflow px: 0
+ok   phone step 6 horizontal overflow px: 0
+ok   requests over the network: none
+ok   console errors: none
+all checks passed

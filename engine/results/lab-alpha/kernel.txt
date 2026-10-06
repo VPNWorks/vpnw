@@ -1,0 +1,12 @@
+command: vpnw-lab run gave the dns-leak client's leak (exit 120), the correct client's pass and the Agent's two modes; vpnw-lab verdict decided the recording the same way
+seeds: seed 4 plans the fault at 1.88 s in both runs, seed 9 at 1.73 s; every step came at most 1 ms after its plan; all three runs leak (dns)
+client-cleanup: the correct client removed its firewall table, rule, routes and TUN device on exit, and put the home network's DNS server back
+matrix correct: steady pass; server-silent pass; server-gone pass; app-killed pass; link-drop pass; route-push pass; dns-change pass
+matrix dns-leak: steady pass; server-silent leak (dns) 44-45 probes; server-gone leak (dns) 59-60 probes; app-killed pass; link-drop leak (dns) 20-21 probes; route-push pass; dns-change leak (dns) 72 probes
+matrix no-kill-switch: steady pass; server-silent leak (tcp, udp) 84-88 probes; server-gone leak (tcp, udp) 118-120 probes; app-killed leak (tcp, udp) 86 probes; link-drop leak (tcp, udp) 42 probes; route-push pass; dns-change pass
+matrix follows-routes: steady pass; server-silent pass; server-gone pass; app-killed pass; link-drop pass; route-push leak (tcp, udp) 84 probes; dns-change pass
+matrix agent-sealed: steady pass; server-silent pass; server-gone pass; app-killed pass; link-drop pass; route-push pass; dns-change pass
+matrix agent-env: steady leak (dns, tcp, udp) 183 probes; server-silent leak (dns, tcp, udp) 432 probes; server-gone leak (dns, tcp, udp) 276 probes; app-killed leak (dns, tcp, udp) 246 probes; link-drop leak (dns, tcp, udp) 276 probes; route-push leak (dns, tcp, udp) 312 probes; dns-change leak (dns, tcp, udp) 312 probes
+matrix: 210 runs (6 apps, 7 scenarios, 5 each with seed 1), 210 with the verdict the design expects, 0 without
+timing: leaks first seen 22 ms after the change that opened them (median of 50 windows; at most 52 ms); last seen 23 ms before the change that closed them (median of 40; at most 48 ms); probe interval 50 ms
+durations: median wall time of a run, building the world and starting the app included: steady 3.96 s, server-silent 8.12 s, server-gone 6.35 s, app-killed 7.13 s, link-drop 7.63 s, route-push 6.13 s, dns-change 6.13 s
