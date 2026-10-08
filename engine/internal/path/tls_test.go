@@ -331,7 +331,8 @@ func TestTLSCertificateChecks(t *testing.T) {
 	// Without the private CA, the system's roots do not know the exit.
 	s := newStandIn(t, ca.good(t), nil)
 	p := build(t, []string{"https://" + s.addr}, Options{})
-	if err := p.Health(ctx5(t)); err == nil || !strings.Contains(err.Error(), "unknown authority") {
+	// Linux says "unknown authority"; macOS's verifier says "not trusted".
+	if err := p.Health(ctx5(t)); err == nil || !(strings.Contains(err.Error(), "unknown authority") || strings.Contains(err.Error(), "not trusted")) {
 		t.Errorf("system roots: %v", err)
 	}
 }

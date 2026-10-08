@@ -32,6 +32,15 @@ jobs:
         with:
           go-version-file: engine/go.mod
           cache-dependency-path: engine/go.mod
+      - name: Let the kernel tests run (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Ubuntu's AppArmor stops unprivileged user namespaces by default.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          command -v nft > /dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq nftables; }
+      - name: Loopback addresses for the Exit tests (macOS)
+        if: runner.os == 'macOS'
+        run: for i in 2 3 4 5 6 7 8 9; do sudo ifconfig lo0 alias 127.0.0.$i up; done
       - run: go vet ./...
       - name: go test -count=1 ./...
         shell: bash

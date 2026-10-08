@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -164,9 +165,26 @@ func TestErrors(t *testing.T) {
 		{[]string{"check", "--bogus"}, exitConfig, "check:"},
 		{[]string{"replay", "--bogus"}, exitConfig, "replay:"},
 		{[]string{"export", "--bogus"}, exitConfig, "export:"},
-		{[]string{"record", "--group", "0", "--people", f.people}, exitConfig, "--group"},
-		{[]string{"record", "--bogus"}, exitConfig, "record:"},
-		{[]string{"record"}, exitConfig, "--people FILE is required"},
+	}
+	if runtime.GOOS == "linux" {
+		cases = append(cases, []struct {
+			args []string
+			code int
+			want string
+		}{
+			{[]string{"record", "--group", "0", "--people", f.people}, exitConfig, "--group"},
+			{[]string{"record", "--bogus"}, exitConfig, "record:"},
+			{[]string{"record"}, exitConfig, "--people FILE is required"},
+		}...)
+	} else {
+		// Elsewhere record refuses before it reads its flags.
+		cases = append(cases, []struct {
+			args []string
+			code int
+			want string
+		}{
+			{[]string{"record", "--people", f.people}, exitUnavailable, "record needs a Linux gateway"},
+		}...)
 	}
 	for _, c := range cases {
 		code, out, stderr := call("", c.args...)

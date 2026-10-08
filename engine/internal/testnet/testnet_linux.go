@@ -42,6 +42,9 @@ func Reexec() error {
 	if err != nil {
 		return fmt.Errorf("unshare not found: %w", err)
 	}
+	if err := Available(); err != nil {
+		return err
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return err
@@ -58,6 +61,27 @@ func Reexec() error {
 		return err
 	}
 	os.Exit(0)
+	return nil
+}
+
+// Available reports whether this machine lets an unprivileged process make
+// user and network namespaces, by trying it with unshare and a command that
+// does nothing. A kernel or AppArmor policy that forbids them (Ubuntu 23.10
+// and later restrict them by default) makes it return the reason, so tests
+// can skip instead of failing.
+func Available() error {
+	unshare, err := exec.LookPath("unshare")
+	if err != nil {
+		return fmt.Errorf("unshare not found: %w", err)
+	}
+	out, err := exec.Command(unshare, "--user", "--map-root-user", "--net", "true").CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("unprivileged user namespaces are not allowed here: %s", msg)
+	}
 	return nil
 }
 

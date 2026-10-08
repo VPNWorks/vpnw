@@ -252,6 +252,11 @@ func TestSealScopeLive(t *testing.T) {
 	if _, err := exec.LookPath("unshare"); err != nil {
 		t.Skip("unshare is not installed")
 	}
+	if os.Getenv(testnet.ReexecEnv) != "1" {
+		if err := testnet.Available(); err != nil {
+			t.Skip(err)
+		}
+	}
 	if !inside(t) {
 		return
 	}
