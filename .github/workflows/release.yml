@@ -1,0 +1,219 @@
+name: release
+
+# Builds the VPN Works binaries, checks each one, and publishes them with a
+# release.
+#
+# Releases go out on their own. When the test workflow passes on a push to
+# main and the version in engine/internal/version/version.go has no tag yet,
+# this workflow builds and smoke-tests the binaries from that commit, then
+# tags it vX.Y.Z and publishes the release "VPN Works vX.Y.Z" with the
+# binaries attached. Nothing goes public unless every build and check passes.
+#
+# It also attaches binaries to a release someone publishes by hand, and it
+# can be run by hand to rebuild the binaries of an existing tag.
+#
+# Archive names carry no version, so the site's releases/latest/download
+# links keep working from one release to the next.
+
+on:
+  workflow_run:
+    workflows: [test]
+    types: [completed]
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build, such as v0.2.0"
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  CMDS: vpnw vpnw-scope vpnw-lab vpnw-ledger vpnw-exit scope-office
+
+jobs:
+  plan:
+    # After the tests, only for a push to main in this repository that passed.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      ref: ${{ steps.plan.outputs.ref }}
+      new: ${{ steps.plan.outputs.new }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - id: plan
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          case "$EVENT" in
+          workflow_run)
+            # Only the commit main is at now; if main has moved on, the run
+            # after the next push decides.
+            head=$(git ls-remote origin refs/heads/main | cut -f1)
+            if [ "$head" != "$RUN_SHA" ]; then
+              echo "No release: main has moved on from $RUN_SHA to $head."
+              exit 0
+            fi
+            version=$(sed -n 's/^const Version = "\([0-9]*\.[0-9]*\.[0-9]*\)"$/\1/p' engine/internal/version/version.go)
+            if [ -z "$version" ]; then
+              echo "engine/internal/version/version.go has no Version of the form X.Y.Z" >&2
+              exit 1
+            fi
+            tags=$(git ls-remote --tags --refs origin) || { echo "Couldn't read the repository's tags" >&2; exit 1; }
+            if grep -q "refs/tags/v$version\$" <<< "$tags"; then
+              echo "No release: v$version is out already."
+              exit 0
+            fi
+            newest=$({ grep -o 'refs/tags/v[0-9]*\.[0-9]*\.[0-9]*$' <<< "$tags" || true; } | sed 's|refs/tags/v||' | sort -V | tail -n 1)
+            if [ -n "$newest" ] && [ "$(printf '%s\n%s\n' "$newest" "$version" | sort -V | tail -n 1)" != "$version" ]; then
+              echo "v$version is older than the newest release, v$newest; raise the version above it" >&2
+              exit 1
+            fi
+            echo "Releasing v$version from $RUN_SHA."
+            { echo "tag=v$version"; echo "ref=$RUN_SHA"; echo "new=true"; } >> "$GITHUB_OUTPUT"
+            ;;
+          release)
+            { echo "tag=$RELEASE_TAG"; echo "ref=$RELEASE_TAG"; } >> "$GITHUB_OUTPUT"
+            ;;
+          workflow_dispatch)
+            { echo "tag=$INPUT_TAG"; echo "ref=$INPUT_TAG"; } >> "$GITHUB_OUTPUT"
+            ;;
+          esac
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.tag != ''
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-latest
+            smoke: true
+          - os: linux
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            smoke: true
+          - os: darwin
+            arch: arm64
+            runner: macos-latest
+            smoke: true
+          - os: darwin
+            arch: amd64
+            runner: macos-latest
+            smoke: false
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: engine/go.mod
+          cache-dependency-path: engine/go.mod
+      - name: Build
+        working-directory: engine
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: go build -trimpath -ldflags="-s -w" -o ../pkg/ ./cmd/...
+      - run: file pkg/*
+      - if: matrix.smoke
+        run: sh engine/tools/smoke.sh pkg
+      - name: Package
+        run: |
+          for c in $CMDS; do test -f "pkg/$c" || { echo "missing $c" >&2; exit 1; }; done
+          cp LICENSE NOTICE README.md pkg/
+          cp kit/THIRD-PARTY-LICENSES.txt pkg/
+          tar -czf vpnw_${{ matrix.os }}_${{ matrix.arch }}.tar.gz -C pkg .
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vpnw_${{ matrix.os }}_${{ matrix.arch }}
+          path: vpnw_${{ matrix.os }}_${{ matrix.arch }}.tar.gz
+
+  release:
+    needs: [plan, build]
+    # Two runs for the same tag take turns; the second finds it published.
+    concurrency:
+      group: release-${{ needs.plan.outputs.tag }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.plan.outputs.tag }}
+      REF: ${{ needs.plan.outputs.ref }}
+      NEW: ${{ needs.plan.outputs.new }}
+      GH_TOKEN: ${{ github.token }}
+      FILES: vpnw_linux_amd64.tar.gz vpnw_linux_arm64.tar.gz vpnw_darwin_arm64.tar.gz vpnw_darwin_amd64.tar.gz SHA256SUMS
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums and notes
+        run: |
+          cd dist
+          sha256sum *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+          # The engines' own versions, read from the Linux binaries themselves.
+          mkdir v && tar -xzf vpnw_linux_amd64.tar.gz -C v
+          rows=""
+          for c in vpnw vpnw-scope vpnw-lab vpnw-ledger vpnw-exit; do
+            rows="$rows| \`$c\` | $(v/$c version | cut -d' ' -f2) |
+          "
+          done
+          rm -rf v
+          cat > ../notes.md <<EOF
+          Ready-built VPN Works binaries. Each archive holds the five engines and the Scope demo's data generator, \`scope-office\`, with the license files and the README.
+
+          | Command | Version |
+          |---|---|
+          ${rows}
+          | System | File |
+          |---|---|
+          | Linux, x86-64 (static) | vpnw_linux_amd64.tar.gz |
+          | Linux, ARM64 (static) | vpnw_linux_arm64.tar.gz |
+          | macOS, Apple silicon | vpnw_darwin_arm64.tar.gz |
+          | macOS, Intel | vpnw_darwin_amd64.tar.gz |
+
+          VPN Works is Linux first: sealed runs, \`vpnw-lab\` and the recording and enforcing commands need Linux. On macOS the offline parts work, such as \`vpnw-ledger\` and \`vpnw-scope learn\`, \`replay\` and \`export\`. All five engines are Alphas. The macOS binaries aren't signed by Apple, so macOS may ask you to allow them the first time, or run \`xattr -d com.apple.quarantine\` on each.
+
+          SHA256SUMS lists the checksums.
+          EOF
+          sed -i 's/^          //' ../notes.md
+          cat ../notes.md
+      - name: Tag the commit and publish the release, binaries attached
+        if: env.NEW == 'true'
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "$TAG is out already."
+            exit 0
+          fi
+          cd dist
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$REF" \
+            --title "VPN Works $TAG" --notes-file ../notes.md $FILES
+      - name: Attach the binaries to an existing release
+        if: env.NEW != 'true'
+        run: |
+          cd dist
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber $FILES
+          body=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body)
+          if [ -z "$body" ]; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file ../notes.md
+          fi

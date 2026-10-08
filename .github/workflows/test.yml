@@ -1,0 +1,40 @@
+name: test
+
+# Vets, tests and builds the engine on every push to main and every pull
+# request, on Linux and macOS. A green run on main lets the release workflow
+# publish the version in engine/internal/version if it has no tag yet.
+#
+# The kernel tests of Scope, Lab, Ledger and Exit need unprivileged user and
+# network namespaces; where the runner restricts them they skip, with the
+# reason in the log, as they do on any machine without them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: engine/go.mod
+          cache-dependency-path: engine/go.mod
+      - run: go vet ./...
+      - run: go test -count=1 ./...
+      - name: Build and smoke-test the commands
+        run: |
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/ ./cmd/...
+          sh tools/smoke.sh bin

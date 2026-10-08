@@ -40,6 +40,12 @@ kit/                    the Agent's Linux demo: README, licenses and the demo wo
 docs/                   the reports of Lab, Ledger, Exit and Agent 0.2.0
 ```
 
+## Download
+
+Ready-built binaries for Linux (x86-64 and ARM64, static) and macOS are on the [releases page](https://github.com/VPNWorks/vpnw/releases/latest). Each archive holds all five commands and `scope-office`, with the license files; SHA256SUMS lists the checksums. The newest archive for each system is always at the same address, such as https://github.com/VPNWorks/vpnw/releases/latest/download/vpnw_linux_amd64.tar.gz.
+
+Releases go out on their own. When the tests pass on main and the version in `engine/internal/version/version.go` has no tag yet, the release workflow builds and checks the binaries, then tags the commit and publishes them.
+
 ## What you need
 
 - Linux on x86-64 with unprivileged user and network namespaces, for sealed runs and the kernel tests. On Ubuntu 23.10 and later AppArmor restricts them, and `vpnw doctor` says so.
