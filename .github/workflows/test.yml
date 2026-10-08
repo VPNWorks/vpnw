@@ -33,7 +33,17 @@ jobs:
           go-version-file: engine/go.mod
           cache-dependency-path: engine/go.mod
       - run: go vet ./...
-      - run: go test -count=1 ./...
+      - name: go test -count=1 ./...
+        shell: bash
+        run: |
+          set -o pipefail
+          if go test -count=1 ./... 2>&1 | tee "$RUNNER_TEMP/test.log"; then exit 0; fi
+          # Failures as annotations too, so they can be read from the API
+          # without the full log.
+          grep -E -B2 -A12 -- '^(--- FAIL|FAIL|panic:)|_test\.go:[0-9]+:' "$RUNNER_TEMP/test.log" \
+            | head -c 60000 | awk 'BEGIN{ORS="%0A"} {gsub(/%/,"%25"); print}' > "$RUNNER_TEMP/fail.txt" || true
+          echo "::error title=go test failed::$(cat "$RUNNER_TEMP/fail.txt")"
+          exit 1
       - name: Build and smoke-test the commands
         run: |
           CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/ ./cmd/...
