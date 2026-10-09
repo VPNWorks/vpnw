@@ -5,8 +5,12 @@ name: test
 # main lets the release workflow publish the version in
 # internal/version/version.go if it has no tag yet.
 #
-# The sealed-backend tests need unprivileged user and network namespaces;
-# where the runner restricts them they skip, with the reason in the log.
+# The sealed-backend tests need unprivileged user and network namespaces.
+# On Linux, VPNW_REQUIRE_SEAL=1 makes them fail rather than skip when the
+# runner can't provide them, and VPNW_REQUIRE_IPV6=1 does the same for the
+# bypass matrix's IPv6 rows. The matrix is kept as the bypass-matrix
+# artifact and shown in the run's summary; tools/record-results.sh records
+# it from there for machines without IPv6.
 
 on:
   push:
@@ -39,6 +43,8 @@ jobs:
       - run: go vet ./...
       - name: go test -count=1 ./...
         shell: bash
+        env:
+          VPNW_REQUIRE_SEAL: ${{ runner.os == 'Linux' && '1' || '' }}
         run: |
           set -o pipefail
           if go test -count=1 -timeout 20m ./... 2>&1 | tee "$RUNNER_TEMP/test.log"; then exit 0; fi
@@ -48,6 +54,28 @@ jobs:
             | head -c 60000 | awk 'BEGIN{ORS="%0A"} {gsub(/%/,"%25"); print}' > "$RUNNER_TEMP/fail.txt" || true
           echo "::error title=go test failed::$(cat "$RUNNER_TEMP/fail.txt")"
           exit 1
+      - name: Bypass matrix, IPv6 included (Linux)
+        if: runner.os == 'Linux'
+        env:
+          VPNW_REQUIRE_SEAL: '1'
+          VPNW_REQUIRE_IPV6: '1'
+        run: |
+          VPNW_MATRIX_OUT="$RUNNER_TEMP/bypass-matrix.md" go test -count=1 -run '^TestBypassMatrix$' -v ./test/integration/
+          {
+            echo "date: $(date -u +%Y-%m-%d)"
+            echo "commit: $(git rev-parse --short HEAD)"
+            echo "kernel: $(uname -sr), $(uname -m), $(nproc) CPUs"
+            echo "runner: GitHub Actions ${{ matrix.os }}, run ${{ github.run_id }}"
+            echo
+            cat "$RUNNER_TEMP/bypass-matrix.md"
+          } > "$RUNNER_TEMP/bypass-matrix-ci.md"
+          cat "$RUNNER_TEMP/bypass-matrix-ci.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Keep the bypass matrix
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: bypass-matrix
+          path: ${{ runner.temp }}/bypass-matrix-ci.md
       - name: Build and smoke-test vpnw
         run: |
           CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/ ./cmd/vpnw

@@ -53,9 +53,11 @@ type server struct {
 	hits chan string
 }
 
-func newServer(t *testing.T) *server {
+func newServer(t *testing.T) *server { return newServerAt(t, "tcp", "127.0.0.1:0") }
+
+func newServerAt(t *testing.T, network, addr string) *server {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := net.Listen(network, addr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,10 +223,16 @@ func runProbe(t *testing.T, args []string, probe string) (string, []map[string]a
 	return string(out), evs
 }
 
+// skipIfNoSeal skips a test that needs the sealed backend where this
+// machine can't provide it. CI sets VPNW_REQUIRE_SEAL=1 on Linux, so there
+// a missing backend fails the run instead of passing it quietly.
 func skipIfNoSeal(t *testing.T) {
 	t.Helper()
 	out, err := exec.Command(vpnw, "doctor").CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "sealed backend   ok") {
+		if os.Getenv("VPNW_REQUIRE_SEAL") == "1" {
+			t.Fatal("VPNW_REQUIRE_SEAL=1 but the sealed backend is not available:\n" + string(out))
+		}
 		t.Skip("sealed backend not available here:\n" + string(out))
 	}
 }
@@ -247,6 +255,13 @@ func TestBypassMatrix(t *testing.T) {
 	abstract := newAbstractServer(t)
 	unixFS := newUnixServer(t)
 	v6 := ipv6Available()
+	if !v6 && os.Getenv("VPNW_REQUIRE_IPV6") == "1" {
+		t.Fatal("VPNW_REQUIRE_IPV6=1 but this machine's kernel has no IPv6")
+	}
+	var tcp6 *server // [::1], for the IPv6 loopback row and its control
+	if v6 {
+		tcp6 = newServerAt(t, "tcp6", "[::1]:0")
+	}
 	const (
 		enetunreach  = "101"
 		econnrefused = "111"
@@ -273,12 +288,18 @@ func TestBypassMatrix(t *testing.T) {
 		{name: "Abstract Unix socket (@vpnw-bypass)", probe: fmt.Sprintf("import socket; s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect('\\0%s')", abstract.name), want: []string{"1", econnrefused}, control: true, hits: abstract.count},
 		{name: "Unix socket in the file system (like the Docker socket)", probe: fmt.Sprintf("s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect(%q)", unixFS.path), want: []string{"1"}, control: true, hits: unixFS.count},
 		{name: "io_uring, which can create sockets without socket()", probe: "import ctypes, os\nl=ctypes.CDLL(None, use_errno=True)\nr=l.syscall(425, 1, ctypes.create_string_buffer(120))\nif r < 0: raise OSError(ctypes.get_errno(), 'io_uring_setup')", want: []string{"1"}, control: true, soft: true},
-		{name: "IPv6 TCP to loopback (::1)", probe: pyConnect("::1", tcp.port), want: []string{econnrefused, enetunreach, "99"}},
+		{name: "IPv6 TCP to this machine's loopback (::1)", want: []string{econnrefused, enetunreach, "99"}, control: true},
 		{name: "IPv6 TCP to a public address (2606:4700:4700::1111)", probe: pyConnect("2606:4700:4700::1111", 443), want: []string{enetunreach, "99"}},
 	}
 	for i := range rows {
-		if strings.HasPrefix(rows[i].name, "IPv6") && !v6 {
+		if !strings.HasPrefix(rows[i].name, "IPv6") {
+			continue
+		}
+		switch {
+		case !v6:
 			rows[i].skip = "this machine's kernel has no IPv6"
+		case rows[i].probe == "": // the loopback row, aimed at the [::1] listener
+			rows[i].probe, rows[i].hits = pyConnect("::1", tcp6.port), tcp6.count
 		}
 	}
 	if runtime.GOARCH == "amd64" {
