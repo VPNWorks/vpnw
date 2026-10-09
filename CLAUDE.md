@@ -24,8 +24,21 @@ Read this first in a new session, and update it at the end of every release.
 
 - **Released:** 0.4.0 (October 9, 2026), WireGuard paths. 0.3.0 before it
   rebuilt VPN Works as a core with plugins.
-- **Now:** 0.4.1 under way.
-- **Waiting for the owner:** nothing yet.
+- **Paused by the owner** on October 9, 2026, partway into 0.4.1. Don't
+  continue until the owner says so.
+- **0.4.1 so far:** branch `ipv6-matrix` (one commit, not merged, no pull
+  request, CI not run yet). It gives the IPv6 loopback row of the bypass
+  matrix a real `[::1]` listener with a control outside the sandbox, adds
+  `VPNW_REQUIRE_SEAL=1` and `VPNW_REQUIRE_IPV6=1` so CI fails instead of
+  skipping, and adds a Linux CI step that runs the matrix and keeps it as the
+  `bypass-matrix` artifact. The machine used so far has no IPv6 in its
+  kernel at all, so the IPv6 rows can only run on the GitHub runner.
+- **0.4.1 next steps:** open a pull request from `ipv6-matrix` to run CI;
+  check that the sealed tests really run on the runner (until now they could
+  skip without anyone seeing) and that both IPv6 rows are blocked; teach
+  `tools/record-results.sh` to take the IPv6 rows from the CI artifact; then
+  the small review cleanups, the release and the site.
+- **Waiting for the owner:** the go-ahead to resume 0.4.1.
 
 ## The program
 
@@ -37,7 +50,7 @@ release on your own, even when the last one went well.
 
 | Release | What | Status |
 |---|---|---|
-| 0.4.1 | Fixes: the two IPv6 escape tests run inside the test sandbox, so they no longer depend on the machine having IPv6 (16 of 16 ways out tested); small cleanups left from the reviews | under way |
+| 0.4.1 | Fixes: the two IPv6 escape tests run inside the test sandbox, so they no longer depend on the machine having IPv6 (16 of 16 ways out tested); small cleanups left from the reviews | started, paused |
 | 0.5.0 | Ledger | waiting |
 | 0.6.0 | Lab | waiting |
 | 0.7.0 | Exit | waiting |
@@ -76,6 +89,24 @@ release on your own, even when the last one went well.
 **Later, not in this program:** gateway mode (packet level, UDP), Scope as an
 Advisor for gateway mode, sealing on macOS, a file-system layer. Don't start
 these without the owner.
+
+## Decisions already made
+
+- VPN Works is one small core plus WebAssembly plugins (wazero). The core
+  seals, decides, carries and records; plugins decide and observe and never
+  carry traffic. Plugin types today: Observer, Advisor, Guard; `tunnel`,
+  `exit` and `identity` are reserved.
+- WireGuard is a built-in path in the core, run in user space without root,
+  because a tunnel carries traffic. Tunnel plugins will only manage configs.
+- Binaries for Linux and macOS only, no Windows.
+- The repo was rebuilt from scratch in 0.3.0. Old code comes back only when
+  a new piece needs it; it stays in the `v0.2.0` tag. The old browser demos
+  and the Word and PDF documents are retired.
+- This file is the one place that says what comes next, the same in every
+  project of the owner's. There is no separate roadmap file in the repo; the
+  site's roadmap page is the public version of the program below.
+- The order of the program and the pause after each release were set by the
+  owner. Don't reorder it without asking.
 
 ## Every release
 
