@@ -1,0 +1,8 @@
+internal/config      FuzzParse             1590906 executions  ok  	github.com/VPNWorks/vpnw/internal/config	45.115s
+internal/policy      FuzzParseRule         1422087 executions  ok  	github.com/VPNWorks/vpnw/internal/policy	45.141s
+internal/policy      FuzzDecide            1391826 executions  ok  	github.com/VPNWorks/vpnw/internal/policy	45.184s
+internal/broker      FuzzHandle             602689 executions  ok  	github.com/VPNWorks/vpnw/internal/broker	45.104s
+internal/path        FuzzFromURL            677279 executions  ok  	github.com/VPNWorks/vpnw/internal/path	45.835s
+internal/path        FuzzExitAnswer         573727 executions  ok  	github.com/VPNWorks/vpnw/internal/path	46.044s
+internal/pluginhost  FuzzParseManifest       43982 executions  ok  	github.com/VPNWorks/vpnw/internal/pluginhost	46.083s
+internal/pluginhost  FuzzVerify             140787 executions  ok  	github.com/VPNWorks/vpnw/internal/pluginhost	46.038s

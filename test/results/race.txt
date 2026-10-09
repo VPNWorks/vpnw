@@ -1,0 +1,14 @@
+?   	github.com/VPNWorks/vpnw/cmd/vpnw	[no test files]
+ok  	github.com/VPNWorks/vpnw/internal/broker	1.103s
+ok  	github.com/VPNWorks/vpnw/internal/config	1.015s
+ok  	github.com/VPNWorks/vpnw/internal/events	1.014s
+ok  	github.com/VPNWorks/vpnw/internal/path	3.500s
+ok  	github.com/VPNWorks/vpnw/internal/pluginhost	195.575s
+ok  	github.com/VPNWorks/vpnw/internal/policy	1.017s
+ok  	github.com/VPNWorks/vpnw/internal/process	1.023s
+?   	github.com/VPNWorks/vpnw/internal/version	[no test files]
+ok  	github.com/VPNWorks/vpnw/plugins/builtin	1.017s
+ok  	github.com/VPNWorks/vpnw/plugins/learn/learn	1.016s
+ok  	github.com/VPNWorks/vpnw/plugins/sdk	1.016s
+ok  	github.com/VPNWorks/vpnw/plugins/trace/render	1.015s
+ok  	github.com/VPNWorks/vpnw/test/integration	12.962s
