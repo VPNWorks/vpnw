@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # smoke.sh DIR: checks the vpnw binary in DIR before it goes public. It must
-# report its version, list its built-in plugins, start the plugin host, and
-# run the Learn plugin end to end on a small trace. On Linux it also traces
+# report its version, list its built-in plugins, start the plugin host, run
+# the Learn plugin end to end on a small trace, and handle WireGuard configs. On Linux it also traces
 # and guards a real program in the sealed backend when the machine allows
 # it. The release workflow runs it on Linux and macOS.
 set -eu
@@ -47,6 +47,29 @@ TRACE
 grep -q '"api.github.com"' draft.toml || fail "the draft does not allow api.github.com"
 grep -q '#   "evil.example"' draft.toml || fail "the draft does not list the denied evil.example"
 echo "learn: drafted a policy from a trace"
+
+# WireGuard: a config with a shell hook is refused, and a tunnel to a peer
+# that never answers stops the run before the program starts.
+cat > wg.conf <<'WG'
+[Interface]
+PrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=
+Address = 10.9.0.2/32
+
+[Peer]
+PublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=
+Endpoint = 127.0.0.1:9
+AllowedIPs = 10.9.0.0/24
+WG
+code=0
+"$bin/vpnw" run --backend env --wireguard wg.conf -- touch ran > wg.log 2>&1 || code=$?
+[ "$code" = 123 ] || fail "a dead WireGuard tunnel gave exit $code: $(cat wg.log)"
+[ ! -e ran ] || fail "the program ran on a dead WireGuard tunnel"
+grep -q "no WireGuard handshake" wg.log || fail "no handshake error: $(cat wg.log)"
+printf 'PostUp = echo hi\n' >> wg.conf
+code=0
+"$bin/vpnw" run --backend env --wireguard wg.conf -- true > wg.log 2>&1 || code=$?
+[ "$code" = 121 ] || fail "a WireGuard config with a shell hook gave exit $code"
+echo "wireguard: refused a hook, stopped on a dead tunnel"
 
 # A real program, where the sealed backend works here.
 if [ "$(uname -s)" = Linux ] && "$bin/vpnw" doctor > /dev/null 2>&1; then

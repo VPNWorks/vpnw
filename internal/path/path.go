@@ -30,7 +30,7 @@ import (
 type Path interface {
 	// ID is the stable name stamped on events: "direct", "office", ...
 	ID() string
-	// Kind is "direct", "socks5" or "http".
+	// Kind is "direct", "socks5", "http" or "wireguard".
 	Kind() string
 	// RemoteDNS reports whether names are resolved at the exit.
 	RemoteDNS() bool
@@ -223,6 +223,17 @@ func shortErr(err error) string {
 func FromSpec(ps *config.PathSpec) (Path, error) {
 	if ps.Type == "direct" {
 		return &Direct{}, nil
+	}
+	if ps.Type == "wireguard" {
+		fn := ps.WGConfig
+		if !filepath.IsAbs(fn) && ps.File != "" {
+			fn = filepath.Join(filepath.Dir(ps.File), fn)
+		}
+		c, err := LoadWGConf(fn)
+		if err != nil {
+			return nil, err
+		}
+		return NewWireGuard(ps.Name, c, ps.DNS)
 	}
 	name := ps.Name
 	if name == "network" {

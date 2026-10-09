@@ -137,3 +137,32 @@ func (c *scripted) RemoteAddr() net.Addr             { return &net.TCPAddr{} }
 func (c *scripted) SetDeadline(time.Time) error      { return nil }
 func (c *scripted) SetReadDeadline(time.Time) error  { return nil }
 func (c *scripted) SetWriteDeadline(time.Time) error { return nil }
+
+// A WireGuard config comes from a VPN provider or a download. Parsing one
+// must never panic, and what it accepts must be complete.
+func FuzzParseWGConf(f *testing.F) {
+	f.Add("[Interface]\nPrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\nAddress = 10.0.0.2/32\nDNS = 10.0.0.1\n[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = [2001:db8::1]:51820\nAllowedIPs = 0.0.0.0/0\n")
+	f.Add("[Interface]\nPostUp = rm -rf /\n")
+	f.Fuzz(func(t *testing.T, src string) {
+		c, err := ParseWGConf(src)
+		if err != nil {
+			return
+		}
+		if len(c.Addresses) == 0 || len(c.Peers) == 0 {
+			t.Fatalf("accepted an incomplete config: %+v", c)
+		}
+		for _, p := range c.Peers {
+			if p.Endpoint == "" || len(p.AllowedIPs) == 0 {
+				t.Fatalf("accepted an incomplete peer: %+v", p)
+			}
+		}
+		if strings.Contains(strings.ToLower(src), "postup") && strings.Contains(src, "=") {
+			for _, l := range strings.Split(src, "\n") {
+				k, _, ok := strings.Cut(l, "=")
+				if ok && strings.EqualFold(strings.TrimSpace(k), "postup") && !strings.ContainsAny(strings.SplitN(l, "=", 2)[0], "#;") {
+					t.Fatalf("accepted a shell hook:\n%s", src)
+				}
+			}
+		}
+	})
+}

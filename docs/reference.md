@@ -23,10 +23,11 @@
 | `--config FILE` | a file with `[network]` and `[paths.NAME]` tables |
 | `--via NAME` | use a named path from `--config` or `--policy` |
 | `--direct` | connect from this machine (the default) |
+| `--wireguard FILE` | go through a WireGuard tunnel, from a wg-quick config file. vpnw runs the tunnel itself: no root, no network interface |
 | `--proxy URL` | `socks5://`, `socks5h://`, `http://`, `https://` or `socks5+tls://`. Given more than once, a list of exits used in order, moving to the next when one stops answering |
 | `--ca FILE` | certificates to trust for a proxy over TLS |
 | `--token-file FILE` | the token for a proxy over TLS |
-| `--dns local\|remote` | where names are resolved, for `--proxy` |
+| `--dns MODE` | where names are resolved: `local` or `remote` for `--proxy`, `tunnel` or `local` for `--wireguard` |
 | `--allow RULE`, `--deny RULE` | rules on the command line, repeatable |
 | `--deny-private` | deny loopback, private and link-local addresses |
 | `--default allow\|deny` | what happens when no rule matches |
@@ -74,6 +75,10 @@ token_file = "agent.token"
 type = "proxy"
 url = "socks5h://127.0.0.1:1080"
 
+[paths.office]
+type = "wireguard"
+config = "office.conf"    # a wg-quick file, relative to this one
+
 [policy]
 default = "deny"
 deny_private = true
@@ -88,10 +93,17 @@ out = "trace.jsonl"
 
 | Path key | Value |
 |---|---|
-| `type` | `direct` or `proxy` |
-| `url` or `urls` | one proxy, or a list of exits with failover |
-| `dns` | `local` or `remote`; a proxy resolves remotely unless told otherwise |
+| `type` | `direct`, `proxy` or `wireguard` |
+| `url` or `urls` | a proxy path: one proxy, or a list of exits with failover |
+| `config` | a WireGuard path: its wg-quick file, relative to this file's folder |
+| `dns` | proxy paths: `local` or `remote`, remote unless told otherwise. WireGuard paths: `tunnel` (the config's DNS servers, through the tunnel) or `local`; tunnel whenever the config names DNS servers |
 | `ca_file`, `token_file` | for proxies over TLS; relative to the file's folder |
+
+### WireGuard config files
+
+The usual wg-quick format, as VPN providers and `wg` hand it out. In `[Interface]`: `PrivateKey`, `Address`, and optionally `DNS`, `MTU` and `ListenPort`. In each `[Peer]`: `PublicKey`, `Endpoint`, `AllowedIPs`, and optionally `PresharedKey` and `PersistentKeepalive`. Unknown keys are errors, and so are wg-quick's shell hooks (`PreUp`, `PostUp`, `PreDown`, `PostDown`): vpnw runs no commands from a config file.
+
+Before the program starts, vpnw waits up to 5 seconds for a handshake with every peer and stops with exit code 123 if one doesn't answer. A connection to an address outside every peer's `AllowedIPs` is refused with that reason. The peers' endpoints are looked up on this machine, the one lookup that can't go through the tunnel.
 
 ## Policy
 
@@ -145,6 +157,6 @@ Events describe decisions, never payloads: no application data, URL paths, heade
 ## What it doesn't do yet
 
 - Sealed runs and `guard` need Linux.
-- TCP only, through HTTP CONNECT, plain HTTP and SOCKS5. UDP and QUIC are refused. A WireGuard Tunnel plugin is planned.
+- TCP only, through HTTP CONNECT, plain HTTP and SOCKS5, on every path WireGuard included. UDP and QUIC are refused.
 - Network only. A sealed program can read whatever your user can read, and send it only where the policy allows. Run vpnw as an ordinary user.
 - Per program only. Gateway mode, for every device behind a machine, is planned.

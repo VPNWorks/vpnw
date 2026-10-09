@@ -12,7 +12,7 @@ This page shows how to write one in Go with the SDK, then documents the interfac
 | `advisor` | `OnEvent` for every event of the traces it's given, then `Finish`, where it writes its advice | `vpnw advise NAME --from FILE` |
 | `guard` | `OnDecide` for every connection the policy allowed | `vpnw run/trace/guard --plugin NAME` |
 
-`Init` comes first for every type. `tunnel`, `exit` and `identity` are reserved for later versions of vpnw; a manifest with one of them is refused with that message.
+`Init` comes first for every type. `tunnel`, `exit` and `identity` are reserved for later versions of vpnw; a manifest with one of them is refused with that message. A Tunnel plugin will manage tunnels (fetch and rotate a provider's WireGuard configs, say) and hand them to the core; the tunnel itself, like every byte of traffic, stays in the core.
 
 ## A Guard in Go
 

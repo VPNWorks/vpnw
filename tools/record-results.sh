@@ -98,7 +98,8 @@ rm -rf "$COV"
 say "fuzzing ($FUZZTIME per target)"
 : >"$OUT/fuzz.txt"
 for target in internal/config:FuzzParse internal/policy:FuzzParseRule internal/policy:FuzzDecide internal/broker:FuzzHandle \
-              internal/path:FuzzFromURL internal/path:FuzzExitAnswer internal/pluginhost:FuzzParseManifest internal/pluginhost:FuzzVerify; do
+              internal/path:FuzzFromURL internal/path:FuzzExitAnswer internal/path:FuzzParseWGConf \
+              internal/pluginhost:FuzzParseManifest internal/pluginhost:FuzzVerify; do
   pkg=./${target%%:*}; fn=${target##*:}
   log=$(go test -run '^$' -fuzz "^$fn\$" -fuzztime "$FUZZTIME" "$pkg" 2>&1 || true)
   execs=$(printf '%s\n' "$log" | grep -o 'execs: [0-9]*' | tail -1 | tr -dc 0-9)
@@ -106,21 +107,33 @@ for target in internal/config:FuzzParse internal/policy:FuzzParseRule internal/p
   printf '%-20s %-18s %10s executions  %s\n' "${target%%:*}" "$fn" "$execs" "$status" | tee -a "$OUT/fuzz.txt"
 done
 
-say "plugin costs"
-go test -run '^$' -bench . -benchtime 3s -count 3 ./internal/pluginhost 2>&1 | grep -E '^Benchmark' | python3 -c '
+bench() { # bench PKG PATTERN OUTFILE
+  go test -run '^$' -bench "$2" -benchtime 3s -count 3 "$1" 2>&1 | grep -E '^Benchmark' | python3 -c '
 import sys, collections
-runs = collections.defaultdict(list)
+runs = collections.defaultdict(list); mbs = collections.defaultdict(list)
 for line in sys.stdin:
     f = line.split()
-    runs[f[0].split("-")[0]].append(float(f[2]))
+    k = f[0].split("-")[0]
+    runs[k].append(float(f[2]))
+    if "MB/s" in f: mbs[k].append(float(f[f.index("MB/s") - 1]))
 label = {"BenchmarkGuardDecide": "a Guard decision (test guard, policy already passed)",
          "BenchmarkObserverEvent": "one event through the Trace plugin, rendered",
-         "BenchmarkLoadWarm": "starting the Trace plugin, compiled code from the cache"}
+         "BenchmarkLoadWarm": "starting the Trace plugin, compiled code from the cache",
+         "BenchmarkWireGuardConnect": "opening a TCP connection through a WireGuard tunnel",
+         "BenchmarkWireGuardThroughput": "data through a WireGuard tunnel"}
 for k, v in runs.items():
     v.sort(); m = v[len(v)//2]
+    if mbs[k]:
+        x = sorted(mbs[k]); print(f"{label.get(k, k)}: {x[len(x)//2]:.0f} MB/s (median of {len(x)} runs)")
+        continue
     unit, div = ("ms", 1e6) if m >= 1e6 else ("µs", 1e3)
     print(f"{label.get(k, k)}: {m/div:.1f} {unit} (median of {len(v)} runs)")
-' | tee "$OUT/plugins.txt"
+' | tee "$3"
+}
+
+say "plugin and WireGuard costs"
+bench ./internal/pluginhost . "$OUT/plugins.txt"
+bench ./internal/path WireGuard "$OUT/wireguard.txt"
 
 say "bypass matrix"
 VPNW_MATRIX_OUT="$PWD/$OUT/bypass-matrix.md" go test -count=1 -run 'TestBypassMatrix' -v ./test/integration/ 2>&1 \

@@ -12,7 +12,7 @@ Open source under the Apache License 2.0. Linux first; macOS for the parts that 
 
 ## What it's for
 
-An ordinary VPN gives your whole machine one way out. VPN Works works one level down: per program. An AI coding agent, a build script, a scraper or a container each get their own path (direct, a SOCKS or HTTP proxy, a proxy over TLS, a list of exits with failover) and their own rules (which hosts, which ports, nothing on the private network). A program that ignores proxy settings doesn't leak around vpnw; on Linux it has no route anywhere else.
+An ordinary VPN gives your whole machine one way out. VPN Works works one level down: per program. An AI coding agent, a build script, a scraper or a container each get their own path (direct, a WireGuard tunnel, a SOCKS or HTTP proxy, a proxy over TLS, a list of exits with failover) and their own rules (which hosts, which ports, nothing on the private network). A program that ignores proxy settings doesn't leak around vpnw; on Linux it has no route anywhere else.
 
 The core does four things and nothing else:
 
@@ -29,7 +29,19 @@ Plugins do the rest. They're WebAssembly modules that run in a sandbox inside vp
 | **Advisor** | Reads recorded traces and writes advice | `learn`: turns a trace into a draft policy |
 | **Guard** | Can refuse a connection the policy allowed | none yet |
 
-Tunnel, Exit and Identity plugins come in later versions. WireGuard is the first planned Tunnel.
+Tunnel, Exit and Identity plugins come in later versions.
+
+## WireGuard, without root
+
+Give vpnw the WireGuard config your VPN provider (or your own server) hands out, and one program goes through the tunnel while the rest of your machine doesn't:
+
+```
+vpnw guard --wireguard mullvad-de.conf --policy agent.toml -- ./my-agent
+```
+
+vpnw runs the tunnel itself, inside its own process: the WireGuard protocol from the official wireguard-go and a TCP/IP stack from gVisor. No root, no kernel module, no network interface on the machine, and nothing changes for any other program. Names are looked up through the tunnel at the DNS servers in the config, so lookups don't leak, and the policy still checks every address before anything is sent. If the tunnel doesn't come up (a wrong key, a blocked port) the program never starts.
+
+WireGuard is a built-in path, like the proxy paths, not a plugin: it carries every byte, and plugins never carry traffic. It's a registered trademark of Jason A. Donenfeld; VPN Works isn't affiliated with the WireGuard project.
 
 ## Install
 
@@ -67,9 +79,10 @@ vpnw guard --policy my-agent.toml -- ./my-agent
 
 Learn allows whatever the program did, including anything it shouldn't have, so read the draft first. It flags raw IP addresses, uploads much larger than the downloads, and destinations on the private network (which `deny_private` will refuse).
 
-Send a program through a proxy:
+Send a program through a WireGuard tunnel, or a proxy:
 
 ```
+vpnw run --wireguard wg0.conf -- ./scraper
 vpnw run --proxy socks5h://127.0.0.1:1080 -- ./scraper
 ```
 
@@ -116,7 +129,7 @@ Writing a plugin in Go takes the SDK and one build command; [docs/plugins.md](do
 
 ## How it was tested
 
-Every number here comes from `tools/record-results.sh`, which writes [test/results](test/results). The main promise is that a sealed program can't get out except through vpnw, so the integration tests try every way out they know from inside the sandbox ([bypass matrix](test/results/bypass-matrix.md)), and the plugin tests aim at the plugin promises: a plugin that panics, spins forever, writes without permission, falls behind, or fails while guarding. Costs per plugin call are in [plugins.txt](test/results/plugins.txt).
+Every number here comes from `tools/record-results.sh`, which writes [test/results](test/results). The main promise is that a sealed program can't get out except through vpnw, so the integration tests try every way out they know from inside the sandbox ([bypass matrix](test/results/bypass-matrix.md)), and the plugin tests aim at the plugin promises: a plugin that panics, spins forever, writes without permission, falls behind, or fails while guarding. Costs per plugin call are in [plugins.txt](test/results/plugins.txt). WireGuard paths are tested against a real WireGuard peer running in the tests, with a web and a DNS server inside its tunnel; their speed is in [wireguard.txt](test/results/wireguard.txt).
 
 ## Build from source
 
@@ -133,7 +146,7 @@ go test ./...
 | Folder | What's in it |
 |---|---|
 | `cmd/vpnw` | the command |
-| `internal/broker`, `policy`, `path`, `process`, `events`, `config` | the core |
+| `internal/broker`, `policy`, `path`, `process`, `events`, `config` | the core; `path` holds the direct, proxy and WireGuard paths |
 | `internal/pluginhost` | loads and runs plugins (wazero, a pure-Go WebAssembly runtime) |
 | `plugins/sdk` | the Go SDK for plugins |
 | `plugins/trace`, `plugins/learn` | the built-in plugins |

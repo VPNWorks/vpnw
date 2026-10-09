@@ -6,5 +6,15 @@ This product includes software developed at VPNW.com (https://vpnw.com/).
 This product includes wazero (https://github.com/tetratelabs/wazero),
 Copyright 2020-2023 wazero authors, licensed under the Apache License 2.0.
 
+This product includes gVisor (https://gvisor.dev), Copyright The gVisor
+Authors, and google/btree (https://github.com/google/btree), Copyright
+Google Inc., both licensed under the Apache License 2.0.
+
+This product includes wireguard-go (https://git.zx2c4.com/wireguard-go),
+Copyright WireGuard LLC, under the MIT license. WireGuard is a registered
+trademark of Jason A. Donenfeld; VPN Works is not affiliated with or
+endorsed by the WireGuard project.
+
 The vpnw binary and its built-in plugins include the Go standard library and
-runtime. Their licenses are in THIRD_PARTY_LICENSES.md.
+runtime, and golang.org/x modules under the same license. The licenses are in
+THIRD_PARTY_LICENSES.md.

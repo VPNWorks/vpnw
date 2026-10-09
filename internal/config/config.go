@@ -57,8 +57,10 @@ type PathSpec struct {
 	// from the folder of File, the file this path was read from.
 	CAFile    string
 	TokenFile string
-	File      string
-	Line      int
+	// WGConfig is the wg-quick file of a WireGuard path.
+	WGConfig string
+	File     string
+	Line     int
 }
 
 // PolicySpec is the [policy] table as written.
@@ -82,8 +84,8 @@ var pathName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,31}$`)
 
 var schema = map[string][]string{
 	"":        {"version", "name"},
-	"network": {"name", "type", "url", "urls", "dns", "ca_file", "token_file"},
-	"path":    {"type", "url", "urls", "dns", "ca_file", "token_file"},
+	"network": {"name", "type", "url", "urls", "dns", "ca_file", "token_file", "config"},
+	"path":    {"type", "url", "urls", "dns", "ca_file", "token_file", "config"},
 	"policy":  {"default", "deny_private", "allow", "deny"},
 	"trace":   {"enabled", "format", "out"},
 }
@@ -332,12 +334,33 @@ func pathFrom(t *Table, name string) (*PathSpec, error) {
 		return nil, err
 	}
 	switch s {
-	case "direct", "proxy":
+	case "direct", "proxy", "wireguard":
 		ps.Type = s
-	case "wireguard":
-		return nil, &Error{Line: tv.Line, Msg: "type \"wireguard\" is not in this vpnw yet; it will come as a tunnel plugin. Paths here are \"direct\" and \"proxy\""}
 	default:
-		return nil, &Error{Line: tv.Line, Msg: fmt.Sprintf("unknown path type %q; use \"direct\" or \"proxy\"", s)}
+		return nil, &Error{Line: tv.Line, Msg: fmt.Sprintf("unknown path type %q; use \"direct\", \"proxy\" or \"wireguard\"", s)}
+	}
+	if cv, ok := t.Keys["config"]; ok {
+		c, err := wantString(cv, "config")
+		if err != nil {
+			return nil, err
+		}
+		if ps.Type != "wireguard" {
+			return nil, &Error{Line: cv.Line, Msg: "config is the wg-quick file of a wireguard path"}
+		}
+		if c == "" {
+			return nil, &Error{Line: cv.Line, Msg: "config is empty"}
+		}
+		ps.WGConfig = c
+	}
+	if ps.Type == "wireguard" {
+		if ps.WGConfig == "" {
+			return nil, &Error{Line: t.Line, Msg: fmt.Sprintf("[%s] is a wireguard path and needs config = \"wg0.conf\", a wg-quick file", t.Name)}
+		}
+		for _, k := range []string{"url", "urls", "ca_file", "token_file"} {
+			if v, ok := t.Keys[k]; ok {
+				return nil, &Error{Line: v.Line, Msg: fmt.Sprintf("a wireguard path has no %s; its peer and keys are in the config file", k)}
+			}
+		}
 	}
 	if uv, ok := t.Keys["url"]; ok {
 		u, err := wantString(uv, "url")
@@ -394,8 +417,11 @@ func pathFrom(t *Table, name string) (*PathSpec, error) {
 		if err != nil {
 			return nil, err
 		}
-		switch d {
-		case "local", "remote":
+		switch {
+		case ps.Type == "wireguard" && (d == "tunnel" || d == "local"):
+		case ps.Type == "wireguard":
+			return nil, &Error{Line: dv.Line, Msg: "dns for a wireguard path is \"tunnel\" (the config's DNS servers, through the tunnel) or \"local\""}
+		case d == "local", d == "remote":
 		default:
 			return nil, &Error{Line: dv.Line, Msg: "dns must be \"local\" or \"remote\""}
 		}
@@ -405,11 +431,14 @@ func pathFrom(t *Table, name string) (*PathSpec, error) {
 		ps.DNS = d
 	}
 	if ps.DNS == "" {
-		if ps.Type == "direct" {
+		switch ps.Type {
+		case "direct":
 			ps.DNS = "local"
-		} else {
+		case "proxy":
 			ps.DNS = "remote"
 		}
+		// A wireguard path decides from its config: through the tunnel when
+		// it names DNS servers.
 	}
 	return ps, nil
 }

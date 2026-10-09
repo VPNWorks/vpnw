@@ -60,9 +60,13 @@ Options for run, trace and guard:
                       or one reached over TLS: https:// or socks5+tls://.
                       Give it again for a list of exits, used in order: when
                       one stops answering, connections move to the next
+  --wireguard FILE    go through a WireGuard tunnel, from a wg-quick config file
+                      (what VPN providers and wg hand out). vpnw runs the
+                      tunnel itself: no root, no network interface
   --ca FILE           certificates to trust for a proxy over TLS (private CA)
   --token-file FILE   read the token for a proxy over TLS from FILE
-  --dns local|remote  where names are resolved, for --proxy
+  --dns MODE          where names are resolved: local or remote for --proxy,
+                      tunnel or local for --wireguard
   --allow RULE        allow a host, *.domain, address or CIDR (repeatable)
   --deny RULE         deny one (repeatable)
   --deny-private      deny loopback, private and link-local addresses
@@ -128,7 +132,7 @@ func (m *multi) String() string     { return strings.Join(*m, ",") }
 func (m *multi) Set(s string) error { *m = append(*m, s); return nil }
 
 type runOpts struct {
-	policyFile, configFile, via, dns, def, out, backend              string
+	policyFile, configFile, via, dns, def, out, backend, wg          string
 	caFile, tokenFile                                                string
 	direct, denyPrivate, jsonOut, verbose, quiet, noSave, noDenyExit bool
 	allowUnix                                                        bool
@@ -149,6 +153,7 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	fs.StringVar(&o.via, "via", "", "")
 	fs.BoolVar(&o.direct, "direct", false, "")
 	fs.Var(&o.proxy, "proxy", "")
+	fs.StringVar(&o.wg, "wireguard", "", "")
 	fs.StringVar(&o.caFile, "ca", "", "")
 	fs.StringVar(&o.tokenFile, "token-file", "", "")
 	fs.StringVar(&o.dns, "dns", "", "")
@@ -238,17 +243,22 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	// Path.
 	var p path.Path
 	chosen := 0
-	for _, b := range []bool{o.direct, len(o.proxy) > 0, o.via != ""} {
+	for _, b := range []bool{o.direct, len(o.proxy) > 0, o.via != "", o.wg != ""} {
 		if b {
 			chosen++
 		}
 	}
 	if chosen > 1 {
-		return fail(stderr, process.ExitConfig, "choose one of --direct, --proxy and --via")
+		return fail(stderr, process.ExitConfig, "choose one of --direct, --proxy, --wireguard and --via")
 	}
 	switch {
 	case o.direct:
 		p = &path.Direct{}
+	case o.wg != "":
+		var c *path.WGConf
+		if c, err = path.LoadWGConf(o.wg); err == nil {
+			p, err = path.NewWireGuard("wireguard", c, o.dns)
+		}
 	case len(o.proxy) > 0:
 		if o.dns != "" && o.dns != "local" && o.dns != "remote" {
 			err = errors.New("--dns must be local or remote")
@@ -278,8 +288,13 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	if err != nil {
 		return fail(stderr, process.ExitConfig, "%v", err)
 	}
-	if o.dns != "" && len(o.proxy) == 0 {
-		return fail(stderr, process.ExitConfig, "--dns applies to --proxy only; set dns in the path's table")
+	if o.dns != "" && len(o.proxy) == 0 && o.wg == "" {
+		return fail(stderr, process.ExitConfig, "--dns applies to --proxy and --wireguard only; set dns in the path's table")
+	}
+	// A path that runs something of its own (a WireGuard tunnel) is taken
+	// down when the run ends.
+	if c, ok := p.(interface{ Close() error }); ok {
+		defer c.Close()
 	}
 	if (o.caFile != "" || o.tokenFile != "") && len(o.proxy) == 0 {
 		return fail(stderr, process.ExitConfig, "--ca and --token-file apply to --proxy only; set ca_file and token_file in the path's table")
@@ -312,7 +327,7 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 
 	// Path health: never fall back to direct if the chosen path is down.
 	{
-		ctx, cancel := contextTimeout(5 * time.Second)
+		ctx, cancel := contextTimeout(10 * time.Second)
 		err := p.Health(ctx)
 		cancel()
 		if err != nil {
@@ -400,7 +415,13 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 		return fail(stderr, process.ExitInternal, "cannot open the broker: %v", err)
 	}
 	defer be.Close()
-	br := &broker.Broker{Policy: pol, Path: p, Resolver: path.SystemResolver{}, Bus: bus, Guards: pr.brokerGuards()}
+	var resolver path.Resolver = path.SystemResolver{}
+	if r, ok := p.(path.PathResolver); ok {
+		// Names go where the path says: through a WireGuard tunnel to its
+		// DNS servers, so lookups don't leak outside it.
+		resolver = r.Resolver()
+	}
+	br := &broker.Broker{Policy: pol, Path: p, Resolver: resolver, Bus: bus, Guards: pr.brokerGuards()}
 	if env, ok := be.(*process.Env); ok {
 		br.Token = env.Token
 	}
