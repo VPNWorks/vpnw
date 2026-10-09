@@ -107,6 +107,12 @@ these without the owner.
   site's roadmap page is the public version of the program below.
 - The order of the program and the pause after each release were set by the
   owner. Don't reorder it without asking.
+- How the project is presented (October 9, 2026, chosen by the owner): "The
+  VPN, rebuilt as an operating system". The OS is named VPN Works; its
+  kernel is vpnw. OS is a metaphor, used openly: the core is the kernel,
+  paths are drivers, the plugin interface is system calls, plugins are apps.
+  Keep the site, README and posts in those terms, and don't claim more than
+  the code does (it isn't an OS you boot, a router or a VPN service).
 
 ## Every release
 
