@@ -1,13 +1,14 @@
-  github.com/VPNWorks/vpnw/cmd/vpnw    coverage: 76.6% of statements
+  github.com/VPNWorks/vpnw/cmd/vpnw    coverage: 77.6% of statements
   github.com/VPNWorks/vpnw/internal/broker    coverage: 84.0% of statements
-  github.com/VPNWorks/vpnw/internal/config    coverage: 83.2% of statements
+  github.com/VPNWorks/vpnw/internal/config    coverage: 83.5% of statements
   github.com/VPNWorks/vpnw/internal/events    coverage: 81.5% of statements
-  github.com/VPNWorks/vpnw/internal/path    coverage: 87.9% of statements
+  github.com/VPNWorks/vpnw/internal/path    coverage: 85.6% of statements
+  github.com/VPNWorks/vpnw/internal/path/wgtest    coverage: 76.6% of statements
   github.com/VPNWorks/vpnw/internal/pluginhost    coverage: 84.0% of statements
   github.com/VPNWorks/vpnw/internal/policy    coverage: 92.4% of statements
   github.com/VPNWorks/vpnw/internal/process    coverage: 64.4% of statements
   github.com/VPNWorks/vpnw/plugins/learn/learn    coverage: 95.1% of statements
   github.com/VPNWorks/vpnw/plugins/sdk    coverage: 67.7% of statements
   github.com/VPNWorks/vpnw/plugins/trace/render    coverage: 94.5% of statements
-total: statements: 82.4%
+total: statements: 82.5%
 (the Trace and Learn plugin programs run as WebAssembly, where Go records no coverage; their logic is covered through plugins/trace/render and plugins/learn/learn)

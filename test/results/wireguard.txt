@@ -1,0 +1,2 @@
+opening a TCP connection through a WireGuard tunnel: 260.9 µs (median of 3 runs)
+data through a WireGuard tunnel: 70 MB/s (median of 3 runs)

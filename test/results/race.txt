@@ -1,14 +1,15 @@
 ?   	github.com/VPNWorks/vpnw/cmd/vpnw	[no test files]
-ok  	github.com/VPNWorks/vpnw/internal/broker	1.103s
-ok  	github.com/VPNWorks/vpnw/internal/config	1.015s
-ok  	github.com/VPNWorks/vpnw/internal/events	1.014s
-ok  	github.com/VPNWorks/vpnw/internal/path	3.500s
-ok  	github.com/VPNWorks/vpnw/internal/pluginhost	195.575s
-ok  	github.com/VPNWorks/vpnw/internal/policy	1.017s
-ok  	github.com/VPNWorks/vpnw/internal/process	1.023s
+ok  	github.com/VPNWorks/vpnw/internal/broker	1.161s
+ok  	github.com/VPNWorks/vpnw/internal/config	1.028s
+ok  	github.com/VPNWorks/vpnw/internal/events	1.018s
+ok  	github.com/VPNWorks/vpnw/internal/path	16.631s
+?   	github.com/VPNWorks/vpnw/internal/path/wgtest	[no test files]
+ok  	github.com/VPNWorks/vpnw/internal/pluginhost	230.763s
+ok  	github.com/VPNWorks/vpnw/internal/policy	1.019s
+ok  	github.com/VPNWorks/vpnw/internal/process	1.015s
 ?   	github.com/VPNWorks/vpnw/internal/version	[no test files]
-ok  	github.com/VPNWorks/vpnw/plugins/builtin	1.017s
+ok  	github.com/VPNWorks/vpnw/plugins/builtin	1.023s
 ok  	github.com/VPNWorks/vpnw/plugins/learn/learn	1.016s
-ok  	github.com/VPNWorks/vpnw/plugins/sdk	1.016s
-ok  	github.com/VPNWorks/vpnw/plugins/trace/render	1.015s
-ok  	github.com/VPNWorks/vpnw/test/integration	12.962s
+ok  	github.com/VPNWorks/vpnw/plugins/sdk	1.019s
+ok  	github.com/VPNWorks/vpnw/plugins/trace/render	1.019s
+ok  	github.com/VPNWorks/vpnw/test/integration	29.201s

@@ -1,7 +1,7 @@
-vpnw, linux/amd64: 15360184 bytes; gzip -9: 5228303 bytes
-vpnw, linux/arm64: 14942392 bytes; gzip -9: 4930310 bytes
+vpnw, linux/amd64: 18522296 bytes; gzip -9: 6326270 bytes
+vpnw, linux/arm64: 17957048 bytes; gzip -9: 5975697 bytes
 vpnw, darwin/amd64: compiles (env backend; sealed runs need Linux)
 vpnw, darwin/arm64: compiles (env backend; sealed runs need Linux)
-built-in plugin trace: 3300890 bytes of WebAssembly; gzip -9: 921977 bytes
-built-in plugin learn: 3923184 bytes of WebAssembly; gzip -9: 1078568 bytes
-third-party modules: 1 (github.com/tetratelabs/wazero v1.10.1 )
+built-in plugin trace: 3300890 bytes of WebAssembly; gzip -9: 922508 bytes
+built-in plugin learn: 3923184 bytes of WebAssembly; gzip -9: 1078404 bytes
+third-party modules: 0 ()

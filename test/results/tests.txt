@@ -1,9 +1,9 @@
-test functions: 110 (110 passed, 0 failed, 0 skipped)
-with subtests: 179 (177 passed, 0 failed, 2 skipped)
+test functions: 121 (121 passed, 0 failed, 0 skipped)
+with subtests: 192 (190 passed, 0 failed, 2 skipped)
   internal/broker               18 passed
   internal/config                9 passed
   internal/events                3 passed
-  internal/path                 24 passed
+  internal/path                 31 passed
   internal/pluginhost           21 passed
   internal/policy                9 passed
   internal/process               3 passed
@@ -11,4 +11,4 @@ with subtests: 179 (177 passed, 0 failed, 2 skipped)
   plugins/learn/learn            4 passed
   plugins/sdk                    1 passed
   plugins/trace/render           3 passed
-  test/integration              14 passed
+  test/integration              18 passed
