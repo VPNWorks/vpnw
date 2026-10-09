@@ -22,23 +22,22 @@ whole procedure and the checks to run afterwards.
 
 Read this first in a new session, and update it at the end of every release.
 
-- **Released:** 0.4.0 (October 9, 2026), WireGuard paths. 0.3.0 before it
-  rebuilt VPN Works as a core with plugins.
-- **Paused by the owner** on October 9, 2026, partway into 0.4.1. Don't
-  continue until the owner says so.
-- **0.4.1 so far:** branch `ipv6-matrix` (one commit, not merged, no pull
-  request, CI not run yet). It gives the IPv6 loopback row of the bypass
-  matrix a real `[::1]` listener with a control outside the sandbox, adds
-  `VPNW_REQUIRE_SEAL=1` and `VPNW_REQUIRE_IPV6=1` so CI fails instead of
-  skipping, and adds a Linux CI step that runs the matrix and keeps it as the
-  `bypass-matrix` artifact. The machine used so far has no IPv6 in its
-  kernel at all, so the IPv6 rows can only run on the GitHub runner.
-- **0.4.1 next steps:** open a pull request from `ipv6-matrix` to run CI;
-  check that the sealed tests really run on the runner (until now they could
-  skip without anyone seeing) and that both IPv6 rows are blocked; teach
-  `tools/record-results.sh` to take the IPv6 rows from the CI artifact; then
-  the small review cleanups, the release and the site.
-- **Waiting for the owner:** the go-ahead to resume 0.4.1.
+- **Released:** 0.4.1 (October 9, 2026): the bypass matrix's IPv6 rows run
+  in CI (17 of 17 ways out blocked on the Linux runner), and a data race in
+  closing plugins is fixed. 0.4.0 added WireGuard paths; 0.3.0 rebuilt VPN
+  Works as a core with plugins.
+- **Next:** 0.5.0, Ledger. Waiting for the owner's go-ahead.
+- **How the IPv6 rows are recorded:** the machine used so far has no IPv6 in
+  its kernel. CI runs the matrix on its Linux runner with
+  `VPNW_REQUIRE_SEAL=1` and `VPNW_REQUIRE_IPV6=1` and leaves the table as a
+  `bypass-matrix` annotation; `tools/record-results.sh` reads it back with
+  `gh api` into test/results/bypass-matrix-ci.md, from the green push run of
+  the same commit. Push, wait for CI, then record. The runner has no
+  outbound IPv6, so the public IPv6 row shows no route outside the sandbox
+  too; only the loopback row has a working control.
+- **Getting Go modules here:** proxy.golang.org may be unreachable; use
+  `GOTOOLCHAIN=local GOPROXY=off GONOSUMDB='*' GOFLAGS=-mod=mod` with the
+  module cache already in place. CI checks the sums.
 
 ## The program
 
@@ -50,7 +49,7 @@ release on your own, even when the last one went well.
 
 | Release | What | Status |
 |---|---|---|
-| 0.4.1 | Fixes: the two IPv6 escape tests run inside the test sandbox, so they no longer depend on the machine having IPv6 (16 of 16 ways out tested); small cleanups left from the reviews | started, paused |
+| 0.4.1 | Fixes: the two IPv6 escape tests run inside the test sandbox, so they no longer depend on the machine having IPv6 (16 of 16 ways out tested); small cleanups left from the reviews | released |
 | 0.5.0 | Ledger | waiting |
 | 0.6.0 | Lab | waiting |
 | 0.7.0 | Exit | waiting |

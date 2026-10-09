@@ -1,3 +1,3 @@
-a Guard decision (test guard, policy already passed): 151.2 µs (median of 3 runs)
-one event through the Trace plugin, rendered: 443.3 µs (median of 3 runs)
-starting the Trace plugin, compiled code from the cache: 62.6 ms (median of 3 runs)
+a Guard decision (test guard, policy already passed): 182.2 µs (median of 3 runs)
+one event through the Trace plugin, rendered: 440.8 µs (median of 3 runs)
+starting the Trace plugin, compiled code from the cache: 60.4 ms (median of 3 runs)
