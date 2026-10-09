@@ -27,6 +27,8 @@ type Sink struct {
 	onFail  func(name string, err error)
 	ch      chan []byte
 	done    chan struct{}
+	ctx     context.Context // cancelled to cut short a call in flight
+	cancel  context.CancelFunc
 	mu      sync.RWMutex
 	closed  bool
 	failed  atomic.Bool
@@ -37,6 +39,7 @@ type Sink struct {
 // from the Sink's goroutine, if the plugin fails.
 func NewSink(in *Instance, onFail func(name string, err error)) *Sink {
 	s := &Sink{in: in, own: "plugin." + in.Name() + ".", onFail: onFail, ch: make(chan []byte, QueueLen), done: make(chan struct{})}
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 	go s.loop()
 	return s
 }
@@ -73,7 +76,7 @@ func (s *Sink) loop() {
 		if s.failed.Load() {
 			continue
 		}
-		if err := s.in.Event(context.Background(), b); err != nil {
+		if err := s.in.Event(s.ctx, b); err != nil {
 			s.fail(err)
 		}
 	}
@@ -105,7 +108,13 @@ func (s *Sink) Close(grace time.Duration) (dropped int64, err error) {
 	case <-time.After(grace):
 		s.fail(errBehind)
 		s.in.stop(errBehind)
+		// Cut short the call in flight and wait for the loop to leave the
+		// plugin before closing it: closing a module while a call is still
+		// running in it is a data race.
+		s.cancel()
+		<-s.done
 	}
+	s.cancel()
 	s.in.Close()
 	return s.dropped.Load(), s.in.Err()
 }

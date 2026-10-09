@@ -307,12 +307,13 @@ func (h *Host) Check(ctx context.Context, pkg *Package) error {
 
 // Instance is one running plugin. Calls into it are taken one at a time.
 type Instance struct {
-	h    *Host
-	pkg  *Package
-	opt  Options
-	mod  api.Module
-	name string
-	turn chan struct{}
+	h      *Host
+	pkg    *Package
+	opt    Options
+	mod    api.Module
+	name   string
+	turn   chan struct{}
+	closed atomic.Bool // set by Close; no call starts after it
 
 	dmu    sync.Mutex
 	dead   error
@@ -497,11 +498,15 @@ func (in *Instance) explain(err error) error {
 // take waits for the plugin's turn. A stopped plugin may still hold the
 // turn in an abandoned call, so a stopped plugin is refused at once.
 func (in *Instance) take(ctx context.Context) error {
-	if in.Err() != nil {
+	if in.Err() != nil || in.closed.Load() {
 		return ErrStopped
 	}
 	select {
 	case in.turn <- struct{}{}:
+		if in.closed.Load() {
+			<-in.turn
+			return ErrStopped
+		}
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -588,8 +593,15 @@ func (in *Instance) Decide(ctx context.Context, req any) (deny bool, reason stri
 	}
 }
 
-// Close stops the plugin.
+// Close stops the plugin. It waits for a call in flight to end first,
+// which its time budget bounds: closing a module while a call is still
+// running in it is a data race.
 func (in *Instance) Close() {
+	if in.closed.Swap(true) {
+		return
+	}
+	in.turn <- struct{}{}
+	defer func() { <-in.turn }()
 	if in.mod != nil {
 		in.mod.Close(context.Background())
 	}

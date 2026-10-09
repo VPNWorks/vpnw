@@ -580,3 +580,29 @@ func BenchmarkLoadWarm(b *testing.B) {
 		h.Close(sharedCtx)
 	}
 }
+
+// Closing a plugin while a call is still running in it waits for the call
+// to end, within its budget, instead of closing the module under it, and
+// lets no call in after it. (The race itself showed up only now and then,
+// in TestSlowObserverNeverBlocks under -race.)
+func TestCloseWaitsForCallInFlight(t *testing.T) {
+	in, err := host(t).Load(sharedCtx, pkg(t, "spin"), pluginhost.Options{EventBudget: 300 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- in.Event(sharedCtx, eventJSON(t, events.RunStart, 0, nil)) }()
+	time.Sleep(50 * time.Millisecond)
+	t0 := time.Now()
+	in.Close()
+	if d := time.Since(t0); d > 3*time.Second {
+		t.Errorf("Close took %v", d)
+	}
+	if err := <-done; err == nil {
+		t.Error("the spinning call returned no error")
+	}
+	if err := in.Event(sharedCtx, eventJSON(t, events.RunStart, 0, nil)); err == nil {
+		t.Error("a call after Close was let in")
+	}
+	in.Close() // a second Close is harmless
+}
