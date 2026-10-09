@@ -5,6 +5,7 @@ package pluginhost
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/VPNWorks/vpnw/internal/broker"
@@ -31,7 +32,7 @@ func (g *GuardCheck) Name() string { return g.in.Name() }
 // without asking.
 func (g *GuardCheck) Check(ctx context.Context, r broker.GuardRequest) (bool, string, error) {
 	deny, reason, err := g.in.Decide(ctx, r)
-	if err != nil {
+	if err != nil && !errors.Is(err, ErrClosed) {
 		g.once.Do(func() {
 			if g.onFail != nil {
 				g.onFail(g.in.Name(), err)

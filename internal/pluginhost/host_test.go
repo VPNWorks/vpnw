@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -605,4 +606,23 @@ func TestCloseWaitsForCallInFlight(t *testing.T) {
 		t.Error("a call after Close was let in")
 	}
 	in.Close() // a second Close is harmless
+}
+
+// A Guard asked after Close refuses, says it was closed, and doesn't
+// report a failure: that's the end of a run, not a broken plugin.
+func TestGuardAfterCloseIsNotAFailure(t *testing.T) {
+	in, err := host(t).Load(sharedCtx, pkg(t, "blocker"), pluginhost.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed := false
+	g := pluginhost.NewGuard(in, func(string, error) { failed = true })
+	g.Close()
+	deny, _, err := g.Check(sharedCtx, req("example.com"))
+	if !deny || !errors.Is(err, pluginhost.ErrClosed) {
+		t.Errorf("deny=%v err=%v, want a refusal with ErrClosed", deny, err)
+	}
+	if failed {
+		t.Error("a Guard closed at the end of a run was reported as failed")
+	}
 }

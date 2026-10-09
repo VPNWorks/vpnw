@@ -414,6 +414,10 @@ func (in *Instance) Package() *Package   { return in.pkg }
 // ErrStopped is returned for calls into a plugin that already failed.
 var ErrStopped = errors.New("stopped after an earlier failure")
 
+// ErrClosed is what a call gets after Close, at the end of a run. It isn't
+// the plugin's failure.
+var ErrClosed = errors.New("closed at the end of the run")
+
 // sleep is the plugin's only way to pause. The runtime can interrupt
 // running code but not a sleep in progress, so a sleep never lasts past the
 // end of the current call's budget; the code after it is then interrupted.
@@ -495,17 +499,20 @@ func (in *Instance) explain(err error) error {
 	return errors.New(clean(msg, 500))
 }
 
-// take waits for the plugin's turn. A stopped plugin may still hold the
-// turn in an abandoned call, so a stopped plugin is refused at once.
+// take waits for the plugin's turn. A stopped or closed plugin is refused
+// at once.
 func (in *Instance) take(ctx context.Context) error {
-	if in.Err() != nil || in.closed.Load() {
+	if in.Err() != nil {
 		return ErrStopped
+	}
+	if in.closed.Load() {
+		return ErrClosed
 	}
 	select {
 	case in.turn <- struct{}{}:
 		if in.closed.Load() {
 			<-in.turn
-			return ErrStopped
+			return ErrClosed
 		}
 		return nil
 	case <-ctx.Done():
@@ -570,7 +577,7 @@ func (in *Instance) Decide(ctx context.Context, req any) (deny bool, reason stri
 	err = in.take(wctx)
 	cancel()
 	switch {
-	case err == ErrStopped:
+	case err == ErrStopped || err == ErrClosed:
 		return true, "", err
 	case err != nil:
 		return true, fmt.Sprintf("guard plugin %s was busy: no turn within %v", in.Name(), DecideWait), nil

@@ -93,10 +93,12 @@ func (s *Sink) fail(err error) {
 // lost and the plugin's failure, if any.
 func (s *Sink) Close(grace time.Duration) (dropped int64, err error) {
 	s.mu.Lock()
-	if !s.closed {
-		s.closed = true
-		close(s.ch)
+	if s.closed {
+		s.mu.Unlock()
+		return s.dropped.Load(), s.in.Err()
 	}
+	s.closed = true
+	close(s.ch)
 	s.mu.Unlock()
 	select {
 	case <-s.done:
