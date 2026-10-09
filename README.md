@@ -39,7 +39,7 @@ Give vpnw the WireGuard config your VPN provider (or your own server) hands out,
 vpnw guard --wireguard mullvad-de.conf --policy agent.toml -- ./my-agent
 ```
 
-vpnw runs the tunnel itself, inside its own process: the WireGuard protocol from the official wireguard-go and a TCP/IP stack from gVisor. No root, no kernel module, no network interface on the machine, and nothing changes for any other program. Names are looked up through the tunnel at the DNS servers in the config, so lookups don't leak, and the policy still checks every address before anything is sent. If the tunnel doesn't come up (a wrong key, a blocked port) the program never starts.
+vpnw runs the tunnel itself, inside its own process: the WireGuard protocol from the official wireguard-go and a TCP/IP stack from gVisor. No root, no kernel module, no network interface on the machine, and nothing changes for any other program. Names are looked up through the tunnel at the DNS servers in the config, so lookups don't leak, and the policy still checks every address before anything is sent. A config without a DNS server is refused unless you ask for lookups on your own machine with `--dns local`. If the tunnel doesn't come up (a wrong key, a blocked port) the program never starts.
 
 WireGuard is a built-in path, like the proxy paths, not a plugin: it carries every byte, and plugins never carry traffic. It's a registered trademark of Jason A. Donenfeld; VPN Works isn't affiliated with the WireGuard project.
 

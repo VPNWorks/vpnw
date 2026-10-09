@@ -47,14 +47,17 @@ type WireGuard struct {
 // "tunnel", "local" or "" (tunnel when the config names DNS servers).
 func NewWireGuard(name string, c *WGConf, dns string) (*WireGuard, error) {
 	switch dns {
-	case "":
-		dns = "tunnel"
+	case "", "tunnel":
 		if len(c.DNS) == 0 {
-			dns = "local"
+			// Never a quiet fallback that would send lookups outside the
+			// tunnel.
+			return nil, fmt.Errorf("the WireGuard config names no DNS server, so names could only be looked up outside the tunnel; add DNS = <server> to its [Interface], or ask for that with dns = \"local\" (--dns local)")
 		}
-	case "tunnel":
-		if len(c.DNS) == 0 {
-			return nil, fmt.Errorf("dns = \"tunnel\" needs DNS servers in the WireGuard config's [Interface]")
+		dns = "tunnel"
+		for _, d := range c.DNS {
+			if _, ok := c.Covers(d); !ok {
+				return nil, fmt.Errorf("the WireGuard config's DNS server %s is outside every peer's AllowedIPs, so the tunnel would drop every lookup; add it to AllowedIPs, or use dns = \"local\"", d)
+			}
 		}
 	case "local":
 	default:
@@ -174,7 +177,9 @@ func mustPort(s string) uint16 {
 }
 
 // HandshakeTimeout bounds how long Health waits for every peer to answer.
-const HandshakeTimeout = 5 * time.Second
+// WireGuard sends a handshake again after 5 seconds without a reply, so 12
+// seconds leaves room for one lost packet and its retry.
+const HandshakeTimeout = 12 * time.Second
 
 // Health brings the tunnel up and waits until every peer has completed a
 // WireGuard handshake: until then nothing is known to work, since

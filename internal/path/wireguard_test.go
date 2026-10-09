@@ -47,6 +47,18 @@ PersistentKeepalive = 25
 	if peer, ok := c.Covers(netip.MustParseAddr("93.184.215.14")); !ok || peer != &c.Peers[0] {
 		t.Error("0.0.0.0/0 should cover a public address")
 	}
+	if s := fmt.Sprintf("%v %+v %#v", c, c, c); strings.Contains(s, "yAnz5") || strings.Contains(s, fmt.Sprint(c.PrivateKey[0:4])) {
+		t.Errorf("printing a config shows its private key: %s", s)
+	}
+
+	// What real files carry: wg-quick's routing settings, IPv6 endpoints,
+	// keepalive written Off.
+	real := strings.Replace(good, "MTU = 1380\n", "MTU = 1380\nTable = off\nSaveConfig = true\nFwMark = 0x1234\n", 1)
+	real = strings.Replace(real, "vpn.example.com:51820", "[2001:db8::1]:51820", 1)
+	real = strings.Replace(real, "PersistentKeepalive = 25", "PersistentKeepalive = Off", 1)
+	if c, err := path.ParseWGConf(real); err != nil || c.Peers[0].Endpoint != "[2001:db8::1]:51820" {
+		t.Errorf("real-world file: %v", err)
+	}
 
 	key := "PrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\nAddress = 10.0.0.2/32\n"
 	peer := "[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = 1.2.3.4:51820\nAllowedIPs = 10.0.0.0/8\n"
@@ -62,6 +74,7 @@ PersistentKeepalive = 25
 		{"[Wat]\n", "unknown section"},
 		{"Address = 1.2.3.4/32\n", "comes before any [Interface]"},
 		{"[Interface]\n" + key + "MTU = 9\n" + peer, "MTU must be"},
+		{"[Interface]\n" + key + "[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = 2001:db8::1:51820\nAllowedIPs = 10.0.0.0/8\n", "an IPv6 endpoint is written [address]:port"},
 	} {
 		if _, err := path.ParseWGConf(tc.src); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("got %v, want %q\n%s", err, tc.want, tc.src)
@@ -147,6 +160,24 @@ func TestWireGuardDNSThroughTheTunnel(t *testing.T) {
 	}
 }
 
+// Names never go outside the tunnel unless asked: a config without a DNS
+// server needs dns = "local", and a DNS server the tunnel would drop is
+// refused at the start.
+func TestWireGuardDNSChecks(t *testing.T) {
+	s := startPeer(t)
+	noDNS, _ := path.ParseWGConf(strings.Replace(s.ClientConfig(), "DNS = 10.9.0.1\n", "", 1))
+	if _, err := path.NewWireGuard("x", noDNS, ""); err == nil || !strings.Contains(err.Error(), "names no DNS server") {
+		t.Errorf("no DNS, default: %v", err)
+	}
+	if w, err := path.NewWireGuard("x", noDNS, "local"); err != nil || w.DNS != "local" {
+		t.Errorf("no DNS, local: %v", err)
+	}
+	outside, _ := path.ParseWGConf(strings.Replace(s.ClientConfig(), "DNS = 10.9.0.1", "DNS = 1.1.1.1", 1))
+	if _, err := path.NewWireGuard("x", outside, ""); err == nil || !strings.Contains(err.Error(), "1.1.1.1 is outside every peer's AllowedIPs") {
+		t.Errorf("DNS outside AllowedIPs: %v", err)
+	}
+}
+
 // An address no peer's AllowedIPs cover is refused with a reason, not left
 // to time out.
 func TestWireGuardOutsideAllowedIPs(t *testing.T) {
@@ -170,7 +201,7 @@ func TestWireGuardUnknownKey(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "no WireGuard handshake from 127.0.0.1:") {
 		t.Fatalf("err = %v", err)
 	}
-	if d := time.Since(t0); d > path.HandshakeTimeout+2*time.Second {
+	if d := time.Since(t0); d > path.HandshakeTimeout+3*time.Second {
 		t.Errorf("took %v", d)
 	}
 }

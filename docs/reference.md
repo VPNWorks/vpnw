@@ -96,14 +96,14 @@ out = "trace.jsonl"
 | `type` | `direct`, `proxy` or `wireguard` |
 | `url` or `urls` | a proxy path: one proxy, or a list of exits with failover |
 | `config` | a WireGuard path: its wg-quick file, relative to this file's folder |
-| `dns` | proxy paths: `local` or `remote`, remote unless told otherwise. WireGuard paths: `tunnel` (the config's DNS servers, through the tunnel) or `local`; tunnel whenever the config names DNS servers |
+| `dns` | proxy paths: `local` or `remote`, remote unless told otherwise. WireGuard paths: `tunnel` (the config's DNS servers, through the tunnel, the default) or `local`. A WireGuard config with no DNS server needs `local`, said out loud, and one whose DNS server is outside every peer's AllowedIPs is refused |
 | `ca_file`, `token_file` | for proxies over TLS; relative to the file's folder |
 
 ### WireGuard config files
 
-The usual wg-quick format, as VPN providers and `wg` hand it out. In `[Interface]`: `PrivateKey`, `Address`, and optionally `DNS`, `MTU` and `ListenPort`. In each `[Peer]`: `PublicKey`, `Endpoint`, `AllowedIPs`, and optionally `PresharedKey` and `PersistentKeepalive`. Unknown keys are errors, and so are wg-quick's shell hooks (`PreUp`, `PostUp`, `PreDown`, `PostDown`): vpnw runs no commands from a config file.
+The usual wg-quick format, as VPN providers and `wg` hand it out. In `[Interface]`: `PrivateKey`, `Address`, and optionally `DNS`, `MTU` and `ListenPort`; `Table`, `SaveConfig` and `FwMark` are accepted and have no effect, since the tunnel has no routing table or interface. IPv6 endpoints are written `[address]:port`. In each `[Peer]`: `PublicKey`, `Endpoint`, `AllowedIPs`, and optionally `PresharedKey` and `PersistentKeepalive`. Unknown keys are errors, and so are wg-quick's shell hooks (`PreUp`, `PostUp`, `PreDown`, `PostDown`): vpnw runs no commands from a config file.
 
-Before the program starts, vpnw waits up to 5 seconds for a handshake with every peer and stops with exit code 123 if one doesn't answer. A connection to an address outside every peer's `AllowedIPs` is refused with that reason. The peers' endpoints are looked up on this machine, the one lookup that can't go through the tunnel.
+Before the program starts, vpnw waits up to 12 seconds for a handshake with every peer (WireGuard retries after 5) and stops with exit code 123 if one doesn't answer. A connection to an address outside every peer's `AllowedIPs` is refused with that reason. The peers' endpoints are looked up on this machine, the one lookup that can't go through the tunnel.
 
 ## Policy
 

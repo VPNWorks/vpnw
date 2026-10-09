@@ -40,6 +40,19 @@ type WGConf struct {
 	Source     string
 }
 
+// String describes the config without its keys, so printing one by
+// mistake can't leak the private key.
+func (c *WGConf) String() string {
+	var eps []string
+	for _, p := range c.Peers {
+		eps = append(eps, p.Endpoint)
+	}
+	return fmt.Sprintf("WireGuard config %s: addresses %v, dns %v, mtu %d, peers at %s", c.Source, c.Addresses, c.DNS, c.MTU, strings.Join(eps, ", "))
+}
+
+// GoString keeps %#v from printing the private key too.
+func (c *WGConf) GoString() string { return c.String() }
+
 // WGPeer is one [Peer] section.
 type WGPeer struct {
 	PublicKey    [32]byte
@@ -213,8 +226,11 @@ func ParseWGConf(src string) (*WGConf, error) {
 				}
 				peer.AllowedIPs = append(peer.AllowedIPs, p.Masked())
 			}
+		case "interface.table", "interface.saveconfig", "interface.fwmark":
+			// wg-quick's routing and saving settings. A tunnel inside vpnw
+			// has no routing table or interface to apply them to.
 		case "peer.persistentkeepalive":
-			if v == "off" {
+			if strings.EqualFold(v, "off") {
 				continue
 			}
 			n, err := strconv.Atoi(v)
@@ -258,7 +274,14 @@ func splitEndpoint(v string) (string, int, error) {
 		return "", 0, fmt.Errorf("%q needs a host and a port, such as vpn.example.com:51820", v)
 	}
 	host, ps := v[:i], v[i+1:]
-	host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	if strings.HasPrefix(host, "[") {
+		if !strings.HasSuffix(host, "]") {
+			return "", 0, fmt.Errorf("%q: an IPv6 endpoint is written [address]:port", v)
+		}
+		host = host[1 : len(host)-1]
+	} else if strings.Contains(host, ":") {
+		return "", 0, fmt.Errorf("%q: an IPv6 endpoint is written [address]:port", v)
+	}
 	port, err := strconv.Atoi(ps)
 	if err != nil || port < 1 || port > 65535 || host == "" {
 		return "", 0, fmt.Errorf("%q needs a host and a port, such as vpn.example.com:51820", v)

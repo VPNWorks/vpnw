@@ -327,7 +327,7 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 
 	// Path health: never fall back to direct if the chosen path is down.
 	{
-		ctx, cancel := contextTimeout(10 * time.Second)
+		ctx, cancel := contextTimeout(20 * time.Second)
 		err := p.Health(ctx)
 		cancel()
 		if err != nil {

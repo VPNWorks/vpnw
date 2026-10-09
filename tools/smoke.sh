@@ -54,6 +54,7 @@ cat > wg.conf <<'WG'
 [Interface]
 PrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=
 Address = 10.9.0.2/32
+DNS = 10.9.0.1
 
 [Peer]
 PublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=

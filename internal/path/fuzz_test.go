@@ -149,11 +149,11 @@ func FuzzParseWGConf(f *testing.F) {
 			return
 		}
 		if len(c.Addresses) == 0 || len(c.Peers) == 0 {
-			t.Fatalf("accepted an incomplete config: %+v", c)
+			t.Fatalf("accepted an incomplete config: %v", c)
 		}
 		for _, p := range c.Peers {
 			if p.Endpoint == "" || len(p.AllowedIPs) == 0 {
-				t.Fatalf("accepted an incomplete peer: %+v", p)
+				t.Fatalf("accepted an incomplete peer at %q", p.Endpoint)
 			}
 		}
 		if strings.Contains(strings.ToLower(src), "postup") && strings.Contains(src, "=") {
