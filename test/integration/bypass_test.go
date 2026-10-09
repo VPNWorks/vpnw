@@ -289,7 +289,7 @@ func TestBypassMatrix(t *testing.T) {
 		{name: "Unix socket in the file system (like the Docker socket)", probe: fmt.Sprintf("s=socket.socket(socket.AF_UNIX); s.settimeout(2); s.connect(%q)", unixFS.path), want: []string{"1"}, control: true, hits: unixFS.count},
 		{name: "io_uring, which can create sockets without socket()", probe: "import ctypes, os\nl=ctypes.CDLL(None, use_errno=True)\nr=l.syscall(425, 1, ctypes.create_string_buffer(120))\nif r < 0: raise OSError(ctypes.get_errno(), 'io_uring_setup')", want: []string{"1"}, control: true, soft: true},
 		{name: "IPv6 TCP to this machine's loopback (::1)", want: []string{econnrefused, enetunreach, "99"}, control: true},
-		{name: "IPv6 TCP to a public address (2606:4700:4700::1111)", probe: pyConnect("2606:4700:4700::1111", 443), want: []string{enetunreach, "99"}},
+		{name: "IPv6 TCP to a public address (2606:4700:4700::1111)", probe: pyConnect("2606:4700:4700::1111", 443), want: []string{enetunreach, "99"}, control: true, soft: true},
 	}
 	for i := range rows {
 		if !strings.HasPrefix(rows[i].name, "IPv6") {

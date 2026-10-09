@@ -59,11 +59,15 @@ jobs:
         env:
           VPNW_REQUIRE_SEAL: '1'
           VPNW_REQUIRE_IPV6: '1'
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          MERGED: ${{ github.event_name == 'pull_request' && '1' || '' }}
         run: |
-          VPNW_MATRIX_OUT="$RUNNER_TEMP/bypass-matrix.md" go test -count=1 -run '^TestBypassMatrix$' -v ./test/integration/
+          rc=0
+          VPNW_MATRIX_OUT="$RUNNER_TEMP/bypass-matrix.md" go test -count=1 -run '^TestBypassMatrix$' -v ./test/integration/ || rc=$?
+          [ -s "$RUNNER_TEMP/bypass-matrix.md" ] || echo "(no table: the matrix stopped before writing one, exit $rc)" > "$RUNNER_TEMP/bypass-matrix.md"
           {
             echo "date: $(date -u +%Y-%m-%d)"
-            echo "commit: $(git rev-parse --short HEAD)"
+            echo "commit: ${COMMIT::7}${MERGED:+, tested merged into ${{ github.base_ref }}}"
             echo "kernel: $(uname -sr), $(uname -m), $(nproc) CPUs"
             echo "runner: GitHub Actions ${{ matrix.os }}, run ${{ github.run_id }}"
             echo
@@ -73,8 +77,9 @@ jobs:
           # Also as an annotation, which tools/record-results.sh reads back
           # through the API on machines without IPv6.
           echo "::notice title=bypass-matrix::$(awk 'BEGIN{ORS="%0A"} {gsub(/%/,"%25"); print}' "$RUNNER_TEMP/bypass-matrix-ci.md")"
+          exit $rc
       - name: Keep the bypass matrix
-        if: runner.os == 'Linux'
+        if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@v7
         with:
           name: bypass-matrix
