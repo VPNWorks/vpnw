@@ -1,6 +1,6 @@
 # VPN Works
 
-VPN Works decides where every connection goes. It gives each program its own network path, its own policy and its own record, and everything beyond that small core is a plugin.
+VPN Works is the VPN, rebuilt as an operating system. Its kernel, `vpnw`, gives each program its own network path, its own policy and its own record. Paths are its drivers, and everything else is a plugin: WebAssembly apps that reach the kernel only through the calls they're allowed.
 
 ```
 vpnw guard --policy agent.toml -- ./my-agent
@@ -13,6 +13,15 @@ Open source under the Apache License 2.0. Linux first; macOS for the parts that 
 ## What it's for
 
 An ordinary VPN gives your whole machine one way out. VPN Works works one level down: per program. An AI coding agent, a build script, a scraper or a container each get their own path (direct, a WireGuard tunnel, a SOCKS or HTTP proxy, a proxy over TLS, a list of exits with failover) and their own rules (which hosts, which ports, nothing on the private network). A program that ignores proxy settings doesn't leak around vpnw; on Linux it has no route anywhere else.
+
+It's built like an OS, and it isn't one you boot: vpnw is one program that runs on Linux or macOS without root.
+
+| In an OS | In VPN Works |
+|---|---|
+| Kernel | the core, `vpnw`: seals, decides, carries, records |
+| Drivers | paths: direct, proxy, proxy over TLS, WireGuard |
+| System calls | the plugin interface |
+| Apps | plugins |
 
 The core does four things and nothing else:
 

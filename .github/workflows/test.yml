@@ -9,8 +9,8 @@ name: test
 # On Linux, VPNW_REQUIRE_SEAL=1 makes them fail rather than skip when the
 # runner can't provide them, and VPNW_REQUIRE_IPV6=1 does the same for the
 # bypass matrix's IPv6 rows. The matrix is kept as the bypass-matrix
-# artifact and shown in the run's summary; tools/record-results.sh records
-# it from there for machines without IPv6.
+# artifact, in the run's summary and as an annotation; tools/record-results.sh
+# reads the annotation back for machines without IPv6.
 
 on:
   push:
@@ -70,6 +70,9 @@ jobs:
             cat "$RUNNER_TEMP/bypass-matrix.md"
           } > "$RUNNER_TEMP/bypass-matrix-ci.md"
           cat "$RUNNER_TEMP/bypass-matrix-ci.md" >> "$GITHUB_STEP_SUMMARY"
+          # Also as an annotation, which tools/record-results.sh reads back
+          # through the API on machines without IPv6.
+          echo "::notice title=bypass-matrix::$(awk 'BEGIN{ORS="%0A"} {gsub(/%/,"%25"); print}' "$RUNNER_TEMP/bypass-matrix-ci.md")"
       - name: Keep the bypass matrix
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v7

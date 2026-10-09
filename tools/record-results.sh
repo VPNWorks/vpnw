@@ -141,3 +141,21 @@ say "bypass matrix"
 VPNW_MATRIX_OUT="$PWD/$OUT/bypass-matrix.md" go test -count=1 -run 'TestBypassMatrix' -v ./test/integration/ 2>&1 \
   | grep -E '^(---|    ---|ok|FAIL)' | tee "$OUT/bypass.txt"
 cat "$OUT/bypass-matrix.md"
+
+# This machine may have no IPv6, so the IPv6 rows skip here. CI runs the
+# matrix on a Linux runner that has it, with VPNW_REQUIRE_IPV6=1, and leaves
+# the table as an annotation; take it from CI's run of this commit.
+if grep -q 'skipped: this machine' "$OUT/bypass-matrix.md"; then
+  say "bypass matrix from CI, IPv6 included"
+  sha=$(git rev-parse HEAD)
+  repo=${VPNW_REPO:-VPNWorks/vpnw}
+  run=$(gh api "repos/$repo/actions/workflows/test.yml/runs?head_sha=$sha&status=success" --jq '.workflow_runs[0].id' 2>/dev/null || true)
+  job=""
+  [ -n "$run" ] && [ "$run" != null ] && job=$(gh api "repos/$repo/actions/runs/$run/jobs" --jq '.jobs[]|select(.name|test("ubuntu"))|.id' 2>/dev/null || true)
+  if [ -n "$job" ] && gh api "repos/$repo/check-runs/$job/annotations" --jq '.[]|select(.title=="bypass-matrix")|.message' >"$OUT/bypass-matrix-ci.md" 2>/dev/null && [ -s "$OUT/bypass-matrix-ci.md" ]; then
+    cat "$OUT/bypass-matrix-ci.md"
+  else
+    rm -f "$OUT/bypass-matrix-ci.md"
+    echo "no green CI run of $sha with a bypass matrix yet: push it, wait for CI, then run this again"
+  fi
+fi
