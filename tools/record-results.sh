@@ -43,7 +43,9 @@ say "sizes"
     printf 'built-in plugin %s: %s bytes of WebAssembly; gzip -9: %s bytes\n' "$p" \
       "$(stat -c %s "plugins/builtin/$p.wasm")" "$(gzip -9 -c "plugins/builtin/$p.wasm" | wc -c)"
   done
-  echo "third-party modules: $(go list -m all | tail -n +2 | wc -l) ($(go list -m all | tail -n +2 | tr '\n' ' '))"
+  # The modules linked into the binary, as the binary itself lists them.
+  deps=$(go version -m bin/vpnw-linux-amd64 | awk '$1=="dep"{print $2" "$3}')
+  echo "third-party modules linked: $(echo "$deps" | grep -c .) ($(echo "$deps" | tr '\n' ',' | sed 's/,$//; s/,/, /g'))"
 } | tee "$OUT/size.txt"
 
 say "source lines"
