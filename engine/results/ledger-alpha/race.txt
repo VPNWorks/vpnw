@@ -1,4 +1,0 @@
-ok  	vpnw.com/vpnw/internal/ledger	1.547s
-ok  	vpnw.com/vpnw/internal/ledger/tamper	1.135s
-ok  	vpnw.com/vpnw/cmd/vpnw-ledger	1.202s
-ok  	vpnw.com/vpnw/test/ledger	9.041s

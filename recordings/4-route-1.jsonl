@@ -1,7 +1,0 @@
-{"v":1,"ts":"2026-09-29T11:44:36.419980939Z","type":"run.start","run":"r-6b3739","path":"office","fields":{"backend":"sealed","enforced":true,"mode":"run","path":"socks5://10.8.0.1:1080, DNS at the exit","path_kind":"socks5","remote_dns":true,"unix_sockets":"blocked","version":"0.1.0"}}
-{"v":1,"ts":"2026-09-29T11:44:36.426139615Z","type":"process.start","run":"r-6b3739","pid":16805,"path":"office","fields":{"args":2,"cmd":"curl","interfaces":["lo"]}}
-{"v":1,"ts":"2026-09-29T11:44:36.4305512Z","type":"connection.attempt","run":"r-6b3739","pid":16805,"path":"office","conn":1,"fields":{"host":"tracker.office.internal","port":443,"proto":"http-connect"}}
-{"v":1,"ts":"2026-09-29T11:44:36.43322062Z","type":"connection.open","run":"r-6b3739","pid":16805,"path":"office","conn":1,"fields":{"host":"tracker.office.internal","ms":2}}
-{"v":1,"ts":"2026-09-29T11:44:36.439079736Z","type":"connection.close","run":"r-6b3739","pid":16805,"path":"office","conn":1,"fields":{"bytes_down":1703,"bytes_up":740,"ms":8}}
-{"v":1,"ts":"2026-09-29T11:44:36.44128304Z","type":"process.exit","run":"r-6b3739","pid":16805,"path":"office","fields":{"code":0,"ms":20}}
-{"v":1,"ts":"2026-09-29T11:44:36.441315992Z","type":"run.end","run":"r-6b3739","path":"office","fields":{"allowed":1,"bytes_down":1703,"bytes_up":740,"code":0,"connections":1,"denied":0,"failed":0,"opened":1}}

@@ -1,6 +1,0 @@
-Exit: 2789 lines of Go in 12 files (tests not counted)
-  internal/exit (root)    1011 lines
-  internal/exit/server    1033 lines
-  cmd/vpnw-exit            547 lines
-  wasm/exit                198 lines
-tests: 3715 lines of Go

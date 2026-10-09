@@ -1,8 +1,0 @@
-test functions: 48 (48 passed, 0 failed, 0 skipped)
-with subtests: 64 (64 passed, 0 failed, 0 skipped)
-  vpnw.com/vpnw/cmd/vpnw-scope: 4
-  vpnw.com/vpnw/internal/scope: 28
-  vpnw.com/vpnw/internal/scope/office: 4
-  vpnw.com/vpnw/internal/scope/record: 4
-  vpnw.com/vpnw/internal/testnet: 1
-  vpnw.com/vpnw/test/scope: 7

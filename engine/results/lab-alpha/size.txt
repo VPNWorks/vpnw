@@ -1,8 +1,0 @@
-vpnw-lab linux/amd64: 3330232 bytes; gzip -9: 1389195 bytes
-vpnw-lab linux/arm64: 3276984 bytes; gzip -9: 1280493 bytes
-vpnw-lab darwin/amd64: compiles (verdict, list and probe; run and the stand-in clients need Linux)
-vpnw-lab darwin/arm64: compiles (verdict, list and probe; run and the stand-in clients need Linux)
-vpnw-lab windows/amd64: compiles (verdict, list and probe; run and the stand-in clients need Linux)
-browser engine (TinyGo, WebAssembly, with the demo recordings inside): 879988 bytes; gzip -9: 230321 bytes
-third-party modules: 0
-packages of the engine the command uses: vpnw.com/vpnw/internal/lab vpnw.com/vpnw/internal/lab/netlink vpnw.com/vpnw/internal/lab/wire vpnw.com/vpnw/internal/testnet vpnw.com/vpnw/internal/lab/world vpnw.com/vpnw/internal/lab/bench vpnw.com/vpnw/internal/lab/client vpnw.com/vpnw/internal/lab/probe vpnw.com/vpnw/cmd/vpnw-lab 

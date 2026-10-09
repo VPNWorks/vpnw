@@ -1,0 +1,6 @@
+name = "echo"
+version = "1.0.0"
+type = "advisor"
+abi = 1
+description = "Test plugin: echoes events"
+permissions = ["console", "events.emit"]

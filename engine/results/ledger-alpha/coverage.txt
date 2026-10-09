@@ -1,4 +1,0 @@
-  vpnw.com/vpnw/cmd/vpnw-ledger    coverage: 95.9% of statements
-  vpnw.com/vpnw/internal/ledger    coverage: 99.2% of statements
-  vpnw.com/vpnw/internal/ledger/tamper    coverage: 98.8% of statements
-total: statements: 98.2%

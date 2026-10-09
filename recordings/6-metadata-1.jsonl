@@ -1,6 +1,0 @@
-{"v":1,"ts":"2026-09-29T11:44:36.743107054Z","type":"run.start","run":"r-36e0ba","path":"direct","fields":{"backend":"sealed","enforced":true,"mode":"guard","path":"direct from this machine","path_kind":"direct","policy":{"allow_rules":0,"default":"allow","default_note":"set in the policy","deny_private":true,"deny_rules":0,"name":"command line"},"remote_dns":false,"unix_sockets":"blocked","version":"0.1.0"}}
-{"v":1,"ts":"2026-09-29T11:44:36.750273325Z","type":"process.start","run":"r-36e0ba","pid":16919,"path":"direct","fields":{"args":2,"cmd":"curl","interfaces":["lo"]}}
-{"v":1,"ts":"2026-09-29T11:44:36.754646049Z","type":"connection.attempt","run":"r-36e0ba","pid":16919,"path":"direct","conn":1,"fields":{"ip":"169.254.169.254","port":80,"proto":"http"}}
-{"v":1,"ts":"2026-09-29T11:44:36.754728731Z","type":"policy.deny","run":"r-36e0ba","pid":16919,"path":"direct","conn":1,"fields":{"reason":"169.254.169.254: link-local address (169.254.0.0/16), where cloud metadata services live","rule":"deny_private"}}
-{"v":1,"ts":"2026-09-29T11:44:36.758557633Z","type":"process.exit","run":"r-36e0ba","pid":16919,"path":"direct","fields":{"code":0,"ms":11}}
-{"v":1,"ts":"2026-09-29T11:44:36.758615439Z","type":"run.end","run":"r-36e0ba","path":"direct","fields":{"allowed":0,"bytes_down":0,"bytes_up":0,"code":0,"connections":1,"denied":1,"failed":0,"opened":0}}

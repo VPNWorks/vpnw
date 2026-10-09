@@ -1,13 +1,12 @@
 name: release
 
-# Builds the VPN Works binaries, checks each one, and publishes them with a
-# release.
+# Builds vpnw, checks each binary, and publishes them with a release.
 #
 # Releases go out on their own. When the test workflow passes on a push to
-# main and the version in engine/internal/version/version.go has no tag yet,
-# this workflow builds and smoke-tests the binaries from that commit, then
-# tags it vX.Y.Z and publishes the release "VPN Works vX.Y.Z" with the
-# binaries attached. Nothing goes public unless every build and check passes.
+# main and the version in internal/version/version.go has no tag yet, this
+# workflow builds and smoke-tests the binaries from that commit, then tags it
+# vX.Y.Z and publishes the release "VPN Works vX.Y.Z" with the binaries
+# attached. Nothing goes public unless every build and check passes.
 #
 # It also attaches binaries to a release someone publishes by hand, and it
 # can be run by hand to rebuild the binaries of an existing tag.
@@ -25,14 +24,11 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to build, such as v0.2.0"
+        description: "Release tag to build, such as v0.3.0"
         required: true
 
 permissions:
   contents: read
-
-env:
-  CMDS: vpnw vpnw-scope vpnw-lab vpnw-ledger vpnw-exit scope-office
 
 jobs:
   plan:
@@ -68,9 +64,9 @@ jobs:
               echo "No release: main has moved on from $RUN_SHA to $head."
               exit 0
             fi
-            version=$(sed -n 's/^const Version = "\([0-9]*\.[0-9]*\.[0-9]*\)"$/\1/p' engine/internal/version/version.go)
+            version=$(sed -n 's/^const Version = "\([0-9]*\.[0-9]*\.[0-9]*\)"$/\1/p' internal/version/version.go)
             if [ -z "$version" ]; then
-              echo "engine/internal/version/version.go has no Version of the form X.Y.Z" >&2
+              echo "internal/version/version.go has no Version of the form X.Y.Z" >&2
               exit 1
             fi
             tags=$(git ls-remote --tags --refs origin) || { echo "Couldn't read the repository's tags" >&2; exit 1; }
@@ -123,23 +119,26 @@ jobs:
           ref: ${{ needs.plan.outputs.ref }}
       - uses: actions/setup-go@v7
         with:
-          go-version-file: engine/go.mod
-          cache-dependency-path: engine/go.mod
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Let the sealed smoke test run (Linux)
+        if: matrix.os == 'linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - name: Build the built-in plugins from this commit
+        run: sh tools/build-plugins.sh
       - name: Build
-        working-directory: engine
         env:
           CGO_ENABLED: "0"
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
-        run: go build -trimpath -ldflags="-s -w" -o ../pkg/ ./cmd/...
+        run: go build -trimpath -ldflags="-s -w" -o pkg/ ./cmd/vpnw
       - run: file pkg/*
       - if: matrix.smoke
-        run: sh engine/tools/smoke.sh pkg
+        run: sh tools/smoke.sh pkg
       - name: Package
         run: |
-          for c in $CMDS; do test -f "pkg/$c" || { echo "missing $c" >&2; exit 1; }; done
-          cp LICENSE NOTICE README.md pkg/
-          cp kit/THIRD-PARTY-LICENSES.txt pkg/
+          test -f pkg/vpnw || { echo "missing vpnw" >&2; exit 1; }
+          cp LICENSE NOTICE README.md THIRD_PARTY_LICENSES.md pkg/
           tar -czf vpnw_${{ matrix.os }}_${{ matrix.arch }}.tar.gz -C pkg .
       - uses: actions/upload-artifact@v7
         with:
@@ -171,20 +170,16 @@ jobs:
           cd dist
           sha256sum *.tar.gz > SHA256SUMS
           cat SHA256SUMS
-          # The engines' own versions, read from the Linux binaries themselves.
+          # The version and built-in plugins, read from the Linux binary itself.
           mkdir v && tar -xzf vpnw_linux_amd64.tar.gz -C v
-          rows=""
-          for c in vpnw vpnw-scope vpnw-lab vpnw-ledger vpnw-exit; do
-            rows="$rows| \`$c\` | $(v/$c version | cut -d' ' -f2) |
-          "
-          done
+          ver=$(v/vpnw version | cut -d' ' -f2)
+          plugins=$(XDG_DATA_HOME=$PWD/v/none v/vpnw plugin list | tail -n +2 | awk '{printf "`%s` %s (%s)  \n", $1, $2, $3}')
           rm -rf v
           cat > ../notes.md <<EOF
-          Ready-built VPN Works binaries. Each archive holds the five engines and the Scope demo's data generator, \`scope-office\`, with the license files and the README.
+          Ready-built VPN Works binaries: \`vpnw\` ${ver}, the core, with its built-in plugins:
 
-          | Command | Version |
-          |---|---|
-          ${rows}
+          ${plugins}
+
           | System | File |
           |---|---|
           | Linux, x86-64 (static) | vpnw_linux_amd64.tar.gz |
@@ -192,7 +187,7 @@ jobs:
           | macOS, Apple silicon | vpnw_darwin_arm64.tar.gz |
           | macOS, Intel | vpnw_darwin_amd64.tar.gz |
 
-          VPN Works is Linux first: sealed runs, \`vpnw-lab\` and the recording and enforcing commands need Linux. On macOS the offline parts work, such as \`vpnw-ledger\` and \`vpnw-scope learn\`, \`replay\` and \`export\`. All five engines are Alphas. The macOS binaries aren't signed by Apple, so macOS may ask you to allow them the first time, or run \`xattr -d com.apple.quarantine\` on each.
+          Sealed runs and \`guard\` need Linux. On macOS, \`run\` and \`trace\` work with the env backend for programs that honor proxy settings, and \`learn\`, \`advise\` and the plugin commands work everywhere. The macOS binaries aren't signed by Apple, so macOS may ask you to allow them the first time, or run \`xattr -d com.apple.quarantine vpnw\`.
 
           SHA256SUMS lists the checksums.
           EOF

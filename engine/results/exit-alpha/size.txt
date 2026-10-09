@@ -1,8 +1,0 @@
-vpnw-exit linux/amd64: 5689528 bytes; gzip -9: 2358326 bytes
-vpnw-exit linux/arm64: 5374136 bytes; gzip -9: 2142472 bytes
-vpnw-exit darwin/amd64: compiles (not run)
-vpnw-exit darwin/arm64: compiles (not run)
-vpnw-exit windows/amd64: compiles (not run)
-browser engine (TinyGo, WebAssembly): 920056 bytes; gzip -9: 343596 bytes
-third-party modules: 0
-packages of the engine the command uses: vpnw.com/vpnw/internal/version vpnw.com/vpnw/internal/events vpnw.com/vpnw/internal/config vpnw.com/vpnw/internal/policy vpnw.com/vpnw/internal/plan vpnw.com/vpnw/internal/exit vpnw.com/vpnw/internal/path vpnw.com/vpnw/internal/exit/server vpnw.com/vpnw/cmd/vpnw-exit 

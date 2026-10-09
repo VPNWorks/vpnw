@@ -1,5 +1,0 @@
-  vpnw.com/vpnw/cmd/vpnw-scope    coverage: 94.0% of statements
-  vpnw.com/vpnw/internal/scope    coverage: 97.6% of statements
-  vpnw.com/vpnw/internal/scope/office    coverage: 97.7% of statements
-  vpnw.com/vpnw/internal/scope/record    coverage: 79.7% of statements
-total: statements: 95.6%

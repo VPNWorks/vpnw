@@ -1,6 +1,0 @@
-internal/scope         FuzzParseFlowJSON           1966134 executions  ok  	vpnw.com/vpnw/internal/scope	60.097s
-internal/scope         FuzzParseConntrackLine      1908338 executions  ok  	vpnw.com/vpnw/internal/scope	61.031s
-internal/scope         FuzzParseDest               1917449 executions  ok  	vpnw.com/vpnw/internal/scope	60.647s
-internal/scope         FuzzParsePeople             1176444 executions  ok  	vpnw.com/vpnw/internal/scope	60.651s
-internal/scope         FuzzParseDraft               982358 executions  ok  	vpnw.com/vpnw/internal/scope	61.023s
-internal/scope/record  FuzzParsePacket             2153542 executions  ok  	vpnw.com/vpnw/internal/scope/record	60.088s

@@ -1,7 +1,0 @@
-date: 2026-10-06
-kernel: Linux 6.18.44-fc-v70, x86_64, 2 CPUs
-go version go1.24.7 linux/amd64
-tinygo version 0.39.0 linux/amd64 (using go version go1.24.7 and LLVM version 19.1.2)
-Python 3.11.15
-nftables v1.0.9 (Old Doc Yak #3)
-OpenSSL 3.0.13 30 Jan 2024 (Library: OpenSSL 3.0.13 30 Jan 2024)

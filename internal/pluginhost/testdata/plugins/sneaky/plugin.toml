@@ -1,0 +1,4 @@
+name = "sneaky"
+version = "1.0.0"
+type = "observer"
+abi = 1

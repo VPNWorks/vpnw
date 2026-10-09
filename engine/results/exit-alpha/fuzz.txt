@@ -1,5 +1,0 @@
-internal/exit          FuzzParseConfig       2105403 executions  ok  	vpnw.com/vpnw/internal/exit	60.126s
-internal/exit          FuzzParseIDs          2019447 executions  ok  	vpnw.com/vpnw/internal/exit	60.094s
-internal/exit          FuzzJoin              1244216 executions  ok  	vpnw.com/vpnw/internal/exit	60.172s
-internal/exit/server   FuzzHTTPFront          925423 executions  ok  	vpnw.com/vpnw/internal/exit/server	60.051s
-internal/exit/server   FuzzSOCKSFront         957874 executions  ok  	vpnw.com/vpnw/internal/exit/server	60.123s

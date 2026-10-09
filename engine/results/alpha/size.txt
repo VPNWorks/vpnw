@@ -1,7 +1,0 @@
-linux/amd64 binary: 3612856 bytes; gzip -9: 1515249 bytes
-linux/arm64 binary: 3473592 bytes; gzip -9: 1391935 bytes
-darwin/amd64: compiles (env backend only; sealed runs need Linux in the Alpha)
-darwin/arm64: compiles (env backend only; sealed runs need Linux in the Alpha)
-browser engine (TinyGo, WebAssembly): 827566 bytes; gzip -9: 302498 bytes
-browser engine (standard Go, WebAssembly): 4293029 bytes; gzip -9: 1171863 bytes
-third-party modules: 0

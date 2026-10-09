@@ -1,6 +1,0 @@
-{"target":"169.254.169.254:80","outcome":"denied","rule":"deny_private","reason":"169.254.169.254: link-local address (169.254.0.0/16), where cloud metadata services live"}
-{"target":"attacker.test:443","outcome":"denied","rule":"default","reason":"no allow rule matches attacker.test:443; default is deny (set in the policy)"}
-{"target":"intranet.partner.test:80","outcome":"denied","rule":"default","reason":"no allow rule matches intranet.partner.test:80; default is deny (set in the policy)"}
-{"target":"files.partner.test:80","outcome":"allow","rule":"allow[0]","text":"files.partner.test","reason":"files.partner.test matches allow rule \"files.partner.test\"","addrs":["51.15.0.11"],"source":"198.51.100.11"}
-{"target":"api.partner.test:443","outcome":"denied","rule":"default","reason":"no allow rule matches api.partner.test:443; default is deny (set in the policy)"}
-{"target":"api.partner.test:80","outcome":"allow","rule":"allow[1]","text":"api.partner.test:80","reason":"api.partner.test matches allow rule \"api.partner.test:80\"","addrs":["51.15.0.10"],"source":"198.51.100.11"}

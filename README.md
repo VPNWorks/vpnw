@@ -1,106 +1,147 @@
 # VPN Works
 
-**VPN Works keeps network access narrow and on the record.** It is a family of five small networking engines on one shared core, written in Go with the standard library only, Linux first.
+VPN Works decides where every connection goes. It gives each program its own network path, its own policy and its own record, and everything beyond that small core is a plugin.
 
-| Engine | Command | What it does | Version |
-|---|---|---|---|
-| Agent | `vpnw` | Gives one program, usually an AI agent, its own network on Linux: a sealed sandbox whose only way out is vpnw, a path you choose, a policy the program can't get around and a record of every connection | 0.2.0 |
-| Scope | `vpnw-scope` | Learns least-privilege access for a company VPN from its traffic, replays a draft before anything is enforced, and writes the rules for the gateway's firewall | 0.1.0 |
-| Lab | `vpnw-lab` | A test bench for VPN apps: it runs an app in a private test network, breaks things on a timetable and catches anything that leaves outside the tunnel | 0.1.0 |
-| Ledger | `vpnw-ledger` | Seals a log of connections so that any change shows, checks it offline and proves single records | 0.1.0 |
-| Exit | `vpnw-exit` | Fixed exit addresses for agents and CI jobs, with the client's policy checked again at the exit and one record joined from both ends | 0.1.0 |
+```
+vpnw guard --policy agent.toml -- ./my-agent
+```
 
-All five are Alphas. Each works and has been tested on one Linux machine with two CPUs, in private test networks, with stand-ins for the agents, servers, offices and VPN apps. None has had real users yet. Each engine has a page and a live demo at [vpnw.com](https://vpnw.com/), and each report below says what was measured, what wasn't, and how far the engine is from a first release.
+That runs `my-agent` sealed off from the network. Its only way out is vpnw, which checks every connection against `agent.toml`, sends the allowed ones down the path you chose, refuses the rest, and writes down what happened.
 
-## Reports
+Open source under the Apache License 2.0. Linux first; macOS for the parts that don't need Linux. Site: [vpnw.com](https://vpnw.com).
 
-| Engine | Report | Measured results |
+## What it's for
+
+An ordinary VPN gives your whole machine one way out. VPN Works works one level down: per program. An AI coding agent, a build script, a scraper or a container each get their own path (direct, a SOCKS or HTTP proxy, a proxy over TLS, a list of exits with failover) and their own rules (which hosts, which ports, nothing on the private network). A program that ignores proxy settings doesn't leak around vpnw; on Linux it has no route anywhere else.
+
+The core does four things and nothing else:
+
+- **Decide**: the broker takes every connection and asks the policy.
+- **Enforce**: on Linux the program runs in a network namespace with nothing but loopback, and a seccomp filter keeps it off Unix sockets and io_uring, so the broker is the only way out.
+- **Carry**: allowed connections go down the chosen path.
+- **Record**: every decision becomes an event. Events record hosts, addresses, ports, byte counts and decisions, never payloads, URL paths, headers or passwords.
+
+Plugins do the rest. They're WebAssembly modules that run in a sandbox inside vpnw with no files, no network and no environment, and they reach vpnw only through the calls their manifest asks for. Three kinds run today:
+
+| Type | What it does | Built in |
 |---|---|---|
-| Agent 0.1.0 | [vpnw.com/alpha](https://vpnw.com/alpha/) | `engine/results/alpha` (September 29, 2026) |
-| Agent 0.2.0 | [docs/agent-0.2.0.md](docs/agent-0.2.0.md) | `engine/results/agent-0.2.0` |
-| Scope | [vpnw.com/scope](https://vpnw.com/scope/) | `engine/results/scope-alpha` |
-| Lab | [docs/lab-alpha.md](docs/lab-alpha.md) | `engine/results/lab-alpha` |
-| Ledger | [docs/ledger-alpha.md](docs/ledger-alpha.md) | `engine/results/ledger-alpha` |
-| Exit | [docs/exit-alpha.md](docs/exit-alpha.md) | `engine/results/exit-alpha` |
+| **Observer** | Watches a run's events as they happen | `trace`: the console output of run, trace and guard |
+| **Advisor** | Reads recorded traces and writes advice | `learn`: turns a trace into a draft policy |
+| **Guard** | Can refuse a connection the policy allowed | none yet |
 
-## What is where
+Tunnel, Exit and Identity plugins come in later versions. WireGuard is the first planned Tunnel.
 
-```
-engine/                 the Go module vpnw.com/vpnw, standard library only
-  cmd/                  vpnw, vpnw-scope, vpnw-lab, vpnw-ledger, vpnw-exit, and scope-office (Scope's demo data)
-  internal/             the shared core: config, events, policy, plan, path, broker, process, learn, version
-                        and one package per engine: scope/, lab/, ledger/, exit/; testnet/ builds the test networks
-  wasm/                 the browser builds, compiled with TinyGo: the Agent at the top, the others in their own folders
-  test/                 tests of the real binaries: integration/ (the Agent), and scope/, lab/, ledger/, exit/ against the Linux kernel
-  tools/                the measurement scripts, planted bugs and performance scripts behind every published figure
-  results/              every results log, as measured
-web/                    the five browser demos: app/ (the Agent), scope/, lab/, ledger/, exit/; tools/ builds and checks them
-recordings/             the Agent demo's six recorded runs
-kit/                    the Agent's Linux demo: README, licenses and the demo world
-docs/                   the reports of Lab, Ledger, Exit and Agent 0.2.0
-```
+## Install
 
-## Download
+Download the archive for your system from the [latest release](https://github.com/VPNWorks/vpnw/releases/latest), unpack it, and put `vpnw` on your PATH:
 
-Ready-built binaries for Linux (x86-64 and ARM64, static) and macOS are on the [releases page](https://github.com/VPNWorks/vpnw/releases/latest). Each archive holds all five commands and `scope-office`, with the license files; SHA256SUMS lists the checksums. The newest archive for each system is always at the same address, such as https://github.com/VPNWorks/vpnw/releases/latest/download/vpnw_linux_amd64.tar.gz.
+| System | Archive |
+|---|---|
+| Linux, x86-64 | [vpnw_linux_amd64.tar.gz](https://github.com/VPNWorks/vpnw/releases/latest/download/vpnw_linux_amd64.tar.gz) |
+| Linux, ARM64 | [vpnw_linux_arm64.tar.gz](https://github.com/VPNWorks/vpnw/releases/latest/download/vpnw_linux_arm64.tar.gz) |
+| macOS, Apple silicon | [vpnw_darwin_arm64.tar.gz](https://github.com/VPNWorks/vpnw/releases/latest/download/vpnw_darwin_arm64.tar.gz) |
+| macOS, Intel | [vpnw_darwin_amd64.tar.gz](https://github.com/VPNWorks/vpnw/releases/latest/download/vpnw_darwin_amd64.tar.gz) |
 
-Releases go out on their own. When the tests pass on main and the version in `engine/internal/version/version.go` has no tag yet, the release workflow builds and checks the binaries, then tags the commit and publishes them.
-
-## What you need
-
-- Linux on x86-64 with unprivileged user and network namespaces, for sealed runs and the kernel tests. On Ubuntu 23.10 and later AppArmor restricts them, and `vpnw doctor` says so.
-- Go 1.24. Everything here was built and tested with 1.24.7. There are no third-party modules.
-- nftables (`nft`) for the kernel tests of Scope, Lab, Ledger and Exit, and the TUN driver for Lab's.
-- python3 for the measurement scripts and the Agent's demo world, and openssl for Exit's measurements.
-- Optional: TinyGo 0.39 for the browser engines, and Node 22 with Playwright for the headless demo checks.
-
-When the machine lacks one of these, the kernel tests skip, with the reason.
-
-## Build and test
+Then check what this machine supports:
 
 ```
-cd engine
-go vet ./...
+vpnw doctor
+```
+
+Sealed runs need Linux with unprivileged user namespaces, the default on Debian, Fedora, Arch and most others. On Ubuntu 23.10 and later AppArmor restricts them; `vpnw doctor` says so, and you can run vpnw with sudo or allow user namespaces. On macOS, `run` and `trace` work for programs that honor proxy settings, and `learn`, `advise` and the plugin commands work as on Linux.
+
+## Quick start
+
+See what a program connects to:
+
+```
+vpnw trace -- ./my-agent
+```
+
+Turn that trace into a draft policy, read it, then enforce it:
+
+```
+vpnw learn --name my-agent -o my-agent.toml
+vpnw guard --policy my-agent.toml -- ./my-agent
+```
+
+Learn allows whatever the program did, including anything it shouldn't have, so read the draft first. It flags raw IP addresses, uploads much larger than the downloads, and destinations on the private network (which `deny_private` will refuse).
+
+Send a program through a proxy:
+
+```
+vpnw run --proxy socks5h://127.0.0.1:1080 -- ./scraper
+```
+
+Rules can also go on the command line:
+
+```
+vpnw guard --allow api.github.com --allow '*.pythonhosted.org' --deny-private -- pip install requests
+```
+
+A policy file:
+
+```toml
+version = 1
+name = "agent"
+
+[policy]
+default = "deny"
+deny_private = true
+allow = ["api.github.com", "*.githubusercontent.com", "pypi.org:443"]
+```
+
+The full reference for commands, files, rules and events is in [docs/reference.md](docs/reference.md).
+
+## Plugins
+
+```
+vpnw plugin list                 # built-in and installed plugins
+vpnw plugin info learn           # what a plugin is and may do
+vpnw plugin add ./geo-fence      # install from a folder
+vpnw guard --policy p.toml --plugin geo-fence -- ./my-agent
+vpnw advise learn --from trace.jsonl --set name=agent
+```
+
+A plugin folder holds `plugin.toml`, `plugin.wasm` and `plugin.sig`. vpnw installs signed plugins from keys you trust (`vpnw plugin trust KEY`), and unsigned ones only with `--allow-unsigned`. Before installing, it checks that the module imports nothing its manifest doesn't permit.
+
+The rules plugins live by:
+
+- A plugin decides and observes. It never carries traffic, so it can't slow a connection once it's open. A Guard is asked before each connection opens and gets 250 ms to decide, sleeping included; Observers and Advisors are never in the way at all.
+- A plugin that crashes or runs past its time budget is stopped for the rest of the run. The run carries on and the failure goes into the record.
+- A Guard that fails refuses the connection it was asked about and every one after it. Guards fail closed.
+- An Observer that falls behind loses events (counted and reported) rather than slowing the program.
+
+Writing a plugin in Go takes the SDK and one build command; [docs/plugins.md](docs/plugins.md) walks through it and documents the plugin interface for other languages.
+
+## How it was tested
+
+Every number here comes from `tools/record-results.sh`, which writes [test/results](test/results). The main promise is that a sealed program can't get out except through vpnw, so the integration tests try every way out they know from inside the sandbox ([bypass matrix](test/results/bypass-matrix.md)), and the plugin tests aim at the plugin promises: a plugin that panics, spins forever, writes without permission, falls behind, or fails while guarding. Costs per plugin call are in [plugins.txt](test/results/plugins.txt).
+
+## Build from source
+
+Go 1.24 or later:
+
+```
+sh tools/build-plugins.sh        # the built-in plugins, to WebAssembly
+go build -o vpnw ./cmd/vpnw
 go test ./...
-CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/ ./cmd/...
-bin/vpnw doctor
 ```
 
-The kernel tests of Scope, Lab, Ledger and Exit start themselves again under `unshare`, as root in a user namespace of their own, so they need no root on the machine. The Agent's sealed runs need none either.
+`tools/build-plugins.sh` rebuilds `plugins/builtin/*.wasm` from `plugins/trace` and `plugins/learn`. CI runs it before every build, so released binaries always embed plugins built from the same commit.
 
-## Reproduce the figures
-
-Each engine has one script that measures every figure in its report and writes its results folder. Run them from `engine/`, one at a time, on an idle machine:
-
-| Engine | Script | Time on a machine with two CPUs, with the default 60 seconds of fuzzing per target |
-|---|---|---|
-| Agent | `tools/measure.sh` | about 10 minutes |
-| Scope | `tools/measure-scope.sh` | about 12 minutes |
-| Lab | `tools/measure-lab.sh` | about 36 minutes |
-| Ledger | `tools/measure-ledger.sh` | about 13 minutes |
-| Exit | `tools/measure-exit.sh` | about 9 minutes |
-
-`FUZZTIME=10s` shortens the fuzzing. Put TinyGo on PATH to get the browser engines' sizes too; the scripts of Scope, Lab, Ledger and Exit then also rebuild their demo's engine script and, with Node and Playwright, check the page in headless Chromium.
-
-## The browser demos
-
-Each folder in `web/` opens from disk, with no network requests: open its `index.html`. The engine scripts (`engine*.js`) are built from `engine/wasm` with TinyGo by `web/tools/build_*_js.py`, and `web/tools/check_*_demo.js` plays each page through at computer and phone widths. The live versions are at [vpnw.com/demo](https://vpnw.com/demo/).
-
-`web/app/engine.v1.js` and `web/scope/engine.scope.v1.js` are the builds the Agent and Scope demos have run since October 1, 2026. Agent 0.2.0 changed the shared configuration reader since, so a build from this tree differs from them in its bytes.
-
-## The Agent's Linux demo
-
-```
-cp engine/bin/vpnw kit/vpnw
-kit/demo/run-demo.sh              # --no-pause plays it straight through
-```
-
-It builds its own private network with stand-in servers, needs no root and changes nothing on the machine. `kit/README.txt` says what each step shows.
+| Folder | What's in it |
+|---|---|
+| `cmd/vpnw` | the command |
+| `internal/broker`, `policy`, `path`, `process`, `events`, `config` | the core |
+| `internal/pluginhost` | loads and runs plugins (wazero, a pure-Go WebAssembly runtime) |
+| `plugins/sdk` | the Go SDK for plugins |
+| `plugins/trace`, `plugins/learn` | the built-in plugins |
+| `test/integration` | end-to-end tests of the real binary |
+| `test/results` | recorded results |
 
 ## License
 
-VPN Works is open source under the Apache License 2.0. Copyright VPNW.com 2026. The code is at https://github.com/VPNWorks/vpnw. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache License 2.0. Copyright VPNW.com 2026. See [LICENSE](LICENSE), [NOTICE](NOTICE) and [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
-The browser engines include code under the Go, TinyGo and musl licenses, listed in `web/THIRD-PARTY-LICENSES.txt`. The Linux binaries include the Go standard library, whose license is in `kit/THIRD-PARTY-LICENSES.txt`.
-
-Contact: info@vpnw.com
+info@vpnw.com

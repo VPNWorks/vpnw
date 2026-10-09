@@ -1,2 +1,0 @@
-test functions: 81 (81 passed, 0 failed, 0 skipped)
-with subtests: 143 (141 passed, 0 failed, 2 skipped)

@@ -1,4 +1,0 @@
-{"v":1,"ts":"2026-09-29T11:44:36.653965296Z","type":"run.start","run":"r-255764","path":"direct","fields":{"backend":"sealed","enforced":true,"mode":"guard","path":"direct from this machine","path_kind":"direct","policy":{"allow_rules":4,"default":"deny","default_note":"set in the policy","deny_private":true,"deny_rules":0,"name":"agent"},"remote_dns":false,"unix_sockets":"blocked","version":"0.1.0"}}
-{"v":1,"ts":"2026-09-29T11:44:36.65830738Z","type":"process.start","run":"r-255764","pid":16890,"path":"direct","fields":{"args":1,"cmd":"python3","interfaces":["lo"]}}
-{"v":1,"ts":"2026-09-29T11:44:36.723520797Z","type":"process.exit","run":"r-255764","pid":16890,"path":"direct","fields":{"code":0,"ms":67}}
-{"v":1,"ts":"2026-09-29T11:44:36.723583356Z","type":"run.end","run":"r-255764","path":"direct","fields":{"allowed":0,"bytes_down":0,"bytes_up":0,"code":0,"connections":0,"denied":0,"failed":0,"opened":0}}

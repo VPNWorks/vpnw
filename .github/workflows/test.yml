@@ -1,12 +1,12 @@
 name: test
 
-# Vets, tests and builds the engine on every push to main and every pull
-# request, on Linux and macOS. A green run on main lets the release workflow
-# publish the version in engine/internal/version if it has no tag yet.
+# Builds the first-party plugins, then vets, tests and builds vpnw on every
+# push to main and every pull request, on Linux and macOS. A green run on
+# main lets the release workflow publish the version in
+# internal/version/version.go if it has no tag yet.
 #
-# The kernel tests of Scope, Lab, Ledger and Exit need unprivileged user and
-# network namespaces; where the runner restricts them they skip, with the
-# reason in the log, as they do on any machine without them.
+# The sealed-backend tests need unprivileged user and network namespaces;
+# where the runner restricts them they skip, with the reason in the log.
 
 on:
   push:
@@ -23,37 +23,32 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        working-directory: engine
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version-file: engine/go.mod
-          cache-dependency-path: engine/go.mod
-      - name: Let the kernel tests run (Linux)
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Let the sealed tests run (Linux)
         if: runner.os == 'Linux'
         run: |
           # Ubuntu's AppArmor stops unprivileged user namespaces by default.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
-          command -v nft > /dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq nftables; }
-      - name: Loopback addresses for the Exit tests (macOS)
-        if: runner.os == 'macOS'
-        run: for i in 2 3 4 5 6 7 8 9; do sudo ifconfig lo0 alias 127.0.0.$i up; done
+      - name: Build the built-in plugins from this commit
+        run: sh tools/build-plugins.sh
       - run: go vet ./...
       - name: go test -count=1 ./...
         shell: bash
         run: |
           set -o pipefail
-          if go test -count=1 ./... 2>&1 | tee "$RUNNER_TEMP/test.log"; then exit 0; fi
+          if go test -count=1 -timeout 20m ./... 2>&1 | tee "$RUNNER_TEMP/test.log"; then exit 0; fi
           # Failures as annotations too, so they can be read from the API
           # without the full log.
           grep -E -B2 -A12 -- '^(--- FAIL|FAIL|panic:)|_test\.go:[0-9]+:' "$RUNNER_TEMP/test.log" \
             | head -c 60000 | awk 'BEGIN{ORS="%0A"} {gsub(/%/,"%25"); print}' > "$RUNNER_TEMP/fail.txt" || true
           echo "::error title=go test failed::$(cat "$RUNNER_TEMP/fail.txt")"
           exit 1
-      - name: Build and smoke-test the commands
+      - name: Build and smoke-test vpnw
         run: |
-          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/ ./cmd/...
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/ ./cmd/vpnw
           sh tools/smoke.sh bin

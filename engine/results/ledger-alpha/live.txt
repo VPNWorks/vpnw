@@ -1,2 +1,0 @@
-agent-live: vpnw trace ran a program that opened 12 connections; seal --follow sealed the 40 events of its trace as vpnw wrote them, under 3 checkpoints, and stopped on SIGTERM; verify: intact; the proof of line 22, the 7th connection.open, checks with the public key alone
-scope-live: 30 connections through a test gateway; vpnw-scope record wrote a flow for each, and seal --follow sealed the 30 flows as they were written, under 3 checkpoints, stopping on SIGTERM; verify: intact; the proof of line 30 checks with the public key alone

@@ -5,9 +5,11 @@ how that works, for whoever (person or Claude session) works on this repo next.
 
 ## The short version
 
-1. Raise `const Version = "X.Y.Z"` in `engine/internal/version/version.go`.
-2. Write what changed into the commit message. The release notes read each engine's own version from the built binaries.
-3. Push the commit to `main`.
+1. Raise `const Version = "X.Y.Z"` in `internal/version/version.go`, and the
+   `version` in `plugins/trace/plugin.toml` and `plugins/learn/plugin.toml`
+   to match.
+2. Run `sh tools/build-plugins.sh` and commit `plugins/builtin`.
+3. Write what changed into the commit message, and push the commit to `main`.
 
 That's it. When the `test` workflow passes on that commit, the `release`
 workflow builds the binaries, smoke-tests every one, then tags the commit
@@ -25,21 +27,20 @@ is started by a finished `test` run, not by the push itself.
 
 - **plan.** Goes on only if the `test` run passed, came from a push to `main`
   in this repo, and `main` still points at that commit (if `main` moved on, the
-  run for the newer commit decides). Reads the version from `engine/internal/version/version.go`.
+  run for the newer commit decides). Reads the version from `internal/version/version.go`.
   Stops quietly if `vX.Y.Z` is already a tag. Fails loudly if the version is
   lower than the newest tag.
-- **build.** Builds every command in `engine/cmd` with `CGO_ENABLED=0` from
-  that exact commit, for Linux x86-64 and ARM and macOS Apple silicon and
-  Intel, each on its own runner. Every archive is checked for all six
-  commands, and `engine/tools/smoke.sh` runs on each one the runner can
-  execute.
+- **build.** Builds the built-in plugins with `tools/build-plugins.sh`, then
+  `vpnw` with `CGO_ENABLED=0`, from that exact commit, for Linux x86-64 and
+  ARM and macOS Apple silicon and Intel, each on its own runner.
+  `tools/smoke.sh` runs on each binary the runner can execute.
 - **release.** Runs only after every build and check passed. Creates the tag
   and the release in one step with `gh release create --target <commit>`,
   on the repo's own `GITHUB_TOKEN` (`contents: write` on this job only). A
   `concurrency` group per tag means two runs for the same version can't
   publish twice.
 
-Notes on the release come from the workflow's "Checksums and notes" step, which lists each engine's version as the Linux binary reports it.
+Notes on the release come from the workflow's "Checksums and notes" step, which lists the version and the built-in plugins as the Linux binary reports them.
 
 ## Files that go out
 
@@ -88,7 +89,7 @@ made, so the same version goes out on the next green run.
 - **A release published by hand** on GitHub still works. The workflow builds
   the binaries for that tag and attaches them.
 - **Rebuilding an existing tag:** run the `release` workflow by hand
-  (Actions, release, Run workflow) with the tag, such as `v0.1.0`. It rebuilds
+  (Actions, release, Run workflow) with the tag, such as `v0.3.0`. It rebuilds
   and replaces the files on that release.
 - Releases made by the workflow don't start the workflow again, because
   events from `GITHUB_TOKEN` don't trigger other runs. No loop.
@@ -104,8 +105,8 @@ made, so the same version goes out on the next green run.
 - `workflow_run` only fires for workflow files on the default branch, so
   changes to either workflow take effect once they're on `main`.
 - No Windows binaries. VPN Works ships for Linux and macOS only.
-- The release version lives in `engine/internal/version/version.go`; the five
-  engines keep their own versions, shown in the notes.
+- The release version lives in `internal/version/version.go`; the built-in
+  plugins carry the same version.
 
 ## Bringing this to another project
 
@@ -115,7 +116,7 @@ then change:
 - the binary name and `./cmd/<name>` path in the build steps,
 - the file the plan step reads the version from (the `sed` line), and that
   file's `const Version = "X.Y.Z"`,
-- the smoke test the builds run (`engine/tools/smoke.sh` here),
+- the smoke test the builds run (`tools/smoke.sh` here),
 - the release title and the file table in the notes,
 - the archive list in `gh release create` and `gh release upload`.
 

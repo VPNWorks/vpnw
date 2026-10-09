@@ -1,8 +1,0 @@
-Scope: 3816 lines of Go in 16 files (tests not counted)
-  cmd/vpnw-scope           542 lines
-  internal/scope/office    516 lines
-  internal/scope/record    273 lines
-  wasm/scope               431 lines
-  internal/scope (root)   2054 lines
-test tools: internal/testnet 411 lines, cmd/scope-office 66 lines
-tests: 2236 lines of Go

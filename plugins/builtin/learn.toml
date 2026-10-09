@@ -1,0 +1,6 @@
+name = "learn"
+version = "0.3.0"
+type = "advisor"
+abi = 1
+description = "Turns traces into a draft policy to review"
+permissions = ["console"]

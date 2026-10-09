@@ -1,8 +1,0 @@
-vpnw-ledger linux/amd64: 2715832 bytes; gzip -9: 1155303 bytes
-vpnw-ledger linux/arm64: 2621624 bytes; gzip -9: 1061925 bytes
-vpnw-ledger darwin/amd64: compiles (every command; the lock that keeps two seals off one ledger is Unix only)
-vpnw-ledger darwin/arm64: compiles (every command; the lock that keeps two seals off one ledger is Unix only)
-vpnw-ledger windows/amd64: compiles (every command; the lock that keeps two seals off one ledger is Unix only)
-browser engine (TinyGo, WebAssembly): 901281 bytes; gzip -9: 338058 bytes
-third-party modules: 0
-packages of the engine the command uses: vpnw.com/vpnw/internal/config vpnw.com/vpnw/internal/ledger vpnw.com/vpnw/cmd/vpnw-ledger 

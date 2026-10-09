@@ -1,9 +1,0 @@
-internal/lab         FuzzParseEvent        3782146 executions  ok  	vpnw.com/vpnw/internal/lab	60.188s
-internal/lab         FuzzRecording           47965 executions  ok  	vpnw.com/vpnw/internal/lab	61.066s
-internal/lab/wire    FuzzParseQuery        3712118 executions  ok  	vpnw.com/vpnw/internal/lab/wire	60.073s
-internal/lab/wire    FuzzParseAnswer       2691512 executions  ok  	vpnw.com/vpnw/internal/lab/wire	61.023s
-internal/lab/wire    FuzzParseName         2880360 executions  ok  	vpnw.com/vpnw/internal/lab/wire	60.092s
-internal/lab/wire    FuzzParseTag          3769850 executions  ok  	vpnw.com/vpnw/internal/lab/wire	60.079s
-internal/lab/wire    FuzzParseFrame        4025791 executions  ok  	vpnw.com/vpnw/internal/lab/wire	60.072s
-internal/lab/world   FuzzParseResolv       2449059 executions  ok  	vpnw.com/vpnw/internal/lab/world	60.103s
-internal/lab/probe   FuzzParseProxy        2362813 executions  ok  	vpnw.com/vpnw/internal/lab/probe	60.293s
