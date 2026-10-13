@@ -294,7 +294,13 @@ func doctorPlugins(stdout io.Writer) {
 	}
 	defer h.Close(context.Background())
 	for _, p := range st.Builtins {
-		in, err := h.Load(context.Background(), p, pluginhost.Options{Command: "doctor"})
+		// Each starts for real; one that asks for a file gets one that
+		// keeps nothing.
+		opt := pluginhost.Options{Command: "doctor", Run: "r-doctor"}
+		if p.Manifest.Has(pluginhost.PermFile) {
+			opt.File, opt.FileName = nowhere{}, "(doctor: nothing is kept)"
+		}
+		in, err := h.Load(context.Background(), p, opt)
 		if err != nil {
 			fmt.Fprintf(stdout, "  plugins          NOT AVAILABLE: %v\n", err)
 			return
@@ -307,3 +313,9 @@ func doctorPlugins(stdout io.Writer) {
 		fmt.Fprintf(stdout, "                   %v\n", e)
 	}
 }
+
+// nowhere is a plugin file that keeps nothing, for vpnw doctor.
+type nowhere struct{}
+
+func (nowhere) Write(b []byte) (int, error) { return len(b), nil }
+func (nowhere) Sync() error                 { return nil }

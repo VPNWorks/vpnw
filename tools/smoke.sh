@@ -24,11 +24,11 @@ case "$out" in
 esac
 
 list=$("$bin/vpnw" plugin list) || fail "vpnw plugin list failed"
-for p in trace learn; do
+for p in trace learn ledger ledger-verify; do
   echo "$list" | grep -q "^$p .*built-in" || fail "built-in plugin $p is missing:
 $list"
 done
-echo "plugins: trace and learn built in"
+echo "plugins: trace, learn, ledger and ledger-verify built in"
 
 doctor=$("$bin/vpnw" doctor) || true
 echo "$doctor" | grep -q "plugins          ok" || fail "the plugin host did not start:
@@ -47,6 +47,15 @@ TRACE
 grep -q '"api.github.com"' draft.toml || fail "the draft does not allow api.github.com"
 grep -q '#   "evil.example"' draft.toml || fail "the draft does not list the denied evil.example"
 echo "learn: drafted a policy from a trace"
+
+# Ledger seals a run, and verify checks it and catches an edit.
+"$bin/vpnw" run --backend env --plugin ledger --plugin-file ledger=run.ledger --out run.jsonl -- true > ledger.log 2>&1 || fail "a run with Ledger failed: $(cat ledger.log)"
+"$bin/vpnw" verify run.ledger run.jsonl > verify.log 2>&1 || fail "vpnw verify failed on a good ledger: $(cat verify.log)"
+grep -q '^intact: ' verify.log || fail "vpnw verify said: $(cat verify.log)"
+sed 's/"type":"run.end"/"type":"run.ended"/' run.ledger > bad.ledger
+code=0; "$bin/vpnw" verify bad.ledger run.jsonl > verify.log 2>&1 || code=$?
+[ "$code" = 1 ] && grep -q '^CHANGED: ' verify.log || fail "vpnw verify missed an edit (exit $code): $(cat verify.log)"
+echo "ledger: sealed a run, checked it, caught an edit"
 
 # WireGuard: a config with a shell hook is refused, and a tunnel to a peer
 # that never answers stops the run before the program starts.
