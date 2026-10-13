@@ -24,13 +24,22 @@ whole procedure and the checks to run afterwards.
 
 Read this first in a new session, and update it at the end of every release.
 
-- **Released:** 0.5.0 (October 13, 2026): Ledger, two built-in plugins
-  (`ledger` seals a run's events into a hash-chained file; `ledger-verify`,
-  run as `vpnw verify`, names the changed line), the `file.write`
-  permission, `input = "lines"` for Advisors, and `events.lost` for
-  Observers that fall behind. 0.4.1 ran the IPv6 escape tests in CI; 0.4.0
-  added WireGuard paths; 0.3.0 rebuilt VPN Works as a core with plugins.
-- **Next:** 0.6.0, Lab. Waiting for the owner's go-ahead.
+- **Released:** 0.6.0 (October 13, 2026): Lab, the fault kit in the tests
+  (internal/path/wgtest/relay.go, test/integration/lab_test.go; results in
+  test/results/lab.md, 18 of 18), and its four fixes: loopback, link-local
+  and multicast refused through any tunnel; pending lookups and dials
+  recorded as cut off at the end of a run; open connections closed in the
+  record at the end; `QuietAfterClose` (2 minutes) in the broker. 0.5.0
+  added Ledger and the `file.write` permission; 0.4.1 ran the IPv6 escape
+  tests in CI; 0.4.0 added WireGuard paths; 0.3.0 rebuilt VPN Works as a
+  core with plugins.
+- **Next:** 0.7.0, Exit. Waiting for the owner's go-ahead.
+- **Lab, for later tunnels:** a new path or tunnel plugin gets the same
+  cases through `labPeer`. Every case records a row with `labRecord(t, …)`
+  built from measured values; `labGuard` gives a test that stops early a
+  FAILED row. The hostile-route fault is covered as a reroute (impostor);
+  a pushed route can't move a sealed program, since the tunnel doesn't use
+  the host's routing table.
 - **Ledger's limits, known and documented:** no signed checkpoints (a
   plugin can't hold a key it can't read; noted as an open question on the
   roadmap). A ledger written again from scratch is caught only by the
@@ -63,7 +72,7 @@ release on your own, even when the last one went well.
 |---|---|---|
 | 0.4.1 | Fixes: the two IPv6 escape tests run inside the test sandbox, so they no longer depend on the machine having IPv6 (16 of 16 ways out tested); small cleanups left from the reviews | released |
 | 0.5.0 | Ledger | released |
-| 0.6.0 | Lab | waiting |
+| 0.6.0 | Lab | released |
 | 0.7.0 | Exit | waiting |
 | 0.8.0 | Tunnel plugins | waiting |
 
