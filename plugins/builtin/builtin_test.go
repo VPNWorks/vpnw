@@ -21,8 +21,12 @@ func TestBuiltinsMatchRelease(t *testing.T) {
 		if p.Manifest.Version != version.Version {
 			t.Errorf("built-in %s is version %s; vpnw is %s", p.Manifest.Name, p.Manifest.Version, version.Version)
 		}
-		if len(p.Wasm) < 1<<20 || string(p.Wasm[:4]) != "\x00asm" {
-			t.Errorf("built-in %s is not a WebAssembly module (%d bytes)", p.Manifest.Name, len(p.Wasm))
+		if p.Wasm != nil {
+			t.Errorf("built-in %s was unpacked before anything asked for it", p.Manifest.Name)
+		}
+		w, err := p.Module()
+		if err != nil || len(w) < 1<<20 || string(w[:4]) != "\x00asm" {
+			t.Errorf("built-in %s is not a WebAssembly module (%d bytes, %v)", p.Manifest.Name, len(w), err)
 		}
 	}
 }

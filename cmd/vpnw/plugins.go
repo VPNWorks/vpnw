@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/VPNWorks/vpnw/internal/broker"
 	"github.com/VPNWorks/vpnw/internal/events"
@@ -78,6 +80,8 @@ type pluginRun struct {
 	stderr   io.Writer
 	settings map[string]map[string]string
 	verbose  bool
+	files    map[string]string // --plugin-file NAME=PATH
+	opened   []*os.File
 
 	host   *pluginhost.Host
 	store  *pluginhost.Store
@@ -107,6 +111,7 @@ func (r *pluginRun) open() error {
 
 func (r *pluginRun) options(name string) pluginhost.Options {
 	return pluginhost.Options{
+		Run:      r.bus.Run(),
 		Command:  r.mode,
 		Settings: r.settings[name],
 		Color:    colorOK(r.stderr),
@@ -178,7 +183,17 @@ func (r *pluginRun) attach(name string) error {
 	case pluginhost.Advisor:
 		return fmt.Errorf("%s is an advisor plugin; run it on a trace with vpnw advise %s", name, name)
 	}
-	in, err := r.host.Load(context.Background(), pkg, r.options(name))
+	opt := r.options(name)
+	if pkg.Manifest.Has(pluginhost.PermFile) {
+		f, fn, err := r.openFile(name)
+		if err != nil {
+			return err
+		}
+		opt.File, opt.FileName = f, fn
+	} else if _, ok := r.files[name]; ok {
+		return fmt.Errorf("--plugin-file %s=…: plugin %s doesn't ask for a file (file.write)", name, name)
+	}
+	in, err := r.host.Load(context.Background(), pkg, opt)
 	if err != nil {
 		return err
 	}
@@ -193,8 +208,57 @@ func (r *pluginRun) attach(name string) error {
 	return nil
 }
 
+// openFile creates the file a plugin with the file.write permission writes
+// to: new, never an existing one, readable by the user alone.
+func (r *pluginRun) openFile(name string) (*os.File, string, error) {
+	fn, given := r.files[name]
+	if !given {
+		dir, err := stateDir()
+		if err != nil {
+			return nil, "", fmt.Errorf("plugin %s needs a file: %v; give one with --plugin-file %s=PATH", name, err, name)
+		}
+		dir = filepath.Join(dir, name)
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return nil, "", fmt.Errorf("plugin %s needs a file: %v", name, err)
+		}
+		fn = filepath.Join(dir, r.bus.Run()+"."+name)
+	}
+	if abs, err := filepath.Abs(fn); err == nil {
+		fn = abs
+	}
+	f, err := os.OpenFile(fn, os.O_CREATE|os.O_EXCL|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return nil, "", fmt.Errorf("plugin %s's file %s exists already; vpnw never writes over one", name, fn)
+		}
+		return nil, "", fmt.Errorf("plugin %s's file: %v", name, err)
+	}
+	r.opened = append(r.opened, f)
+	return f, fn, nil
+}
+
+func parsePluginFiles(list []string) (map[string]string, error) {
+	out := map[string]string{}
+	for _, s := range list {
+		name, fn, ok := strings.Cut(s, "=")
+		if !ok || name == "" || fn == "" {
+			return nil, fmt.Errorf("--plugin-file %q: give NAME=PATH", s)
+		}
+		if _, dup := out[name]; dup {
+			return nil, fmt.Errorf("--plugin-file %s is given twice", name)
+		}
+		out[name] = fn
+	}
+	return out, nil
+}
+
 // unused refuses --set for a plugin that is not part of the run.
 func (r *pluginRun) unused() error {
+	for name := range r.files {
+		if !r.used[name] {
+			return fmt.Errorf("--plugin-file %s=…: plugin %s is not used in this run", name, name)
+		}
+	}
 	for name := range r.settings {
 		if !r.used[name] {
 			if name == "trace" {
@@ -247,6 +311,22 @@ func (r *pluginRun) close() {
 		}
 	}
 	r.host.Close(context.Background())
+	for _, f := range r.opened {
+		f.Sync()
+		f.Close()
+	}
+}
+
+// tracePath names a trace file: "last" is the last saved trace.
+func tracePath(fn string) (string, error) {
+	if fn != "last" {
+		return fn, nil
+	}
+	dir, err := stateDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "last.jsonl"), nil
 }
 
 // readTraces reads events from trace files ("last" is the last saved trace).
@@ -256,12 +336,9 @@ func readTraces(from []string) ([]events.Event, error) {
 	}
 	var all []events.Event
 	for _, fn := range from {
-		if fn == "last" {
-			dir, err := stateDir()
-			if err != nil {
-				return nil, err
-			}
-			fn = filepath.Join(dir, "last.jsonl")
+		fn, err := tracePath(fn)
+		if err != nil {
+			return nil, err
 		}
 		f, err := os.Open(fn)
 		if err != nil {
@@ -277,13 +354,74 @@ func readTraces(from []string) ([]events.Event, error) {
 	return all, nil
 }
 
-// advise runs an Advisor plugin over traces and returns what it wrote to
-// standard output.
-func advise(name string, from []string, set map[string]string, command string, stderr io.Writer) ([]byte, error) {
-	evs, err := readTraces(from)
-	if err != nil {
-		return nil, err
+// maxLine is the longest line an Advisor with input = "lines" is handed.
+const maxLine = 4 << 20
+
+// feedLines hands an Advisor every line of its input files, as it is: as
+// JSON text when the line is valid UTF-8, as base64 when it is not.
+func feedLines(ctx context.Context, in *pluginhost.Instance, from []string) error {
+	if len(from) == 0 {
+		return errors.New("give the files to read")
 	}
+	for _, name := range from {
+		fn, err := tracePath(name)
+		if err != nil {
+			return err
+		}
+		f, err := os.Open(fn)
+		if err != nil {
+			return fmt.Errorf("cannot read %s: %v", fn, err)
+		}
+		r := bufio.NewReaderSize(f, 64<<10)
+		for n := 1; ; n++ {
+			line, err := r.ReadSlice('\n')
+			if err == bufio.ErrBufferFull {
+				long := append([]byte(nil), line...)
+				for err == bufio.ErrBufferFull && len(long) <= maxLine {
+					line, err = r.ReadSlice('\n')
+					long = append(long, line...)
+				}
+				if len(long) > maxLine {
+					f.Close()
+					return fmt.Errorf("%s:%d: a line longer than %d bytes", name, n, maxLine)
+				}
+				line = long
+			}
+			if len(line) == 0 && err == io.EOF {
+				break
+			}
+			if err != nil && err != io.EOF {
+				f.Close()
+				return fmt.Errorf("cannot read %s: %v", fn, err)
+			}
+			partial := err == io.EOF
+			text := bytes.TrimSuffix(line, []byte("\n"))
+			m := map[string]any{"file": name, "line": n}
+			if utf8.Valid(text) {
+				m["text"] = string(text)
+			} else {
+				m["b64"] = text
+			}
+			if partial {
+				m["partial"] = true
+			}
+			b, _ := json.Marshal(m)
+			if err := in.Event(ctx, b); err != nil {
+				f.Close()
+				return err
+			}
+			if partial {
+				break
+			}
+		}
+		f.Close()
+	}
+	return nil
+}
+
+// advise runs an Advisor plugin over traces and returns what it wrote to
+// standard output, even when it fails.
+func advise(name string, from []string, set map[string]string, command string, stderr io.Writer) ([]byte, error) {
 	st, err := openStore()
 	if err != nil {
 		return nil, err
@@ -294,6 +432,12 @@ func advise(name string, from []string, set map[string]string, command string, s
 	}
 	if pkg.Manifest.Type != pluginhost.Advisor {
 		return nil, fmt.Errorf("%s is %s plugin; advise runs advisor plugins (see vpnw plugin list)", name, article(pkg.Manifest.Type))
+	}
+	var evs []events.Event
+	if pkg.Manifest.Input != pluginhost.InputLines {
+		if evs, err = readTraces(from); err != nil {
+			return nil, err
+		}
 	}
 	h, err := openHost()
 	if err != nil {
@@ -307,17 +451,25 @@ func advise(name string, from []string, set map[string]string, command string, s
 		return nil, err
 	}
 	defer in.Close()
+	if pkg.Manifest.Input == pluginhost.InputLines {
+		if err := feedLines(ctx, in, from); err != nil {
+			if in.Err() != nil {
+				return out.Bytes(), fmt.Errorf("plugin %s stopped: %v", name, err)
+			}
+			return out.Bytes(), err
+		}
+	}
 	for i := range evs {
 		b, err := jsonEvent(&evs[i])
 		if err != nil {
 			return nil, err
 		}
 		if err := in.Event(ctx, b); err != nil {
-			return nil, fmt.Errorf("plugin %s stopped: %v", name, err)
+			return out.Bytes(), fmt.Errorf("plugin %s stopped: %v", name, err)
 		}
 	}
 	if err := in.Finish(ctx); err != nil {
-		return nil, fmt.Errorf("plugin %s stopped: %v", name, err)
+		return out.Bytes(), fmt.Errorf("plugin %s stopped: %v", name, err)
 	}
 	return out.Bytes(), nil
 }
@@ -375,6 +527,45 @@ func writeAdvice(out []byte, outFile string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+// verifyCmd checks a ledger with the built-in ledger-verify plugin. With no
+// trace given, it also reads the saved "last" trace, which holds the
+// checkpoint copies when the ledger is from the last run. Exit codes: 0 the
+// ledger is intact, 1 it isn't (changed or cut short), 121 usage.
+func verifyCmd(args []string, stdout, stderr io.Writer) int {
+	const use = "usage: vpnw verify LEDGER [TRACE]... [--head HASH]"
+	var head string
+	fs := flag.NewFlagSet("vpnw verify", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	fs.StringVar(&head, "head", "", "")
+	files, err := parseAnywhere(fs, args)
+	if err != nil {
+		return fail(stderr, process.ExitConfig, "%v; %s", err, use)
+	}
+	if len(files) == 0 {
+		return fail(stderr, process.ExitConfig, use)
+	}
+	if len(files) == 1 {
+		if fn, err := tracePath("last"); err == nil {
+			if _, err := os.Stat(fn); err == nil {
+				files = append(files, "last")
+			}
+		}
+	}
+	set := map[string]string{}
+	if head != "" {
+		set["head"] = head
+	}
+	out, err := advise("ledger-verify", files, set, "verify", stderr)
+	stdout.Write(out)
+	if err != nil {
+		if len(out) == 0 {
+			return fail(stderr, process.ExitConfig, "%v", err)
+		}
+		return 1
+	}
+	return 0
+}
+
 func adviseCmd(args []string, stdout, stderr io.Writer) int {
 	const use = "usage: vpnw advise PLUGIN [--from last|FILE]... [--set KEY=VALUE]... [-o FILE]"
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
@@ -398,6 +589,7 @@ func adviseCmd(args []string, stdout, stderr io.Writer) int {
 	}
 	out, err := advise(name, from, set[""], "advise", stderr)
 	if err != nil {
+		stdout.Write(out)
 		return fail(stderr, process.ExitConfig, "%v", err)
 	}
 	return writeAdvice(out, outFile, stdout, stderr)

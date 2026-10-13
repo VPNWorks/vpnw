@@ -39,9 +39,9 @@ say "sizes"
     GOOS=${os_arch%/*} GOARCH=${os_arch#*/} CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /dev/null ./cmd/vpnw \
       && echo "vpnw, $os_arch: compiles (env backend; sealed runs need Linux)"
   done
-  for p in trace learn; do
-    printf 'built-in plugin %s: %s bytes of WebAssembly; gzip -9: %s bytes\n' "$p" \
-      "$(stat -c %s "plugins/builtin/$p.wasm")" "$(gzip -9 -c "plugins/builtin/$p.wasm" | wc -c)"
+  for p in trace learn ledger ledger-verify; do
+    printf 'built-in plugin %s: %s bytes of WebAssembly, shipped gzipped as %s bytes\n' "$p" \
+      "$(gzip -dc "plugins/builtin/$p.wasm.gz" | wc -c)" "$(stat -c %s "plugins/builtin/$p.wasm.gz")"
   done
   # The modules linked into the binary, as the binary itself lists them.
   deps=$(go version -m bin/vpnw-linux-amd64 | awk '$1=="dep"{print $2" "$3}')
@@ -54,7 +54,7 @@ say "source lines"
   echo "core: $(count cmd internal) lines of Go (tests not counted)"
   echo "plugins and SDK: $(count plugins) lines of Go"
   echo "tests: $(find . -name '*_test.go' -o -path '*/testdata/plugins/*.go' | xargs cat | wc -l) lines of Go, test plugins included"
-  for d in cmd/vpnw internal/* plugins/sdk plugins/trace plugins/learn; do
+  for d in cmd/vpnw internal/* plugins/sdk plugins/trace plugins/learn plugins/ledger plugins/ledgerverify; do
     printf '  %-22s %5s lines\n' "$d" "$(count "$d")"
   done
 } | tee "$OUT/source.txt"
@@ -93,7 +93,7 @@ GOCOVERDIR="$COV/it" go test -count=1 ./test/integration/ >/dev/null
   go tool covdata percent -i="$COV/unit,$COV/it" | sed 's/\t/  /g' | grep -v -E 'internal/version|plugins/builtin'
   go tool covdata textfmt -i="$COV/unit,$COV/it" -o "$COV/all.txt"
   go tool cover -func="$COV/all.txt" | tail -1 | sed 's/(statements)\s*/statements: /; s/\t\+/ /g'
-  echo "(the Trace and Learn plugin programs run as WebAssembly, where Go records no coverage; their logic is covered through plugins/trace/render and plugins/learn/learn)"
+  echo "(the plugin programs run as WebAssembly, where Go records no coverage; their logic is covered through plugins/trace/render, plugins/learn/learn, plugins/ledger/seal, plugins/ledger/chain and plugins/ledgerverify/check)"
 } | tee "$OUT/coverage.txt"
 rm -rf "$COV"
 
@@ -101,7 +101,8 @@ say "fuzzing ($FUZZTIME per target)"
 : >"$OUT/fuzz.txt"
 for target in internal/config:FuzzParse internal/policy:FuzzParseRule internal/policy:FuzzDecide internal/broker:FuzzHandle \
               internal/path:FuzzFromURL internal/path:FuzzExitAnswer internal/path:FuzzParseWGConf \
-              internal/pluginhost:FuzzParseManifest internal/pluginhost:FuzzVerify; do
+              internal/pluginhost:FuzzParseManifest internal/pluginhost:FuzzVerify \
+              plugins/ledger/chain:FuzzParse plugins/ledger/chain:FuzzVerify; do
   pkg=./${target%%:*}; fn=${target##*:}
   log=$(go test -run '^$' -fuzz "^$fn\$" -fuzztime "$FUZZTIME" "$pkg" 2>&1 || true)
   execs=$(printf '%s\n' "$log" | grep -o 'execs: [0-9]*' | tail -1 | tr -dc 0-9)
@@ -121,6 +122,7 @@ for line in sys.stdin:
 label = {"BenchmarkGuardDecide": "a Guard decision (test guard, policy already passed)",
          "BenchmarkObserverEvent": "one event through the Trace plugin, rendered",
          "BenchmarkLoadWarm": "starting the Trace plugin, compiled code from the cache",
+         "BenchmarkLedgerEvent": "one event sealed by the Ledger plugin",
          "BenchmarkWireGuardConnect": "opening a TCP connection through a WireGuard tunnel",
          "BenchmarkWireGuardThroughput": "data through a WireGuard tunnel"}
 for k, v in runs.items():
@@ -136,6 +138,11 @@ for k, v in runs.items():
 say "plugin and WireGuard costs"
 bench ./internal/pluginhost . "$OUT/plugins.txt"
 bench ./internal/path WireGuard "$OUT/wireguard.txt"
+
+say "ledger tamper matrix"
+VPNW_LEDGER_MATRIX_OUT="$PWD/$OUT/ledger-tamper.md" go test -count=1 -run 'TestTamperMatrix' ./plugins/ledger/chain/ >/dev/null
+cat "$OUT/ledger-tamper.md"
+echo "$(grep -c '^| [a-z]' "$OUT/ledger-tamper.md") kinds of change; verdicts: $(awk -F' [|] ' 'NR>2{print $2}' "$OUT/ledger-tamper.md" | sort | uniq -c | tr -s ' ' | tr '\n' ';')" | tee -a "$OUT/ledger-tamper.md"
 
 say "bypass matrix"
 rm -f "$OUT/bypass-matrix.md" "$OUT/bypass-matrix-ci.md"

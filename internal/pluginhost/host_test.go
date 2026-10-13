@@ -457,7 +457,7 @@ func TestBuiltins(t *testing.T) {
 			t.Errorf("%s: %v", p.Manifest.Name, err)
 		}
 	}
-	if !names["trace"] || !names["learn"] || len(names) != 2 {
+	if !names["trace"] || !names["learn"] || !names["ledger"] || !names["ledger-verify"] || len(names) != 4 {
 		t.Errorf("built-ins: %v", names)
 	}
 
@@ -560,15 +560,15 @@ func BenchmarkObserverEvent(b *testing.B) {
 	}
 }
 
-// BenchmarkLoad is a warm start: compiled code from the cache, a fresh
-// instance, Init.
+// BenchmarkLoad is a warm start: unpacking the built-in module, compiled
+// code from the cache, a fresh instance, Init.
 func BenchmarkLoadWarm(b *testing.B) {
-	pkgs, _ := builtin.Packages()
 	dir := b.TempDir()
 	for i := 0; i < b.N+1; i++ {
 		if i == 1 {
 			b.ResetTimer()
 		}
+		pkgs, _ := builtin.Packages()
 		h, err := pluginhost.New(sharedCtx, dir)
 		if err != nil {
 			b.Fatal(err)
@@ -624,5 +624,158 @@ func TestGuardAfterCloseIsNotAFailure(t *testing.T) {
 	}
 	if failed {
 		t.Error("a Guard closed at the end of a run was reported as failed")
+	}
+}
+
+// memFile is a plugin's file, in memory.
+type memFile struct {
+	mu     sync.Mutex
+	b      bytes.Buffer
+	syncs  int
+	failAt int // fail writes once the file holds this many bytes, if > 0
+}
+
+func (f *memFile) Write(b []byte) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.failAt > 0 && f.b.Len()+len(b) > f.failAt {
+		return 0, errors.New("no space left on device")
+	}
+	return f.b.Write(b)
+}
+
+func (f *memFile) Sync() error {
+	f.mu.Lock()
+	f.syncs++
+	f.mu.Unlock()
+	return nil
+}
+
+func (f *memFile) String() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.b.String()
+}
+
+// A plugin with file.write appends to the file vpnw opened for it, and is
+// told its path and the run.
+func TestFileWrite(t *testing.T) {
+	f := &memFile{}
+	in, err := host(t).Load(sharedCtx, pkg(t, "filer"), pluginhost.Options{Run: "r-test", File: f, FileName: "/x/r-test.filer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+	for _, typ := range []string{events.RunStart, events.ConnectionAttempt} {
+		if err := in.Event(sharedCtx, eventJSON(t, typ, 1, nil)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := in.Finish(sharedCtx); err != nil {
+		t.Fatal(err)
+	}
+	want := "file /x/r-test.filer run r-test\nrun.start\nconnection.attempt\nfinished\n"
+	if f.String() != want || f.syncs != 1 {
+		t.Fatalf("file %q (synced %d times), want %q", f.String(), f.syncs, want)
+	}
+}
+
+// Without a file (in vpnw advise, say), FileWrite fails and the plugin is
+// told, with the reason in its log.
+func TestFileWriteWithoutFile(t *testing.T) {
+	var logs []string
+	_, err := host(t).Load(sharedCtx, pkg(t, "filer"), pluginhost.Options{Settings: map[string]string{"require": "true"},
+		Log: func(_, l string) { logs = append(logs, l) }})
+	if err == nil || !strings.Contains(err.Error(), "no file") {
+		t.Fatalf("err = %v", err)
+	}
+	if len(logs) == 0 || !strings.Contains(logs[0], "no file is open") {
+		t.Fatalf("logs = %q", logs)
+	}
+}
+
+// A write that fails (a full disk) reaches the plugin as an error, which
+// stops it.
+func TestFileWriteFails(t *testing.T) {
+	f := &memFile{failAt: 60}
+	in, err := host(t).Load(sharedCtx, pkg(t, "filer"), pluginhost.Options{File: f, FileName: "f"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer in.Close()
+	var got error
+	for i := 0; i < 10 && got == nil; i++ {
+		got = in.Event(sharedCtx, eventJSON(t, events.ConnectionAttempt, 1, nil))
+	}
+	if got == nil || !strings.Contains(got.Error(), "could not write") {
+		t.Fatalf("err = %v", got)
+	}
+}
+
+// A module that imports file_write without asking for file.write is
+// refused before any of its code runs.
+func TestFileNeedsPermission(t *testing.T) {
+	_, err := host(t).Load(sharedCtx, pkg(t, "filesneak"), pluginhost.Options{File: &memFile{}})
+	if err == nil || !strings.Contains(err.Error(), `imports vpnw.file_write but its manifest does not ask for the "file.write" permission`) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// An Observer that falls behind is told where events were lost, and the
+// counts add up to what the Sink dropped.
+func TestObserverToldOfLostEvents(t *testing.T) {
+	var stderr bytes.Buffer
+	in, err := host(t).Load(sharedCtx, pkg(t, "lagger"), pluginhost.Options{Stderr: &stderr})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := pluginhost.NewSink(in, nil)
+	b := events.NewBus("r", nil)
+	b.Add(s)
+	n := pluginhost.QueueLen + 500
+	for i := 0; i < n; i++ {
+		b.Emit(events.ConnectionAttempt, 1, "direct", uint64(i), nil)
+	}
+	dropped, err := s.Close(60 * time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dropped == 0 {
+		t.Fatal("nothing was dropped; the test needs the plugin to fall behind")
+	}
+	want := fmt.Sprintf("events %d lost %d\n", int64(n)-dropped, dropped)
+	if stderr.String() != want {
+		t.Fatalf("plugin says %q, want %q", stderr.String(), want)
+	}
+}
+
+// BenchmarkLedgerEvent is one event sealed by the built-in Ledger plugin:
+// hashed, written to its file, and every 100th a checkpoint.
+func BenchmarkLedgerEvent(b *testing.B) {
+	t := &testing.T{}
+	h, err := pluginhost.New(sharedCtx, cacheDir)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer h.Close(sharedCtx)
+	pkgs, _ := builtin.Packages()
+	var led *pluginhost.Package
+	for _, p := range pkgs {
+		if p.Manifest.Name == "ledger" {
+			led = p
+		}
+	}
+	in, err := h.Load(sharedCtx, led, pluginhost.Options{Run: "r-test", File: &memFile{}, FileName: "f", Stderr: io.Discard,
+		Emit: func(string, map[string]any) {}})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer in.Close()
+	ev := eventJSON(t, events.ConnectionAttempt, 7, map[string]any{"host": "api.example", "port": 443, "proto": "http-connect"})
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := in.Event(sharedCtx, ev); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

@@ -1,0 +1,7 @@
+name = "ledger-verify"
+version = "0.4.1"
+type = "advisor"
+abi = 1
+description = "Checks a Ledger file and names the line that was changed"
+permissions = ["console"]
+input = "lines"

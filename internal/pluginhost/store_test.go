@@ -22,7 +22,16 @@ func TestManifest(t *testing.T) {
 	if m.Name != "geo-fence" || m.Type != "guard" || len(m.Permissions) != 1 || !m.Has("events.emit") || m.Has("console") {
 		t.Errorf("%+v", m)
 	}
+	m, err = pluginhost.ParseManifest("name = \"v\"\nversion = \"1.0.0\"\ntype = \"advisor\"\nabi = 1\ninput = \"lines\"\npermissions = [\"file.write\"]\n")
+	if err != nil || m.Input != pluginhost.InputLines || !m.Has(pluginhost.PermFile) {
+		t.Errorf("%+v %v", m, err)
+	}
+	if m, _ := pluginhost.ParseManifest(good); m.Input != pluginhost.InputEvents {
+		t.Errorf("default input %q", m.Input)
+	}
 	for _, tc := range []struct{ src, want string }{
+		{"name = \"g\"\nversion = \"1.0.0\"\ntype = \"observer\"\nabi = 1\ninput = \"lines\"\n", "is for advisor plugins; an observer plugin gets the run's events"},
+		{"name = \"g\"\nversion = \"1.0.0\"\ntype = \"advisor\"\nabi = 1\ninput = \"bytes\"\n", "must be \"events\" or \"lines\""},
 		{"version = \"1.0.0\"\ntype = \"guard\"\nabi = 1\n", "name is missing"},
 		{"name = \"Geo\"\nversion = \"1.0.0\"\ntype = \"guard\"\nabi = 1\n", "lower case"},
 		{"name = \"g\"\nversion = \"one\"\ntype = \"guard\"\nabi = 1\n", "X.Y.Z"},
@@ -133,7 +142,7 @@ func TestStore(t *testing.T) {
 		t.Errorf("signer %q", p.Signer)
 	}
 	list, errs := st.List()
-	if len(errs) > 0 || len(list) != 3 || list[2].Manifest.Name != "blocker" {
+	if len(errs) > 0 || len(list) != 5 || list[4].Manifest.Name != "blocker" {
 		t.Errorf("list: %d %v", len(list), errs)
 	}
 
@@ -162,7 +171,7 @@ func TestStore(t *testing.T) {
 	// What an install cut short leaves behind is not listed as a plugin.
 	os.MkdirAll(filepath.Join(st.Dir, "blocker.old"), 0o700)
 	os.MkdirAll(filepath.Join(st.Dir, ".install-123"), 0o700)
-	if list, errs := st.List(); len(errs) > 0 || len(list) != 3 {
+	if list, errs := st.List(); len(errs) > 0 || len(list) != 5 {
 		t.Errorf("leftovers listed: %d %v", len(list), errs)
 	}
 	if err := st.Remove("blocker"); err != nil {

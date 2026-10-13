@@ -176,7 +176,9 @@ func pluginInfo(name string, stdout, stderr io.Writer) int {
 	default:
 		fmt.Fprintln(stdout, "trust        unsigned (installed with --allow-unsigned)")
 	}
-	fmt.Fprintf(stdout, "size         %.1f MB\n", float64(len(p.Wasm))/1e6)
+	if w, err := p.Module(); err == nil {
+		fmt.Fprintf(stdout, "size         %.1f MB\n", float64(len(w))/1e6)
+	}
 	if len(m.Permissions) == 0 {
 		fmt.Fprintln(stdout, "permissions  none beyond logging")
 	}

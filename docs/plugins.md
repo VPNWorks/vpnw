@@ -9,7 +9,7 @@ This page shows how to write one in Go with the SDK, then documents the interfac
 | Type | vpnw calls | Runs with |
 |---|---|---|
 | `observer` | `OnEvent` for every event of a run, as it happens, then `Finish` | `vpnw run/trace/guard --plugin NAME` |
-| `advisor` | `OnEvent` for every event of the traces it's given, then `Finish`, where it writes its advice | `vpnw advise NAME --from FILE` |
+| `advisor` | `OnEvent` for every event of the traces it's given (or `OnLine` for every line of its files, with `input = "lines"`), then `Finish`, where it writes its advice | `vpnw advise NAME --from FILE` |
 | `guard` | `OnDecide` for every connection the policy allowed | `vpnw run/trace/guard --plugin NAME` |
 
 `Init` comes first for every type. `tunnel`, `exit` and `identity` are reserved for later versions of vpnw; a manifest with one of them is refused with that message. A Tunnel plugin will manage tunnels (fetch and rotate a provider's WireGuard configs, say) and hand them to the core; the tunnel itself, like every byte of traffic, stays in the core.
@@ -79,12 +79,13 @@ The SDK's hooks run as ordinary Go: test them with `go test` on your machine. Ou
 
 | Key | Required | Value |
 |---|---|---|
-| `name` | yes | lower-case letters, digits and dashes, starting with a letter, at most 40. `trace` and `learn` are taken |
+| `name` | yes | lower-case letters, digits and dashes, starting with a letter, at most 40. `trace`, `learn`, `ledger` and `ledger-verify` are taken by the built-in plugins |
 | `version` | yes | `X.Y.Z`, optionally with a `-pre` or `+build` part |
 | `type` | yes | `observer`, `advisor` or `guard` |
 | `abi` | yes | `1` |
 | `description` | no | one line of at most 200 characters, shown by `vpnw plugin list` |
 | `permissions` | no | a list from the table below |
+| `input` | no | advisors only: `events` (the default) hands the plugin the traces' events; `lines` hands it every line of its files exactly as it is, for an Advisor that reads files of its own format |
 
 Unknown keys and tables are errors, never silently skipped.
 
@@ -92,6 +93,11 @@ Unknown keys and tables are errors, never silently skipped.
 |---|---|
 | `console` | write to vpnw's standard output and error (`sdk.Stdout`, `sdk.Stderr`) |
 | `events.emit` | add its own events to the run's record (`sdk.Emit`) |
+| `file.write` | append to one file that vpnw opens for it (`sdk.FileWrite`, `sdk.FileSync`) |
+
+### file.write
+
+vpnw creates the file new when the plugin starts in `run`, `trace` or `guard`, readable by the user alone, at `--plugin-file NAME=PATH` or by default `~/.local/state/vpnw/NAME/RUN.NAME`. It never opens one that exists, so a plugin can only add to a file of its own: it can't read it, move in it, or reach any other. `Config.File` is the path. Writes go straight to the file, so what was written survives vpnw being killed. One write takes at most 1 MiB (the SDK splits bigger ones) and the file grows to at most 1 GiB; a write past either fails, the plugin gets an error, and vpnw's plugin log (`-v`) says why. In `vpnw advise` no file is opened, and writes fail.
 
 Logging (`sdk.Log`, shown with `--verbose`), reporting an error, and giving the reason for a refusal need no permission.
 
@@ -118,6 +124,8 @@ An event is one JSON object:
 The types and their fields are listed in [reference.md](reference.md#events). Events a plugin emits are named `plugin.<name>.<type>`, so a plugin can never pass one off as vpnw's own; `<type>` is one to three dot-separated words of lower-case letters, digits and underscores. A plugin's own events go into the record but are not handed back to it.
 
 Text a plugin sends that may reach the console (a refusal reason, an error message, a log line, the strings in an emitted event) has control characters and the Unicode marks that reorder text replaced with `?`, and is cut to length: 300 characters for a reason, 500 for an error. Only the `console` permission writes to the terminal as is.
+
+An Observer that falls behind gets an `events.lost` event (field `count`) in the place where events were dropped for it, before the next event it gets. It reaches that Observer only, never the run's record.
 
 Decoding JSON is a large share of a plugin's time. A plugin that decodes events into its own types can set `RawEvents: true` and read `Event.Raw` only, so it doesn't pay twice.
 
@@ -165,12 +173,20 @@ All of them take and return `i32`; vpnw refuses a module whose exports have othe
 | `reason` | `(ptr, len)` | nothing: the reason for a refusal, called before `vpnw_on_decide` returns 1 |
 | `write` | `(stream i32, ptr, len)` | `console`; stream 1 is standard output, 2 standard error |
 | `emit` | `(ptr, len)` | `events.emit`; JSON `{"type": "...", "fields": {...}}` |
+| `file_write` | `(ptr, len) -> i32` | `file.write`; appends, 0 for success, 1 for failure (no file, over 1 MiB, the file full, a write error) |
+| `file_sync` | `() -> i32` | `file.write`; flushes the file to disk, 0 for success |
 
 ### Config (`vpnw_init`)
 
 ```json
-{"plugin":"no-domain","command":"guard","settings":{"domain":"tracker.example"},"color":false,"tz_offset":10800,"tz_name":"IDT"}
+{"plugin":"no-domain","command":"guard","settings":{"domain":"tracker.example"},"color":false,"tz_offset":10800,"tz_name":"IDT","run":"r-3f9a1c","file":""}
 ```
+
+`run` is the run's identifier (empty in `advise`); `file` is the path of the plugin's file, or empty.
+
+### Lines (`input = "lines"`)
+
+An Advisor with `input = "lines"` gets, through `vpnw_on_event`, one JSON object per line of each file it's given, in order: `{"file":"run.ledger","line":3,"text":"..."}`. `file` is the name as the user gave it, `line` counts from 1, and `text` is the line without its newline. A line that isn't valid UTF-8 comes as `"b64"` (base64) instead of `"text"`. A last line with no newline at its end has `"partial":true`. Lines are at most 4 MiB.
 
 ### Request (`vpnw_on_decide`)
 

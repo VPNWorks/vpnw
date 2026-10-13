@@ -48,6 +48,22 @@ import (
 // MemoryPages caps each plugin's memory: 2048 pages of 64 KiB is 128 MiB.
 const MemoryPages = 2048
 
+// Limits on a plugin's file (the file.write permission): one write call
+// takes at most MaxFileWrite bytes, and the file grows to at most
+// MaxFileSize. A write past either fails, and the plugin is told.
+const (
+	MaxFileWrite = 1 << 20
+	MaxFileSize  = 1 << 30
+)
+
+// File is the one file vpnw opens for a plugin with the file.write
+// permission. vpnw creates it new, so a plugin can only add to a file of
+// its own, never change or read one.
+type File interface {
+	Write(b []byte) (int, error)
+	Sync() error
+}
+
 // Default time budgets for one call into a plugin.
 const (
 	InitBudget   = 10 * time.Second
@@ -66,6 +82,22 @@ type Package struct {
 	Builtin bool
 	// Signer is the key that signed it, or "" (built-ins and unsigned).
 	Signer string
+	// Unpack, if set, produces Wasm the first time it is needed; the
+	// built-in plugins ship compressed.
+	Unpack func() ([]byte, error)
+}
+
+// Module returns the plugin's WebAssembly module, unpacking it the first
+// time if need be. vpnw loads plugins one at a time, so this needs no lock.
+func (p *Package) Module() ([]byte, error) {
+	if p.Wasm == nil && p.Unpack != nil {
+		w, err := p.Unpack()
+		if err != nil {
+			return nil, err
+		}
+		p.Wasm = w
+	}
+	return p.Wasm, nil
 }
 
 // Options says how one loaded plugin meets the rest of vpnw.
@@ -81,6 +113,12 @@ type Options struct {
 	// Emit adds a plugin's event to the run, if it has events.emit. The
 	// type is already "plugin.<name>.<type>".
 	Emit func(typ string, fields map[string]any)
+	// Run is the run's identifier, passed to the plugin in its config.
+	Run string
+	// File is the plugin's file, if it has the file.write permission and
+	// this command opened one; FileName is its path, passed to the plugin.
+	File     File
+	FileName string
 	// DecideBudget and EventBudget override the time budgets for one Guard
 	// decision and one event; zero is the default.
 	DecideBudget time.Duration
@@ -174,6 +212,24 @@ func (h *Host) hostModule(ctx context.Context, rt wazero.Runtime) error {
 		}
 		in.emit(read(m, p, min(n, 64<<10)))
 	}).Export("emit")
+	b.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, p, n uint32) uint32 {
+		in := h.instance(m)
+		if in == nil || !in.pkg.Manifest.Has(PermFile) {
+			return 1
+		}
+		return in.fileWrite(m, p, n)
+	}).Export("file_write")
+	b.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module) uint32 {
+		in := h.instance(m)
+		if in == nil || !in.pkg.Manifest.Has(PermFile) || in.opt.File == nil {
+			return 1
+		}
+		if err := in.opt.File.Sync(); err != nil {
+			in.fileErr(err)
+			return 1
+		}
+		return 0
+	}).Export("file_sync")
 	_, err := b.Instantiate(ctx)
 	return err
 }
@@ -195,11 +251,49 @@ func (in *Instance) emit(b []byte) {
 	in.opt.Emit("plugin."+in.Name()+"."+e.Type, f)
 }
 
+// fileWrite appends to the plugin's file. It returns 0 when every byte was
+// written, and 1 (with the reason in the plugin's log) when there is no
+// file, the write is too big, the file is full or the write failed.
+func (in *Instance) fileWrite(m api.Module, p, n uint32) uint32 {
+	if in.opt.File == nil {
+		in.fileErr(errors.New("no file is open for this plugin in this command"))
+		return 1
+	}
+	if n > MaxFileWrite {
+		in.fileErr(fmt.Errorf("a write of %d bytes is over the %d-byte limit for one call", n, MaxFileWrite))
+		return 1
+	}
+	if in.fileBytes.Load()+int64(n) > MaxFileSize {
+		in.fileErr(fmt.Errorf("the file would grow past its %d-byte limit", MaxFileSize))
+		return 1
+	}
+	b, ok := m.Memory().Read(p, n)
+	if !ok {
+		in.fileErr(errors.New("gave a buffer outside its memory"))
+		return 1
+	}
+	w, err := in.opt.File.Write(b)
+	in.fileBytes.Add(int64(w))
+	if err != nil {
+		in.fileErr(err)
+		return 1
+	}
+	return 0
+}
+
+func (in *Instance) fileErr(err error) {
+	if in.opt.Log != nil {
+		in.opt.Log(in.Name(), "file: "+clean(err.Error(), 300))
+	}
+}
+
 // The host calls any plugin may import, and the ones that need a permission.
 var hostCalls = map[string]string{
 	"log": "", "error": "", "reason": "",
-	"write": PermConsole,
-	"emit":  PermEmit,
+	"write":      PermConsole,
+	"emit":       PermEmit,
+	"file_write": PermFile,
+	"file_sync":  PermFile,
 }
 
 // Exports every plugin has, and those each type needs.
@@ -294,7 +388,11 @@ func check(cm wazero.CompiledModule, m *Manifest) error {
 // Check compiles a package and checks it against its manifest without
 // running any of its code.
 func (h *Host) Check(ctx context.Context, pkg *Package) error {
-	cm, err := h.rt.CompileModule(ctx, pkg.Wasm)
+	wasm, err := pkg.Module()
+	if err != nil {
+		return fmt.Errorf("plugin %s: %v", pkg.Manifest.Name, err)
+	}
+	cm, err := h.rt.CompileModule(ctx, wasm)
 	if err != nil {
 		return fmt.Errorf("plugin %s: not a valid WebAssembly module: %v", pkg.Manifest.Name, err)
 	}
@@ -327,12 +425,18 @@ type Instance struct {
 	// deadline is when the call running now must end, in Unix nanoseconds,
 	// or 0. A plugin's sleep never runs past it.
 	deadline atomic.Int64
+	// fileBytes is how much the plugin has written to its file.
+	fileBytes atomic.Int64
 }
 
 // Load compiles, checks, starts and initialises a plugin.
 func (h *Host) Load(ctx context.Context, pkg *Package, opt Options) (*Instance, error) {
 	m := pkg.Manifest
-	cm, err := h.rt.CompileModule(ctx, pkg.Wasm)
+	wasm, err := pkg.Module()
+	if err != nil {
+		return nil, fmt.Errorf("plugin %s: %v", m.Name, err)
+	}
+	cm, err := h.rt.CompileModule(ctx, wasm)
 	if err != nil {
 		return nil, fmt.Errorf("plugin %s: not a valid WebAssembly module: %v", m.Name, err)
 	}
@@ -377,6 +481,7 @@ func (h *Host) Load(ctx context.Context, pkg *Package, opt Options) (*Instance, 
 		cfg, _ := json.Marshal(map[string]any{
 			"plugin": m.Name, "command": opt.Command, "settings": nonNil(opt.Settings),
 			"color": opt.Color, "tz_offset": off, "tz_name": zone,
+			"run": opt.Run, "file": fileName(opt),
 		})
 		var code uint32
 		code, err = in.pass(ctx, InitBudget, in.initFn, cfg)
@@ -390,6 +495,13 @@ func (h *Host) Load(ctx context.Context, pkg *Package, opt Options) (*Instance, 
 		return nil, fmt.Errorf("plugin %s: %v", m.Name, err)
 	}
 	return in, nil
+}
+
+func fileName(opt Options) string {
+	if opt.File == nil {
+		return ""
+	}
+	return opt.FileName
 }
 
 func nonNil(m map[string]string) map[string]string {

@@ -108,6 +108,23 @@ type Config struct {
 	// TZOffset and TZName are the local time zone (a plugin has none).
 	TZOffset int    `json:"tz_offset"`
 	TZName   string `json:"tz_name"`
+	// Run is the run's identifier in run, trace and guard; "" in advise.
+	Run string `json:"run"`
+	// File is the path of the file vpnw opened for this plugin, if its
+	// manifest asks for "file.write" and the command opened one; "" if not.
+	// The plugin can only append to it, with FileWrite.
+	File string `json:"file"`
+}
+
+// Line is one line of an Advisor's input, for an Advisor whose manifest says
+// input = "lines": the file it came from (as the user named it), its line
+// number from 1, and its bytes exactly as they are, without the newline.
+type Line struct {
+	File string `json:"file"`
+	N    int    `json:"line"`
+	Text []byte `json:"-"`
+	// Partial is true for a last line that has no newline at its end.
+	Partial bool `json:"partial,omitempty"`
 }
 
 // Zone returns the local time zone vpnw passed in.
@@ -132,6 +149,9 @@ type Plugin struct {
 	OnEvent  func(e *Event) error
 	OnDecide func(r *Request) (deny bool, reason string)
 	Finish   func() error
+	// OnLine replaces OnEvent for an Advisor whose manifest says
+	// input = "lines": it gets every line of its input files as it is.
+	OnLine func(l *Line) error
 	// RawEvents hands OnEvent the event as JSON in Event.Raw only, without
 	// decoding it into the other fields. Decoding JSON is a large share of
 	// a plugin's time, so a plugin that decodes events its own way should
@@ -170,6 +190,33 @@ func Emit(typ string, fields map[string]any) {
 	emit(b)
 }
 
+// ErrNoFile is FileWrite's error when vpnw has no file open for the plugin,
+// the write is too big (over 1 MiB) or the file is full (1 GiB), or the
+// write itself failed; vpnw's plugin log (--verbose) says which.
+var ErrNoFile = errors.New("vpnw could not write the plugin's file")
+
+// FileWrite appends b to the plugin's file. Needs the "file.write"
+// permission. Writes go straight to the file, so what was written is there
+// even if vpnw is killed.
+func FileWrite(b []byte) error {
+	if len(b) == 0 {
+		return nil
+	}
+	if fileWrite(b) != 0 {
+		return ErrNoFile
+	}
+	return nil
+}
+
+// FileSync asks vpnw to flush the plugin's file to disk. Needs the
+// "file.write" permission.
+func FileSync() error {
+	if fileSync() != 0 {
+		return ErrNoFile
+	}
+	return nil
+}
+
 // The hook bodies, shared by the WebAssembly exports and the tests.
 
 func doInit(b []byte) error {
@@ -190,6 +237,23 @@ func doInit(b []byte) error {
 }
 
 func doEvent(b []byte) error {
+	if registered != nil && registered.OnLine != nil {
+		var w struct {
+			File    string  `json:"file"`
+			N       int     `json:"line"`
+			Text    *string `json:"text"`
+			B64     []byte  `json:"b64"`
+			Partial bool    `json:"partial"`
+		}
+		if err := json.Unmarshal(b, &w); err != nil {
+			return err
+		}
+		l := &Line{File: w.File, N: w.N, Partial: w.Partial, Text: w.B64}
+		if w.Text != nil {
+			l.Text = []byte(*w.Text)
+		}
+		return registered.OnLine(l)
+	}
 	if registered == nil || registered.OnEvent == nil {
 		return nil
 	}

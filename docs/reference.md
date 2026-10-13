@@ -9,6 +9,7 @@
 | `vpnw guard [options] -- CMD [ARGS]` | the same, under a policy, enforced |
 | `vpnw learn [--from last\|FILE]... [--name NAME] [--ports] [--wildcards] [-o FILE]` | turns traces into a draft policy, with the built-in Learn plugin |
 | `vpnw advise PLUGIN [--from last\|FILE]... [--set KEY=VALUE]... [-o FILE]` | runs an advisor plugin on traces |
+| `vpnw verify LEDGER [TRACE]... [--head HASH]` | checks a ledger the Ledger plugin wrote, with the built-in ledger-verify plugin. With no trace given it also reads `last`. Exit 0: intact. Exit 1: changed, or cut short |
 | `vpnw plugin list\|info\|add\|remove\|keygen\|sign\|trust\|keys` | manages plugins; `vpnw plugin help` lists them |
 | `vpnw doctor` | checks what this machine supports |
 | `vpnw version` | |
@@ -33,6 +34,7 @@
 | `--default allow\|deny` | what happens when no rule matches |
 | `--plugin NAME` | run an observer or guard plugin alongside, repeatable |
 | `--set NAME.KEY=VALUE` | a setting for plugin NAME, repeatable |
+| `--plugin-file NAME=PATH` | the file vpnw opens for plugin NAME, if it asks for one (`file.write`). It must not exist yet; the default is `~/.local/state/vpnw/NAME/RUN.NAME` |
 | `--out FILE` | also write the events to FILE as JSON lines |
 | `--json` | print events as JSON lines instead of text |
 | `-v`, `--verbose` | print more, plugin log lines included |
@@ -145,11 +147,50 @@ One JSON object per line, schema version 1. Every event has `v`, `ts`, `type` an
 
 Events describe decisions, never payloads: no application data, URL paths, headers, environment variables or proxy passwords.
 
+## Ledger
+
+The built-in Ledger plugin seals a run's events into a ledger file as the run goes:
+
+```
+vpnw guard --plugin ledger --policy agent.toml -- ./my-agent
+vpnw verify ~/.local/state/vpnw/ledger/r-3f9a1c.ledger
+```
+
+The ledger is JSON Lines. Each event is written as it arrives, exactly as vpnw sent it, with a SHA-256 hash that covers the hash before it, its number and the event. Every 100 entries (`--set ledger.every=N`) and at the end, Ledger writes a checkpoint; at the end it writes an end line, then prints the ledger's path and its last hash. Each checkpoint is also copied into the run's trace as a `plugin.ledger.checkpoint` event (fields `cp`, `n`, `h`, and `end` on the last).
+
+```
+{"vpnw-ledger":1,"run":"r-3f9a1c"}
+{"n":1,"ev":{"v":1,"ts":"…","type":"run.start",…},"h":"7e3b…"}
+{"n":7,"lost":12,"h":"…"}
+{"cp":1,"n":100,"h":"…"}
+{"end":143,"h":"…"}
+```
+
+```
+h0 = SHA-256("vpnw-ledger v1\n" || the header line)
+hN = SHA-256(hN-1 || 0x00 || N as 8 bytes, big-endian || the event)
+hN = SHA-256(hN-1 || 0x01 || N as 8 bytes || the count as 8 bytes)    a lost-events entry
+```
+
+`vpnw verify` reports the first problem with its file and line:
+
+| Found | Verdict |
+|---|---|
+| every line matches its hash, the end line is there, and the checkpoint copies and `--head` (if given) match | `intact`, exit 0 |
+| an event, a hash, a checkpoint or the end line changed; a line removed, copied, added or moved; two lines swapped; the header changed; a line not in the exact form Ledger writes | `CHANGED`, exit 1, naming the line |
+| the ledger stops without an end line, or in the middle of a line | `cut short`, exit 1: the run was killed there, or the end was removed. What is there is checked |
+| the hashes were written again from some line on | `CHANGED` only against something kept elsewhere: the checkpoint copies in the trace (then the trace's events name the line) or the last hash given with `--head` |
+
+`lost` entries mark events that never reached Ledger because it fell behind the run. They are part of the chain and reported, and don't make a ledger changed.
+
+What a ledger can't show alone: anyone who can write the file and knows the format can write a new one from scratch. Keep the last hash Ledger prints, or the trace with its checkpoint copies, somewhere the person holding the ledger can't change.
+
 ## Where things are kept
 
 | What | Where |
 |---|---|
 | the last trace (for `learn`) | `~/.local/state/vpnw/last.jsonl`, or under `$XDG_STATE_HOME` |
+| a plugin's file (`file.write`), unless `--plugin-file` says otherwise | `~/.local/state/vpnw/NAME/RUN.NAME`, as `ledger/r-3f9a1c.ledger`; created new, readable by you alone |
 | installed plugins | `~/.local/share/vpnw/plugins/NAME/`, or under `$XDG_DATA_HOME` |
 | trusted signing keys | `~/.config/vpnw/trusted-keys`, or under `$XDG_CONFIG_HOME` |
 | compiled plugins | `~/.cache/vpnw/wasm/`, or under `$XDG_CACHE_HOME`; safe to delete |

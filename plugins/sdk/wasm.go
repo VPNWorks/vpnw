@@ -25,6 +25,25 @@ func hostWrite(stream uint32, p unsafe.Pointer, n uint32)
 //go:wasmimport vpnw emit
 func hostEmit(p unsafe.Pointer, n uint32)
 
+//go:wasmimport vpnw file_write
+func hostFileWrite(p unsafe.Pointer, n uint32) uint32
+
+//go:wasmimport vpnw file_sync
+func hostFileSync() uint32
+
+func fileWrite(b []byte) uint32 {
+	for len(b) > 0 {
+		n := min(len(b), 1<<20)
+		if hostFileWrite(ptr(b), uint32(n)) != 0 {
+			return 1
+		}
+		b = b[n:]
+	}
+	return 0
+}
+
+func fileSync() uint32 { return hostFileSync() }
+
 func ptr(b []byte) unsafe.Pointer { return unsafe.Pointer(unsafe.SliceData(b)) }
 
 func write(stream uint32, b []byte) {

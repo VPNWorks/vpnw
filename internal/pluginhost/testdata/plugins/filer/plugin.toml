@@ -1,0 +1,5 @@
+name = "filer"
+version = "1.0.0"
+type = "observer"
+abi = 1
+permissions = ["file.write"]

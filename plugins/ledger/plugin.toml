@@ -1,0 +1,6 @@
+name = "ledger"
+version = "0.4.1"
+type = "observer"
+abi = 1
+description = "Seals a run's events into a tamper-evident ledger file"
+permissions = ["file.write", "events.emit", "console"]

@@ -18,7 +18,27 @@ var (
 	TestStderr io.Writer
 	TestLog    func(string)
 	TestEmit   func([]byte)
+	// TestFile receives FileWrite; nil makes FileWrite and FileSync fail,
+	// as when vpnw has no file open for the plugin.
+	TestFile io.Writer
 )
+
+func fileWrite(b []byte) uint32 {
+	if TestFile == nil {
+		return 1
+	}
+	if _, err := TestFile.Write(b); err != nil {
+		return 1
+	}
+	return 0
+}
+
+func fileSync() uint32 {
+	if TestFile == nil {
+		return 1
+	}
+	return 0
+}
 
 func write(stream uint32, b []byte) {
 	w := TestStdout

@@ -28,12 +28,21 @@ var reservedTypes = map[string]bool{"tunnel": true, "exit": true, "identity": tr
 const (
 	PermConsole = "console"     // write to vpnw's standard output and error
 	PermEmit    = "events.emit" // add events to the run's record
+	PermFile    = "file.write"  // append to the one file vpnw opens for it
 )
 
 var knownPerms = map[string]string{
 	PermConsole: "write to vpnw's standard output and error",
 	PermEmit:    "add its own events to the run's record",
+	PermFile:    "append to one file that vpnw opens for it",
 }
+
+// What an Advisor is handed: events (the default) or the lines of its
+// input files, exactly as they are.
+const (
+	InputEvents = "events"
+	InputLines  = "lines"
+)
 
 // PermissionText says in a few words what a permission lets a plugin do.
 func PermissionText(p string) string { return knownPerms[p] }
@@ -46,6 +55,8 @@ type Manifest struct {
 	ABI         int
 	Description string
 	Permissions []string
+	// Input is InputEvents or InputLines; only an Advisor may ask for lines.
+	Input string
 }
 
 // Has reports whether the manifest asks for a permission.
@@ -95,7 +106,7 @@ func ParseManifest(src string) (*Manifest, error) {
 	}
 	for _, k := range root.Order {
 		switch k {
-		case "name", "version", "type", "abi", "description", "permissions":
+		case "name", "version", "type", "abi", "description", "permissions", "input":
 		default:
 			return nil, fmt.Errorf("plugin.toml line %d: unknown key %q", root.Keys[k].Line, k)
 		}
@@ -127,6 +138,20 @@ func ParseManifest(src string) (*Manifest, error) {
 	}
 	if len(m.Description) > 200 || clean(m.Description, 200) != m.Description {
 		return nil, fmt.Errorf("plugin.toml: description must be one line of at most 200 characters, with no control characters")
+	}
+	if m.Input, err = str("input", false); err != nil {
+		return nil, err
+	}
+	switch m.Input {
+	case "":
+		m.Input = InputEvents
+	case InputEvents:
+	case InputLines:
+		if m.Type != Advisor {
+			return nil, fmt.Errorf("plugin.toml: input = \"lines\" is for advisor plugins; %s plugin gets the run's events", article(m.Type))
+		}
+	default:
+		return nil, fmt.Errorf("plugin.toml: input %q must be \"events\" or \"lines\"", m.Input)
 	}
 	abi, ok := root.Keys["abi"]
 	if !ok {
@@ -160,4 +185,4 @@ func ParseManifest(src string) (*Manifest, error) {
 	return m, nil
 }
 
-func permNames() []string { return []string{PermConsole, PermEmit} }
+func permNames() []string { return []string{PermConsole, PermEmit, PermFile} }

@@ -9,6 +9,7 @@
 //	vpnw guard [options] -- command [args...]   ... and enforce a policy
 //	vpnw learn [options]                        turn a trace into a policy
 //	vpnw advise PLUGIN [options]                run an advisor plugin on traces
+//	vpnw verify LEDGER [TRACE]... [--head HASH] check a ledger
 //	vpnw plugin list|info|add|remove|...        manage plugins
 //	vpnw doctor                                 check what this machine supports
 package main
@@ -47,6 +48,7 @@ Usage:
   vpnw guard [options] -- command [args...]   run it under a policy, enforced
   vpnw learn [options]                        turn a trace into a policy
   vpnw advise PLUGIN [options]                run an advisor plugin on traces
+  vpnw verify LEDGER [TRACE]... [--head HASH] check a ledger the Ledger plugin wrote
   vpnw plugin COMMAND                         list, inspect, add and remove plugins
   vpnw doctor                                 check what this machine supports
   vpnw version
@@ -86,6 +88,9 @@ Options for run, trace and guard:
                       A guard plugin can refuse connections the policy allowed;
                       if it fails, it refuses (fail closed)
   --set NAME.KEY=VALUE  a setting for plugin NAME (repeatable)
+  --plugin-file NAME=PATH  the file vpnw opens for plugin NAME, if it asks
+                      for one (file.write); it must not exist yet. The default
+                      is ~/.local/state/vpnw/NAME/RUN.NAME
 
 Exit codes: the program's own, or 120 denied, 121 usage or
 configuration, 122 enforcement unavailable, 123 path unavailable,
@@ -111,6 +116,8 @@ func realMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return learnCmd(args[1:], stdout, stderr)
 	case "advise":
 		return adviseCmd(args[1:], stdout, stderr)
+	case "verify":
+		return verifyCmd(args[1:], stdout, stderr)
 	case "plugin", "plugins":
 		return pluginCmd(args[1:], stdout, stderr)
 	case "doctor":
@@ -136,7 +143,7 @@ type runOpts struct {
 	caFile, tokenFile                                                string
 	direct, denyPrivate, jsonOut, verbose, quiet, noSave, noDenyExit bool
 	allowUnix                                                        bool
-	allow, deny, proxy, plugins, sets                                multi
+	allow, deny, proxy, plugins, sets, pluginFiles                   multi
 }
 
 func fail(stderr io.Writer, code int, format string, a ...any) int {
@@ -173,6 +180,7 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	fs.BoolVar(&o.allowUnix, "allow-unix-sockets", false, "")
 	fs.Var(&o.plugins, "plugin", "")
 	fs.Var(&o.sets, "set", "")
+	fs.Var(&o.pluginFiles, "plugin-file", "")
 	if err := fs.Parse(args); err != nil {
 		return fail(stderr, process.ExitConfig, "%v; see vpnw help", err)
 	}
@@ -350,7 +358,11 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	}
 
 	// Plugins: the console (the built-in Trace plugin) and any --plugin.
-	pr := &pluginRun{mode: mode, bus: bus, stderr: stderr, settings: settings, verbose: o.verbose}
+	pfiles, err := parsePluginFiles(o.pluginFiles)
+	if err != nil {
+		return fail(stderr, process.ExitConfig, "%v", err)
+	}
+	pr := &pluginRun{mode: mode, bus: bus, stderr: stderr, settings: settings, verbose: o.verbose, files: pfiles}
 	defer pr.close()
 	if level != "" {
 		if o.jsonOut {

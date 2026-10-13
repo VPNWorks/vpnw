@@ -12,11 +12,17 @@ import (
 	"time"
 
 	"github.com/VPNWorks/vpnw/internal/events"
+	"github.com/VPNWorks/vpnw/internal/version"
 )
 
 // QueueLen is how many events an Observer may fall behind by before events
 // are dropped for it.
 const QueueLen = 8192
+
+// EventsLost is the type of the event a Sink hands its Observer where events
+// were dropped because it fell behind; its field "count" says how many. It
+// goes to that Observer only, never into the run's record.
+const EventsLost = "events.lost"
 
 // Sink feeds a run's events to an Observer plugin. It never blocks the
 // event bus: events are queued and handed over by a goroutine of its own,
@@ -33,6 +39,7 @@ type Sink struct {
 	closed  bool
 	failed  atomic.Bool
 	dropped atomic.Int64
+	told    int64 // dropped events the plugin has been told about; loop only
 }
 
 // NewSink starts handing events to in. onFail, if not nil, is called once,
@@ -76,9 +83,30 @@ func (s *Sink) loop() {
 		if s.failed.Load() {
 			continue
 		}
+		s.tellLost()
 		if err := s.in.Event(s.ctx, b); err != nil {
 			s.fail(err)
 		}
+	}
+	if !s.failed.Load() {
+		s.tellLost()
+	}
+}
+
+// tellLost hands the plugin an EventsLost event for drops it hasn't been
+// told about. The events were dropped after the ones it has had and before
+// the one it gets next.
+func (s *Sink) tellLost() {
+	d := s.dropped.Load()
+	if d <= s.told {
+		return
+	}
+	n := d - s.told
+	s.told = d
+	b, _ := json.Marshal(events.Event{V: version.Schema, TS: time.Now().UTC(), Type: EventsLost, Run: s.in.opt.Run,
+		Fields: map[string]any{"count": n}})
+	if err := s.in.Event(s.ctx, b); err != nil {
+		s.fail(err)
 	}
 }
 

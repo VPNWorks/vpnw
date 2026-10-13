@@ -34,11 +34,24 @@ Plugins do the rest. They're WebAssembly modules that run in a sandbox inside vp
 
 | Type | What it does | Built in |
 |---|---|---|
-| **Observer** | Watches a run's events as they happen | `trace`: the console output of run, trace and guard |
-| **Advisor** | Reads recorded traces and writes advice | `learn`: turns a trace into a draft policy |
+| **Observer** | Watches a run's events as they happen | `trace`: the console output of run, trace and guard. `ledger`: seals the run's record |
+| **Advisor** | Reads recorded traces or files and writes advice | `learn`: turns a trace into a draft policy. `ledger-verify`: checks a sealed record |
 | **Guard** | Can refuse a connection the policy allowed | none yet |
 
 Tunnel, Exit and Identity plugins come in later versions.
+
+## A record nobody can quietly edit
+
+The Ledger plugin writes every event of a run to its own file as it happens, each linked to the ones before it by a SHA-256 hash chain, with checkpoints along the way and an end line when the run finishes:
+
+```
+vpnw guard --plugin ledger --policy agent.toml -- ./my-agent
+vpnw verify ~/.local/state/vpnw/ledger/r-3f9a1c.ledger
+```
+
+`vpnw verify` names the line where something was changed, removed, added or moved. A run that was killed leaves a ledger that checks out up to where it stops, and verify says it was cut short. Ledger copies each checkpoint into the run's trace and prints the last hash at the end; kept somewhere else, either one also catches a ledger written again from scratch. The format is in [the reference](docs/reference.md#ledger).
+
+Ledger is a plugin like any other. It writes its file through the `file.write` permission, which vpnw offers every plugin: one new file, opened by vpnw, that the plugin can only add to.
 
 ## WireGuard, without root
 
