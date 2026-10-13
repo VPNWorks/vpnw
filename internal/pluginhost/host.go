@@ -82,20 +82,12 @@ type Package struct {
 	Builtin bool
 	// Signer is the key that signed it, or "" (built-ins and unsigned).
 	Signer string
-	// Unpack, if set, produces Wasm the first time it is needed; the
-	// built-in plugins ship compressed.
-	Unpack func() ([]byte, error)
 }
 
-// Module returns the plugin's WebAssembly module, unpacking it the first
-// time if need be. vpnw loads plugins one at a time, so this needs no lock.
+// Module returns the plugin's WebAssembly module.
 func (p *Package) Module() ([]byte, error) {
-	if p.Wasm == nil && p.Unpack != nil {
-		w, err := p.Unpack()
-		if err != nil {
-			return nil, err
-		}
-		p.Wasm = w
+	if len(p.Wasm) == 0 {
+		return nil, fmt.Errorf("plugin %s has no module", p.Manifest.Name)
 	}
 	return p.Wasm, nil
 }

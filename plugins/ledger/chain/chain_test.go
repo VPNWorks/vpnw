@@ -191,7 +191,11 @@ func TestTamperMatrix(t *testing.T) {
 			opts{}, Changed, len(base) + 1, "after the end line"},
 		{"bytes after the end, with no newline", append(cp(base), "GARBAGE"),
 			opts{partial: true}, Changed, len(base) + 1, "after the end line"},
-		{"the first event's run", func() []string { l := cp(base); l[1] = strings.Replace(l[1], `"run":"r-abc123"`, `"run":"r-abc124"`, 1); return l }(),
+		{"the first event's run", func() []string {
+			l := cp(base)
+			l[1] = strings.Replace(l[1], `"run":"r-abc123"`, `"run":"r-abc124"`, 1)
+			return l
+		}(),
 			opts{}, Changed, 2, "doesn't match its hash"},
 		{"the end line", func() []string {
 			l := cp(base)

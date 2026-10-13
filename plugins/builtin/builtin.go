@@ -8,23 +8,19 @@
 // being built in only means they ship inside the binary and are trusted
 // without a signature. The modules are built from ../trace, ../learn,
 // ../ledger and ../ledgerverify by tools/build-plugins.sh, which CI runs
-// before every build, and kept gzipped: a command unpacks only the plugins
-// it uses.
+// before every build.
 package builtin
 
 import (
-	"bytes"
-	"compress/gzip"
 	"embed"
 	"fmt"
-	"io"
 
 	"github.com/VPNWorks/vpnw/internal/pluginhost"
 )
 
 //go:generate sh ../../tools/build-plugins.sh
 
-//go:embed *.toml *.wasm.gz
+//go:embed *.toml *.wasm
 var files embed.FS
 
 // Names lists the built-in plugins.
@@ -42,24 +38,11 @@ func Packages() ([]*pluginhost.Package, error) {
 		if err != nil {
 			return nil, fmt.Errorf("built-in plugin: %v", err)
 		}
-		gz, err := files.ReadFile(name + ".wasm.gz")
+		wasm, err := files.ReadFile(name + ".wasm")
 		if err != nil {
 			return nil, fmt.Errorf("built-in plugin %s: %v", name, err)
 		}
-		out = append(out, &pluginhost.Package{Manifest: m, ManifestSrc: toml, Source: pluginhost.BuiltinSource, Builtin: true,
-			Unpack: func() ([]byte, error) { return gunzip(gz) }})
-	}
-	return out, nil
-}
-
-func gunzip(b []byte) ([]byte, error) {
-	r, err := gzip.NewReader(bytes.NewReader(b))
-	if err != nil {
-		return nil, fmt.Errorf("unpacking a built-in plugin: %v", err)
-	}
-	out, err := io.ReadAll(r)
-	if err != nil {
-		return nil, fmt.Errorf("unpacking a built-in plugin: %v", err)
+		out = append(out, &pluginhost.Package{Manifest: m, ManifestSrc: toml, Wasm: wasm, Source: pluginhost.BuiltinSource, Builtin: true})
 	}
 	return out, nil
 }

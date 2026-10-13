@@ -7,9 +7,10 @@ them, and give first-party plugins no back door the plugin interface doesn't
 offer everyone.
 
 - After changing anything under plugins/ (trace, learn, ledger, ledgerverify,
-  sdk), run `sh tools/build-plugins.sh` and commit plugins/builtin/*.wasm.gz.
+  sdk), run `sh tools/build-plugins.sh` and commit plugins/builtin/*.wasm.
   CI rebuilds them anyway, but `go build` from a clean checkout embeds the
-  committed ones. They ship gzipped and are unpacked when a command uses one.
+  committed ones. They stay uncompressed on purpose: unpacking one cost
+  every run about 40 ms.
 - Built-in plugin manifests carry the release version; raise them with
   internal/version/version.go (a test checks).
 - Figures quoted on vpnw.com or in the README come from

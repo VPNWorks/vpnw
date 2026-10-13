@@ -40,8 +40,8 @@ say "sizes"
       && echo "vpnw, $os_arch: compiles (env backend; sealed runs need Linux)"
   done
   for p in trace learn ledger ledger-verify; do
-    printf 'built-in plugin %s: %s bytes of WebAssembly, shipped gzipped as %s bytes\n' "$p" \
-      "$(gzip -dc "plugins/builtin/$p.wasm.gz" | wc -c)" "$(stat -c %s "plugins/builtin/$p.wasm.gz")"
+    printf 'built-in plugin %s: %s bytes of WebAssembly; gzip -9: %s bytes\n' "$p" \
+      "$(stat -c %s "plugins/builtin/$p.wasm")" "$(gzip -9 -c "plugins/builtin/$p.wasm" | wc -c)"
   done
   # The modules linked into the binary, as the binary itself lists them.
   deps=$(go version -m bin/vpnw-linux-amd64 | awk '$1=="dep"{print $2" "$3}')
