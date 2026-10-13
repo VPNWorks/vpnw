@@ -302,7 +302,25 @@ func (r tunnelResolver) LookupIP(ctx context.Context, host string) ([]net.IP, er
 	if ip := net.ParseIP(host); ip != nil {
 		return []net.IP{ip}, nil
 	}
-	addrs, err := r.w.tnet.LookupContextHost(ctx, host)
+	// The tunnel's resolver doesn't always stop when ctx does (a silent
+	// peer leaves it waiting out its own timeouts), so wait on both.
+	type answer struct {
+		addrs []string
+		err   error
+	}
+	ch := make(chan answer, 1)
+	go func() {
+		a, err := r.w.tnet.LookupContextHost(ctx, host)
+		ch <- answer{a, err}
+	}()
+	var addrs []string
+	var err error
+	select {
+	case a := <-ch:
+		addrs, err = a.addrs, a.err
+	case <-ctx.Done():
+		return nil, &net.DNSError{Err: ctx.Err().Error(), Name: host, IsTimeout: ctx.Err() == context.DeadlineExceeded}
+	}
 	if err != nil {
 		var de *net.DNSError
 		if errors.As(err, &de) {

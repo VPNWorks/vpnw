@@ -144,6 +144,13 @@ VPNW_LEDGER_MATRIX_OUT="$PWD/$OUT/ledger-tamper.md" go test -count=1 -run 'TestT
 cat "$OUT/ledger-tamper.md"
 echo "$(grep -c '^| [a-z]' "$OUT/ledger-tamper.md") kinds of change; verdicts: $(awk -F' [|] ' 'NR>2{print $2}' "$OUT/ledger-tamper.md" | sort | uniq -c | tr -s ' ' | tr '\n' ';')" | tee -a "$OUT/ledger-tamper.md"
 
+say "Lab: faults on the WireGuard path"
+rm -f "$OUT/lab.md"
+VPNW_LAB_OUT="$PWD/$OUT/lab.md" go test -count=1 -run 'TestLab' -v ./test/integration/ 2>&1 \
+  | grep -E '^(---|ok|FAIL)' | tee "$OUT/lab.txt"
+cat "$OUT/lab.md"
+echo "$(grep -c '| passed |' "$OUT/lab.md") of $(grep -cE '\| (passed|FAILED) \|' "$OUT/lab.md") faults handled" | tee -a "$OUT/lab.md"
+
 say "bypass matrix"
 rm -f "$OUT/bypass-matrix.md" "$OUT/bypass-matrix-ci.md"
 VPNW_MATRIX_OUT="$PWD/$OUT/bypass-matrix.md" go test -count=1 -run 'TestBypassMatrix' -v ./test/integration/ 2>&1 \

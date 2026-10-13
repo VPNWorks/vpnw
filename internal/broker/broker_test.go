@@ -430,3 +430,67 @@ func TestOutcomesAddUp(t *testing.T) {
 		t.Errorf("outcomes do not add up: %+v", st)
 	}
 }
+
+// silentServer accepts connections and never says a word.
+func silentServer(t *testing.T) int {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var held []net.Conn
+	t.Cleanup(func() {
+		l.Close()
+		for _, c := range held {
+			c.Close()
+		}
+	})
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			held = append(held, c)
+		}
+	}()
+	return l.Addr().(*net.TCPAddr).Port
+}
+
+// A program that gives up on a silent destination closes its side; the
+// connection out is closed QuietAfterClose later, and recorded.
+func TestQuietAfterClose(t *testing.T) {
+	old := QuietAfterClose
+	QuietAfterClose = 200 * time.Millisecond
+	defer func() { QuietAfterClose = old }()
+	port := silentServer(t)
+	r := newRig(t, nil)
+	c, status := connect(t, r.addr, fmt.Sprintf("echo.test:%d", port), "")
+	if status != "HTTP/1.1 200 Connection established" {
+		t.Fatalf("status %q", status)
+	}
+	io.WriteString(c, "anyone?\n")
+	c.Close()
+	t0 := time.Now()
+	waitEvents(r, events.ConnectionClose, 1)
+	if d := time.Since(t0); d > 3*time.Second {
+		t.Errorf("closed after %v", d)
+	}
+}
+
+// At the end of a run, a connection waiting on a silent destination is
+// closed, and its close recorded, without waiting for QuietAfterClose.
+func TestShutdownClosesSilentConnections(t *testing.T) {
+	port := silentServer(t)
+	r := newRig(t, nil)
+	c, _ := connect(t, r.addr, fmt.Sprintf("echo.test:%d", port), "")
+	defer c.Close()
+	io.WriteString(c, "anyone?\n")
+	time.Sleep(100 * time.Millisecond)
+	t0 := time.Now()
+	r.b.Shutdown(2 * time.Second)
+	if d := time.Since(t0); d > time.Second {
+		t.Errorf("Shutdown took %v", d)
+	}
+	waitEvents(r, events.ConnectionClose, 1)
+}

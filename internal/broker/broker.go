@@ -87,10 +87,25 @@ type Broker struct {
 	wg                                           sync.WaitGroup
 	mu                                           sync.Mutex
 	conns                                        map[net.Conn]struct{}
+	ups                                          map[net.Conn]struct{} // open connections out, through the path
 	closed                                       bool
+	baseOnce                                     sync.Once
+	base                                         context.Context // cancelled by Shutdown
+	stop                                         context.CancelFunc
 	connections, opened, allowed, denied, failed atomic.Int64
 	bytesUp, bytesDown                           atomic.Int64
 }
+
+// baseCtx is the context every connection's lookups and dials run under;
+// Shutdown cancels it, so none is left waiting when the run ends.
+func (b *Broker) baseCtx() context.Context {
+	b.baseOnce.Do(func() { b.base, b.stop = context.WithCancel(context.Background()) })
+	return b.base
+}
+
+// errRunEnded is a connection's outcome when the run ended while it was
+// still being looked up or dialled.
+var errRunEnded = errors.New("the run ended before the connection opened")
 
 // SetPID records the workload's process id for events.
 func (b *Broker) SetPID(pid int) { b.pid.Store(int64(pid)) }
@@ -162,6 +177,27 @@ func (b *Broker) track(c net.Conn) bool {
 	return true
 }
 
+// trackUp registers a connection out through the path, so Shutdown can
+// close it; a run already ending closes it at once.
+func (b *Broker) trackUp(c net.Conn) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		c.Close()
+		return
+	}
+	if b.ups == nil {
+		b.ups = map[net.Conn]struct{}{}
+	}
+	b.ups[c] = struct{}{}
+}
+
+func (b *Broker) untrackUp(c net.Conn) {
+	b.mu.Lock()
+	delete(b.ups, c)
+	b.mu.Unlock()
+}
+
 func (b *Broker) untrack(c net.Conn) {
 	b.mu.Lock()
 	delete(b.conns, c)
@@ -176,7 +212,16 @@ func (b *Broker) Shutdown(grace time.Duration) {
 	for c := range b.conns {
 		c.Close()
 	}
+	// The other side too: a connection whose path has gone silent would
+	// otherwise wait on it for ever, and never be closed in the record.
+	for c := range b.ups {
+		c.Close()
+	}
 	b.mu.Unlock()
+	// Connections still being looked up or dialled stop now, and each is
+	// recorded with errRunEnded, so none is left without an outcome.
+	b.baseCtx()
+	b.stop()
 	done := make(chan struct{})
 	go func() { b.wg.Wait(); close(done) }()
 	select {
@@ -254,7 +299,7 @@ func (b *Broker) open(rawHost string, port int, proto string) outcome {
 	if timeout == 0 {
 		timeout = path.DialTimeout
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(b.baseCtx(), timeout)
 	defer cancel()
 	// The path sends the run and connection IDs to an exit, and says which
 	// exit answered and when a list of exits moved on.
@@ -285,6 +330,9 @@ func (b *Broker) open(rawHost string, port int, proto string) outcome {
 		return nil
 	}
 	fail := func(err error, code byte) outcome {
+		if b.baseCtx().Err() != nil {
+			err = errRunEnded
+		}
 		b.failed.Add(1)
 		ef := map[string]any{"error": err.Error()}
 		if ci.Exit != "" {
@@ -423,14 +471,37 @@ func sanitize(s string) string {
 	return b.String()
 }
 
+// QuietAfterClose is how long a connection out may stay silent after the
+// program has stopped sending on it. A program that gave up (a timeout,
+// say) closes its side; without this limit, a path that had gone silent
+// would hold the other side open until the run ended.
+var QuietAfterClose = 2 * time.Minute
+
+// quietReader reads from a connection out; once the program has stopped
+// sending, each read must bring something within QuietAfterClose.
+type quietReader struct {
+	c    net.Conn
+	done *atomic.Bool
+}
+
+func (q quietReader) Read(p []byte) (int, error) {
+	if q.done.Load() {
+		q.c.SetReadDeadline(time.Now().Add(QuietAfterClose))
+	}
+	return q.c.Read(p)
+}
+
 // finish relays until both sides are done, then records the close.
 func (b *Broker) finish(o outcome, client net.Conn, fromClient io.Reader, extraUp, extraDown int64, rewrite func(io.Reader, io.Writer) (int64, error)) {
 	defer o.conn.Close()
+	b.trackUp(o.conn)
+	defer b.untrackUp(o.conn)
 	client.SetDeadline(time.Time{})
 	b.active.Add(1)
 	defer b.active.Add(-1)
 	var up, down int64
 	var wg sync.WaitGroup
+	var clientDone atomic.Bool
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
@@ -442,15 +513,18 @@ func (b *Broker) finish(o outcome, client net.Conn, fromClient io.Reader, extraU
 			return
 		}
 		closeWrite(o.conn)
+		clientDone.Store(true)
+		o.conn.SetReadDeadline(time.Now().Add(QuietAfterClose))
 	}()
 	go func() {
 		defer wg.Done()
 		var n int64
 		var err error
+		from := quietReader{o.conn, &clientDone}
 		if rewrite != nil {
-			n, err = rewrite(o.conn, client)
+			n, err = rewrite(from, client)
 		} else {
-			n, err = io.Copy(client, o.conn)
+			n, err = io.Copy(client, from)
 		}
 		down = n
 		if err != nil {

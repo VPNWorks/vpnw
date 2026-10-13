@@ -33,10 +33,16 @@ var (
 	ClientIP = netip.MustParseAddr("10.9.0.2")
 )
 
-// Names the DNS server inside the tunnel answers.
+// Names the DNS server inside the tunnel answers. The hostile ones point
+// where a program must not be sent: cloud metadata, this machine, the local
+// network, the internet outside the tunnel.
 var Names = map[string]netip.Addr{
 	"web.tunnel.test.":      PeerIP,
 	"internal.tunnel.test.": netip.MustParseAddr("10.9.0.99"),
+	"metadata.tunnel.test.": netip.MustParseAddr("169.254.169.254"),
+	"loopback.tunnel.test.": netip.MustParseAddr("127.0.0.1"),
+	"lan.tunnel.test.":      netip.MustParseAddr("192.168.1.1"),
+	"outside.tunnel.test.":  netip.MustParseAddr("1.1.1.1"),
 }
 
 type key struct{ priv, pub []byte }
@@ -174,7 +180,9 @@ func (s *Server) StrangerConfig() string {
 	return s.config(newKey().priv)
 }
 
-func (s *Server) config(priv []byte) string {
+func (s *Server) config(priv []byte) string { return s.configAt(priv, s.Port) }
+
+func (s *Server) configAt(priv []byte, port int) string {
 	return fmt.Sprintf(`[Interface]
 PrivateKey = %s
 Address = %s/32
@@ -184,7 +192,7 @@ DNS = %s
 PublicKey = %s
 Endpoint = 127.0.0.1:%d
 AllowedIPs = 10.9.0.0/24
-`, b64(priv), ClientIP, PeerIP, b64(s.peer.pub), s.Port)
+`, b64(priv), ClientIP, PeerIP, b64(s.peer.pub), port)
 }
 
 // Close stops the peer.
