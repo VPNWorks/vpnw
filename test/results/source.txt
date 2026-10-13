@@ -1,15 +1,15 @@
-core: 8865 lines of Go (tests not counted)
+core: 9157 lines of Go (tests not counted)
 plugins and SDK: 2297 lines of Go
-tests: 6525 lines of Go, test plugins included
+tests: 7186 lines of Go, test plugins included
   cmd/vpnw                1497 lines
-  internal/broker          883 lines
+  internal/broker          980 lines
   internal/config         1071 lines
   internal/events          316 lines
-  internal/path           1898 lines
+  internal/path           2092 lines
   internal/pluginhost     1641 lines
   internal/policy          612 lines
   internal/process         934 lines
-  internal/version          13 lines
+  internal/version          14 lines
   plugins/sdk              501 lines
   plugins/trace            304 lines
   plugins/learn            421 lines

@@ -63,6 +63,8 @@ vpnw guard --wireguard mullvad-de.conf --policy agent.toml -- ./my-agent
 
 vpnw runs the tunnel itself, inside its own process: the WireGuard protocol from the official wireguard-go and a TCP/IP stack from gVisor. No root, no kernel module, no network interface on the machine, and nothing changes for any other program. Names are looked up through the tunnel at the DNS servers in the config, so lookups don't leak, and the policy still checks every address before anything is sent. A config without a DNS server is refused unless you ask for lookups on your own machine with `--dns local`. If the tunnel doesn't come up (a wrong key, a blocked port) the program never starts.
 
+A lying DNS answer from the tunnel can't send a program to loopback or link-local addresses, cloud metadata among them: those are refused through any tunnel, a full tunnel included.
+
 WireGuard is a built-in path, like the proxy paths, not a plugin: it carries every byte, and plugins never carry traffic. It's a registered trademark of Jason A. Donenfeld; VPN Works isn't affiliated with the WireGuard project.
 
 ## Install
@@ -151,7 +153,7 @@ Writing a plugin in Go takes the SDK and one build command; [docs/plugins.md](do
 
 ## How it was tested
 
-Every number here comes from `tools/record-results.sh`, which writes [test/results](test/results). The main promise is that a sealed program can't get out except through vpnw, so the integration tests try every way out they know from inside the sandbox ([bypass matrix](test/results/bypass-matrix.md)), and the plugin tests aim at the plugin promises: a plugin that panics, spins forever, writes without permission, falls behind, or fails while guarding. Costs per plugin call are in [plugins.txt](test/results/plugins.txt). WireGuard paths are tested against a real WireGuard peer running in the tests, with a web and a DNS server inside its tunnel; their speed is in [wireguard.txt](test/results/wireguard.txt).
+Every number here comes from `tools/record-results.sh`, which writes [test/results](test/results). The main promise is that a sealed program can't get out except through vpnw, so the integration tests try every way out they know from inside the sandbox ([bypass matrix](test/results/bypass-matrix.md)), and the plugin tests aim at the plugin promises: a plugin that panics, spins forever, writes without permission, falls behind, or fails while guarding. Costs per plugin call are in [plugins.txt](test/results/plugins.txt). WireGuard paths are tested against a real WireGuard peer running in the tests, with a web and a DNS server inside its tunnel; their speed is in [wireguard.txt](test/results/wireguard.txt). Lab, the fault kit in the tests, breaks that tunnel on purpose (a silent peer, lost handshakes, an impostor peer, a slow path, a DNS server that lies) and checks that the program hears about it, nothing goes around the tunnel, every connection has an outcome in the record, and vpnw never hangs: [lab.md](test/results/lab.md).
 
 ## Build from source
 
