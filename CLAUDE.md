@@ -24,11 +24,21 @@ whole procedure and the checks to run afterwards.
 
 Read this first in a new session, and update it at the end of every release.
 
-- **Released:** 0.4.1 (October 9, 2026): the bypass matrix's IPv6 rows run
-  in CI (17 of 17 ways out blocked on the Linux runner), and a data race in
-  closing plugins is fixed. 0.4.0 added WireGuard paths; 0.3.0 rebuilt VPN
-  Works as a core with plugins.
-- **Next:** 0.5.0, Ledger. Waiting for the owner's go-ahead.
+- **Released:** 0.5.0 (October 13, 2026): Ledger, two built-in plugins
+  (`ledger` seals a run's events into a hash-chained file; `ledger-verify`,
+  run as `vpnw verify`, names the changed line), the `file.write`
+  permission, `input = "lines"` for Advisors, and `events.lost` for
+  Observers that fall behind. 0.4.1 ran the IPv6 escape tests in CI; 0.4.0
+  added WireGuard paths; 0.3.0 rebuilt VPN Works as a core with plugins.
+- **Next:** 0.6.0, Lab. Waiting for the owner's go-ahead.
+- **Ledger's limits, known and documented:** no signed checkpoints (a
+  plugin can't hold a key it can't read; noted as an open question on the
+  roadmap). A ledger written again from scratch is caught only by the
+  checkpoint copies in the trace or the printed last hash, kept elsewhere.
+  The watched program runs as the user and could rewrite both files.
+- **Binary size:** the built-in plugins are embedded uncompressed (about
+  26 MB in all). Shipping them gzipped saved 11 MB but cost every run about
+  40 ms to unpack Trace, so it was reverted.
 - **How the IPv6 rows are recorded:** the machine used so far has no IPv6 in
   its kernel. CI runs the matrix on its Linux runner with
   `VPNW_REQUIRE_SEAL=1` and `VPNW_REQUIRE_IPV6=1` and leaves the table as a
@@ -52,7 +62,7 @@ release on your own, even when the last one went well.
 | Release | What | Status |
 |---|---|---|
 | 0.4.1 | Fixes: the two IPv6 escape tests run inside the test sandbox, so they no longer depend on the machine having IPv6 (16 of 16 ways out tested); small cleanups left from the reviews | released |
-| 0.5.0 | Ledger | waiting |
+| 0.5.0 | Ledger | released |
 | 0.6.0 | Lab | waiting |
 | 0.7.0 | Exit | waiting |
 | 0.8.0 | Tunnel plugins | waiting |
