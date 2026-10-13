@@ -7,9 +7,11 @@ import (
 	"bufio"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -498,6 +500,42 @@ func TestShutdownClosesSilentConnections(t *testing.T) {
 // A destination that is slow but alive keeps its connection after the
 // program stops sending: the quiet limit only ends real silence.
 func TestQuietAfterCloseSlowButAlive(t *testing.T) {
+	t.Run("kernel", func(t *testing.T) { slowButAlive(t, nil) })
+	// The WireGuard path's netstack reports a deadline with an error of
+	// its own, not os.ErrDeadlineExceeded.
+	t.Run("own timeout error", func(t *testing.T) { slowButAlive(t, ownTimeoutPath{&path.Direct{}}) })
+}
+
+type netstackTimeout struct{}
+
+func (netstackTimeout) Error() string   { return "i/o timeout" }
+func (netstackTimeout) Timeout() bool   { return true }
+func (netstackTimeout) Temporary() bool { return true }
+
+// ownTimeoutPath dials directly but reports timeouts the way gVisor does.
+type ownTimeoutPath struct{ *path.Direct }
+
+func (p ownTimeoutPath) Dial(ctx context.Context, host string, ip net.IP, port int) (net.Conn, error) {
+	c, err := p.Direct.Dial(ctx, host, ip, port)
+	if err != nil {
+		return nil, err
+	}
+	return ownTimeoutConn{c}, nil
+}
+
+type ownTimeoutConn struct{ net.Conn }
+
+func (c ownTimeoutConn) CloseWrite() error { return c.Conn.(*net.TCPConn).CloseWrite() }
+
+func (c ownTimeoutConn) Read(b []byte) (int, error) {
+	n, err := c.Conn.Read(b)
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		err = netstackTimeout{}
+	}
+	return n, err
+}
+
+func slowButAlive(t *testing.T, via path.Path) {
 	old := QuietAfterClose
 	QuietAfterClose = 300 * time.Millisecond
 	defer func() { QuietAfterClose = old }()
@@ -518,6 +556,9 @@ func TestQuietAfterCloseSlowButAlive(t *testing.T) {
 		}
 	}()
 	r := newRig(t, nil)
+	if via != nil {
+		r.b.Path = via
+	}
 	c, status := connect(t, r.addr, fmt.Sprintf("echo.test:%d", l.Addr().(*net.TCPAddr).Port), "")
 	if status != "HTTP/1.1 200 Connection established" {
 		t.Fatalf("status %q", status)

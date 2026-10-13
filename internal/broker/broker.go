@@ -498,6 +498,14 @@ func (q quietReader) Read(p []byte) (int, error) {
 	return q.c.Read(p)
 }
 
+// isTimeout reports a read deadline that ran out. Kernel sockets say
+// os.ErrDeadlineExceeded; the WireGuard path's netstack has its own error,
+// so ask the net.Error.
+func isTimeout(err error) bool {
+	var ne net.Error
+	return err != nil && (errors.Is(err, os.ErrDeadlineExceeded) || errors.As(err, &ne) && ne.Timeout())
+}
+
 // finish relays until both sides are done, then records the close.
 func (b *Broker) finish(o outcome, client net.Conn, fromClient io.Reader, extraUp, extraDown int64, rewrite func(io.Reader, io.Writer) (int64, error)) {
 	defer o.conn.Close()
@@ -535,7 +543,7 @@ func (b *Broker) finish(o outcome, client net.Conn, fromClient io.Reader, extraU
 				down += n
 				// The quiet limit ended this copy. Something arrived in
 				// the window, so the connection is alive: renew it.
-				if err != nil && errors.Is(err, os.ErrDeadlineExceeded) && clientDone.Load() && n > 0 {
+				if isTimeout(err) && clientDone.Load() && n > 0 {
 					o.conn.SetReadDeadline(time.Now().Add(QuietAfterClose))
 					continue
 				}
