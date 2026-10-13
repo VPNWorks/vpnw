@@ -195,6 +195,12 @@ func (r *pluginRun) attach(name string) error {
 	}
 	in, err := r.host.Load(context.Background(), pkg, opt)
 	if err != nil {
+		if f, ok := opt.File.(*os.File); ok {
+			// The plugin never started: leave no empty file behind.
+			r.opened = r.opened[:len(r.opened)-1]
+			f.Close()
+			os.Remove(opt.FileName)
+		}
 		return err
 	}
 	r.used[name] = true

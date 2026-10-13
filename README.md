@@ -163,7 +163,7 @@ go build -o vpnw ./cmd/vpnw
 go test ./...
 ```
 
-`tools/build-plugins.sh` rebuilds `plugins/builtin/*.wasm` from `plugins/trace` and `plugins/learn`. CI runs it before every build, so released binaries always embed plugins built from the same commit.
+`tools/build-plugins.sh` rebuilds the built-in plugins, `plugins/builtin/*.wasm.gz`, from `plugins/trace`, `plugins/learn`, `plugins/ledger` and `plugins/ledgerverify`. CI runs it before every build, so released binaries always embed plugins built from the same commit.
 
 | Folder | What's in it |
 |---|---|

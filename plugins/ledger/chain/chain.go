@@ -12,19 +12,22 @@
 //	{"n":1,"ev":{...the event as vpnw sent it...},"h":"…"}  an event
 //	{"n":7,"lost":12,"h":"…"}                          12 events never arrived
 //	{"cp":1,"n":100,"h":"…"}                           a checkpoint
-//	{"end":143,"h":"…"}                                the run ended here
+//	{"end":143,"cp":2,"h":"…"}                         the run ended here
 //
 // Entries (events and lost-event marks) are numbered from 1. Each entry's
 // hash covers the hash before it, its number and its content:
 //
 //	h0 = SHA-256("vpnw-ledger v1\n" || header line)
-//	hN = SHA-256(hN-1 || 0x00 || N as 8 bytes || the event)   an event
-//	hN = SHA-256(hN-1 || 0x01 || N as 8 bytes || count as 8)  a lost mark
+//	h  = SHA-256(h' || 0x00 || N as 8 bytes || the event)       event N
+//	h  = SHA-256(h' || 0x01 || N as 8 bytes || count as 8)      lost mark N
+//	h  = SHA-256(h' || 0x02 || K as 8 bytes || N as 8)          checkpoint K, after entry N
+//	h  = SHA-256(h' || 0x03 || N as 8 bytes || K as 8)          the end, N entries, K checkpoints
 //
-// Checkpoints and the end line repeat the hash of the latest entry. Ledger
-// also copies each checkpoint into the run's own record, as an event, so a
-// ledger rewritten from some line on stops matching the copies kept
-// elsewhere.
+// where h' is the hash of the line before (all numbers big-endian). Every
+// line after the header is a link, so nothing can be removed, added or
+// moved without breaking the chain from there on. Ledger also copies each
+// checkpoint into the run's own record, as an event, so a ledger rewritten
+// from some line on stops matching the copies kept elsewhere.
 package chain
 
 import (
@@ -102,14 +105,22 @@ func EventHash(prev Hash, n uint64, ev []byte) Hash {
 }
 
 // LostHash is the hash of lost-events entry n, of count events, after prev.
-func LostHash(prev Hash, n, count uint64) Hash {
+func LostHash(prev Hash, n, count uint64) Hash { return link(prev, 1, n, count) }
+
+// CheckpointHash is the hash of checkpoint k, after entry n, after prev.
+func CheckpointHash(prev Hash, k, n uint64) Hash { return link(prev, 2, k, n) }
+
+// EndHash is the hash of the end line, after n entries and k checkpoints.
+func EndHash(prev Hash, n, k uint64) Hash { return link(prev, 3, n, k) }
+
+func link(prev Hash, kind byte, a, b uint64) Hash {
 	s := sha256.New()
 	s.Write(prev[:])
-	var b [17]byte
-	b[0] = 1
-	binary.BigEndian.PutUint64(b[1:], n)
-	binary.BigEndian.PutUint64(b[9:], count)
-	s.Write(b[:])
+	var x [17]byte
+	x[0] = kind
+	binary.BigEndian.PutUint64(x[1:], a)
+	binary.BigEndian.PutUint64(x[9:], b)
+	s.Write(x[:])
 	var h Hash
 	s.Sum(h[:0])
 	return h
@@ -135,7 +146,8 @@ func NewWriter(run string) (*Writer, []byte, error) {
 	return &Writer{head: Start(hd), header: hd}, append(append([]byte{}, hd...), '\n'), nil
 }
 
-// Entries is how many entries the ledger holds; Head the latest hash.
+// Entries is how many entries the ledger holds; Head the hash of its
+// latest line.
 func (w *Writer) Entries() uint64 { return w.n }
 func (w *Writer) Head() Hash      { return w.head }
 
@@ -181,13 +193,15 @@ func (w *Writer) Lost(count uint64) ([]byte, error) {
 func (w *Writer) Checkpoint() ([]byte, uint64) {
 	w.cp++
 	w.cpAt = w.n
+	w.head = CheckpointHash(w.head, w.cp, w.n)
 	return fmt.Appendf(nil, `{"cp":%d,"n":%d,"h":"%s"}`+"\n", w.cp, w.n, w.head), w.cp
 }
 
 // End closes the ledger.
 func (w *Writer) End() []byte {
 	w.ended = true
-	return fmt.Appendf(nil, `{"end":%d,"h":"%s"}`+"\n", w.n, w.head)
+	w.head = EndHash(w.head, w.n, w.cp)
+	return fmt.Appendf(nil, `{"end":%d,"cp":%d,"h":"%s"}`+"\n", w.n, w.cp, w.head)
 }
 
 // Line kinds.
@@ -206,7 +220,7 @@ type Parsed struct {
 	N     uint64 // event, lost, checkpoint: the entry; end: entries in all
 	Ev    []byte // event: the event's bytes, a slice of the line
 	Count uint64 // lost
-	CP    uint64 // checkpoint number
+	CP    uint64 // checkpoint: its number; end: checkpoints in all
 	H     Hash
 }
 
@@ -275,6 +289,10 @@ func Parse(line []byte) (*Parsed, error) {
 		return &Parsed{Kind: KCheckpoint, CP: cp, N: n, H: h}, nil
 	case bytes.HasPrefix(line, []byte(`{"end":`)):
 		n, rest, ok := number(line[len(`{"end":`):])
+		if !ok || !bytes.HasPrefix(rest, []byte(`,"cp":`)) {
+			return nil, ErrForm
+		}
+		k, rest, ok := number(rest[len(`,"cp":`):])
 		if !ok {
 			return nil, ErrForm
 		}
@@ -282,7 +300,7 @@ func Parse(line []byte) (*Parsed, error) {
 		if !ok {
 			return nil, ErrForm
 		}
-		return &Parsed{Kind: KEnd, N: n, H: h}, nil
+		return &Parsed{Kind: KEnd, N: n, CP: k, H: h}, nil
 	}
 	return nil, ErrForm
 }

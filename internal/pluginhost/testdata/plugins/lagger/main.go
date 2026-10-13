@@ -11,7 +11,7 @@ import (
 	"github.com/VPNWorks/vpnw/plugins/sdk"
 )
 
-var events, lost int64
+var events, lost, at int64
 var first = true
 
 func init() {
@@ -23,13 +23,14 @@ func init() {
 			}
 			if e.Type == "events.lost" {
 				lost += e.Int("count")
+				at = events
 				return nil
 			}
 			events++
 			return nil
 		},
 		Finish: func() error {
-			sdk.Stderr(fmt.Sprintf("events %d lost %d\n", events, lost))
+			sdk.Stderr(fmt.Sprintf("events %d lost %d after %d\n", events, lost, at))
 			return nil
 		},
 	})

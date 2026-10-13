@@ -23,11 +23,14 @@ func sample(t *testing.T, n, every int, lostAt map[int]uint64) (ledger, trace []
 	}
 	ledger = append(ledger, strings.TrimSuffix(string(hd), "\n"))
 	add := func(b []byte) { ledger = append(ledger, strings.TrimSuffix(string(b), "\n")) }
-	cps := func() {
+	cps := func(end bool) {
 		b, cp := w.Checkpoint()
 		add(b)
-		ev, _ := json.Marshal(map[string]any{"v": 1, "type": "plugin.ledger.checkpoint", "run": "r-abc123",
-			"fields": map[string]any{"cp": cp, "n": w.Entries(), "h": w.Head().String()}})
+		f := map[string]any{"cp": cp, "n": w.Entries(), "h": w.Head().String()}
+		if end {
+			f["end"] = true
+		}
+		ev, _ := json.Marshal(map[string]any{"v": 1, "type": "plugin.ledger.checkpoint", "run": "r-abc123", "fields": f})
 		trace = append(trace, string(ev))
 	}
 	for i := 1; i <= n; i++ {
@@ -46,13 +49,11 @@ func sample(t *testing.T, n, every int, lostAt map[int]uint64) (ledger, trace []
 		}
 		add(b)
 		trace = append(trace, string(ev))
-		if w.SinceCheckpoint() >= uint64(every) {
-			cps()
+		if w.SinceCheckpoint() >= uint64(every) && i < n {
+			cps(false)
 		}
 	}
-	if w.SinceCheckpoint() > 0 {
-		cps()
-	}
+	cps(true)
 	add(w.End())
 	return ledger, trace
 }
@@ -169,7 +170,15 @@ func TestTamperMatrix(t *testing.T) {
 		{"a checkpoint", func() []string { l := cp(base); l[cp1] = strings.Replace(l[cp1], `"n":10`, `"n":9`, 1); return l }(),
 			opts{}, Changed, cp1 + 1, "checkpoint 1 covers entry 9"},
 		{"a checkpoint removed", func() []string { l := cp(base); return append(l[:cp1], l[cp1+1:]...) }(),
-			opts{}, Changed, 0, "checkpoint 2 where checkpoint 1 belongs"},
+			opts{}, Changed, cp1 + 1, "checkpoint 1, after entry 10, is missing before this line"},
+		{"the last checkpoint removed", func() []string { l := cp(base); return append(l[:endI-1], l[endI]) }(),
+			opts{}, Changed, endI, "counts 3 checkpoints, but there are 2"},
+		{"a checkpoint added", func() []string {
+			l := cp(base)
+			return append(l[:endI], `{"cp":4,"n":26,"h":"`+strings.Repeat("a", 64)+`"}`, l[endI])
+		}(), opts{}, Changed, endI + 1, "checkpoint 4 doesn't match its hash"},
+		{"the end removed, with the end's copy in the trace", cp(base[:endI]),
+			opts{trace: trace}, Changed, 0, "the end was removed"},
 		{"the count of lost events", func() []string {
 			l := cp(base)
 			l[lostI] = strings.Replace(l[lostI], `"lost":3`, `"lost":2`, 1)
@@ -180,14 +189,18 @@ func TestTamperMatrix(t *testing.T) {
 			opts{}, Changed, ev5 + 1, "not a line Ledger writes"},
 		{"a line after the end", append(cp(base), base[ev5]),
 			opts{}, Changed, len(base) + 1, "after the end line"},
+		{"bytes after the end, with no newline", append(cp(base), "GARBAGE"),
+			opts{partial: true}, Changed, len(base) + 1, "after the end line"},
+		{"the first event's run", func() []string { l := cp(base); l[1] = strings.Replace(l[1], `"run":"r-abc123"`, `"run":"r-abc124"`, 1); return l }(),
+			opts{}, Changed, 2, "doesn't match its hash"},
 		{"the end line", func() []string {
 			l := cp(base)
 			l[endI] = strings.Replace(l[endI], `"end":26`, `"end":27`, 1)
 			return l
 		}(),
 			opts{}, Changed, endI + 1, "counts 27 entries"},
-		{"the end removed, with checkpoint copies", cp(base[:endI]),
-			opts{trace: trace}, Intact + "?", 0, ""}, // checked below: the copies end where the ledger does
+		{"the end removed, no trace", cp(base[:endI]),
+			opts{}, Intact + "?", 0, ""}, // checked below: looks like a run cut short
 		{"the end and the last lines removed, with copies", cp(base[:cp1+3]),
 			opts{trace: trace}, Changed, 0, "the end was cut off"},
 		{"rewritten from line 5 on, with the trace", rewrite(ev5),
@@ -321,7 +334,7 @@ func FuzzParse(f *testing.F) {
 		case KCheckpoint:
 			again = fmt.Sprintf(`{"cp":%d,"n":%d,"h":"%s"}`, p.CP, p.N, p.H)
 		case KEnd:
-			again = fmt.Sprintf(`{"end":%d,"h":"%s"}`, p.N, p.H)
+			again = fmt.Sprintf(`{"end":%d,"cp":%d,"h":"%s"}`, p.N, p.CP, p.H)
 		}
 		if again != string(line) {
 			t.Fatalf("read %q, which writes back as %q", line, again)
@@ -340,4 +353,15 @@ func FuzzVerify(f *testing.F) {
 		}
 		v.Result()
 	})
+}
+
+// A kept hash can only be checked against an end line.
+func TestHeadOnCutShort(t *testing.T) {
+	l, _ := sample(t, 5, 10, nil)
+	h := Hash{}
+	r := verify(l[:4], opts{head: &h})
+	if r.Verdict != CutShort || !strings.Contains(strings.Join(r.Lines, "\n"), "couldn't be checked") ||
+		strings.Contains(strings.Join(r.Lines, "\n"), "is the one you kept") {
+		t.Fatalf("%+v", r)
+	}
 }

@@ -6,9 +6,10 @@ by internal/pluginhost. Keep features out of the core when a plugin can hold
 them, and give first-party plugins no back door the plugin interface doesn't
 offer everyone.
 
-- After changing plugins/trace, plugins/learn or plugins/sdk, run
-  `sh tools/build-plugins.sh` and commit plugins/builtin/*.wasm. CI rebuilds
-  them anyway, but `go build` from a clean checkout embeds the committed ones.
+- After changing anything under plugins/ (trace, learn, ledger, ledgerverify,
+  sdk), run `sh tools/build-plugins.sh` and commit plugins/builtin/*.wasm.gz.
+  CI rebuilds them anyway, but `go build` from a clean checkout embeds the
+  committed ones. They ship gzipped and are unpacked when a command uses one.
 - Built-in plugin manifests carry the release version; raise them with
   internal/version/version.go (a test checks).
 - Figures quoted on vpnw.com or in the README come from

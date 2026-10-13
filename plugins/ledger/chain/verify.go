@@ -37,6 +37,9 @@ type Verifier struct {
 	endLine int
 	partial bool
 
+	cpAt uint64   // the entry the last checkpoint covered
+	cps  []cpLine // the checkpoints, in order
+
 	// One line held back, to tell two swapped lines from a deletion.
 	held     *Parsed
 	heldLine int
@@ -46,7 +49,6 @@ type Verifier struct {
 
 	lost     []string // notes about events that never reached Ledger
 	lostSum  uint64
-	hashes   []Hash  // hashes[i] is entry i+1's
 	evDigest []Hash  // SHA-256 of entry i+1's event, or zero for a lost mark
 	lineOf   []int32 // the ledger line of entry i+1
 
@@ -54,6 +56,12 @@ type Verifier struct {
 	copies    []copyCP
 	traceSeq  []traceEv
 	traceFile string
+}
+
+type cpLine struct {
+	n    uint64
+	h    Hash
+	line int
 }
 
 type copyCP struct {
@@ -92,7 +100,11 @@ func (v *Verifier) Ledger(file string, n int, text []byte, partial bool) {
 	if v.problem != "" {
 		return
 	}
-	if partial {
+	if v.ended {
+		v.fail(n, "a line after the end line: it was added")
+		return
+	}
+	if partial && v.started {
 		// A run killed while Ledger was writing leaves half a line.
 		v.flush()
 		v.partial = true
@@ -105,10 +117,6 @@ func (v *Verifier) Ledger(file string, n int, text []byte, partial bool) {
 			return
 		}
 		v.started, v.run, v.prev = true, p.Run, Start(text)
-		return
-	}
-	if v.ended {
-		v.fail(n, "a line after the end line: it was added")
 		return
 	}
 	p, err := Parse(text)
@@ -133,10 +141,11 @@ func (v *Verifier) Ledger(file string, n int, text []byte, partial bool) {
 			v.fail(n, "checkpoint %d where checkpoint %d belongs: checkpoints were removed, added or moved", p.CP, v.cp+1)
 		case p.N != v.n:
 			v.fail(n, "checkpoint %d covers entry %d, but the entries before it end at %d: lines were removed, added or moved", p.CP, p.N, v.n)
-		case p.H != v.prev:
-			v.fail(n, "checkpoint %d doesn't match the entries before it: it or they were changed", p.CP)
+		case CheckpointHash(v.prev, p.CP, p.N) != p.H:
+			v.fail(n, "checkpoint %d doesn't match its hash: it was changed", p.CP)
 		default:
-			v.cp = p.CP
+			v.cp, v.cpAt, v.prev = p.CP, p.N, p.H
+			v.cps = append(v.cps, cpLine{n: p.N, h: p.H, line: n})
 		}
 	case KEnd:
 		v.flush()
@@ -146,10 +155,12 @@ func (v *Verifier) Ledger(file string, n int, text []byte, partial bool) {
 		switch {
 		case p.N != v.n:
 			v.fail(n, "the end line counts %d entries, but there are %d: lines were removed, added or moved", p.N, v.n)
-		case p.H != v.prev:
-			v.fail(n, "the end line doesn't match the entries before it: it or they were changed")
+		case p.CP != v.cp:
+			v.fail(n, "the end line counts %d checkpoints, but there are %d: checkpoints were removed or added", p.CP, v.cp)
+		case EndHash(v.prev, p.N, p.CP) != p.H:
+			v.fail(n, "the end line doesn't match its hash: it was changed")
 		default:
-			v.ended, v.endLine = true, n
+			v.ended, v.endLine, v.prev = true, n, p.H
 		}
 	}
 }
@@ -201,30 +212,42 @@ func (v *Verifier) flush() {
 func (v *Verifier) accept(line int, p *Parsed) {
 	var h Hash
 	var d Hash
+	var run string
 	if p.Kind == KEvent {
 		var e struct {
 			Run string `json:"run"`
 		}
 		json.Unmarshal(p.Ev, &e)
-		if e.Run != v.run {
-			if p.N == 1 {
-				v.fail(1, "the header names run %s, but the events are run %s's: the header was changed", v.run, e.Run)
-			} else {
-				v.fail(line, "the event belongs to run %s, not this ledger's run %s: it was changed", e.Run, v.run)
-			}
-			return
-		}
+		run = e.Run
 		h = EventHash(v.prev, p.N, p.Ev)
 		d = sha256.Sum256(p.Ev)
 	} else {
 		h = LostHash(v.prev, p.N, p.Count)
 	}
 	if h != p.H {
-		if p.Kind == KEvent {
-			v.fail(line, "the event doesn't match its hash: it was changed")
-		} else {
-			v.fail(line, "the count of lost events doesn't match its hash: it was changed")
+		// A checkpoint removed just before this line?
+		withCP := CheckpointHash(v.prev, v.cp+1, v.n)
+		if p.Kind == KEvent && EventHash(withCP, p.N, p.Ev) == p.H || p.Kind == KLost && LostHash(withCP, p.N, p.Count) == p.H {
+			v.fail(line, "checkpoint %d, after entry %d, is missing before this line: it was removed", v.cp+1, v.n)
+			return
 		}
+		if p.Kind == KLost {
+			v.fail(line, "the count of lost events doesn't match its hash: it was changed")
+			return
+		}
+		// The first event's hash starts from the header's. If it matches a
+		// header naming the event's own run, the header is what changed.
+		if p.N == 1 && run != v.run {
+			if hd, err := Header(run); err == nil && EventHash(Start(hd), 1, p.Ev) == p.H {
+				v.fail(1, "the header names run %s, but the events are run %s's: the header was changed", v.run, run)
+				return
+			}
+		}
+		v.fail(line, "the event doesn't match its hash: it was changed")
+		return
+	}
+	if p.Kind == KEvent && run != v.run {
+		v.fail(line, "the event belongs to run %s, not this ledger's run %s", run, v.run)
 		return
 	}
 	if p.Kind == KLost {
@@ -232,7 +255,6 @@ func (v *Verifier) accept(line int, p *Parsed) {
 		v.lost = append(v.lost, fmt.Sprintf("%s:%d: %d events never reached Ledger here (it fell behind the run)", v.file, line, p.Count))
 	}
 	v.prev, v.n = h, p.N
-	v.hashes = append(v.hashes, h)
 	v.evDigest = append(v.evDigest, d)
 	v.lineOf = append(v.lineOf, int32(line))
 }
@@ -331,12 +353,15 @@ func (v *Verifier) Result() Report {
 		say("%s", l)
 	}
 	if len(v.copies) > 0 {
-		say("%d checkpoint copies in %s match", v.goodCopies(), v.traceFile)
+		say("checkpoint copies in %s that match the ledger: %d of %d", v.traceFile, v.goodCopies(), len(v.copies))
 	} else if r.Verdict != Changed {
 		say("no checkpoint copies were checked: give the run's trace too, so a ledger rewritten from some line on is caught")
 	}
-	if v.Head != nil && r.Verdict != Changed {
+	switch {
+	case v.Head != nil && r.Verdict == Intact:
 		say("the last hash is the one you kept")
+	case v.Head != nil && r.Verdict == CutShort:
+		say("the hash you kept couldn't be checked: it is the end line's, and this ledger has none")
 	}
 	return r
 }
@@ -344,7 +369,7 @@ func (v *Verifier) Result() Report {
 func (v *Verifier) goodCopies() int {
 	n := 0
 	for _, c := range v.copies {
-		if c.n >= 1 && c.n <= uint64(len(v.hashes)) && v.hashes[c.n-1] == c.h {
+		if c.cp >= 1 && c.cp <= uint64(len(v.cps)) && v.cps[c.cp-1].n == c.n && v.cps[c.cp-1].h == c.h {
 			n++
 		}
 	}
@@ -352,25 +377,30 @@ func (v *Verifier) goodCopies() int {
 }
 
 // checkCopies compares the checkpoint copies kept in the traces with the
-// ledger. A ledger whose lines all check out but whose hashes were written
-// again from some line on fails here; the trace's events then name the line.
+// ledger's checkpoints, one by one. A ledger whose lines all check out but
+// whose hashes were written again from some line on fails here; the
+// trace's events then name the line.
 func (v *Verifier) checkCopies() {
 	for _, c := range v.copies {
-		switch {
-		case c.n > v.n:
-			v.fail(0, "%s:%d holds a copy of checkpoint %d at entry %d, but the ledger ends at entry %d: the end was cut off", c.file, c.line, c.cp, c.n, v.n)
+		if c.cp > uint64(len(v.cps)) {
+			v.fail(0, "%s:%d holds a copy of checkpoint %d, after entry %d, but the ledger stops at checkpoint %d, entry %d: the end was cut off", c.file, c.line, c.cp, c.n, len(v.cps), v.n)
 			return
-		case c.n == 0:
-			continue
-		case v.hashes[c.n-1] != c.h:
-			if l, t := v.firstDifference(c.n); l > 0 {
+		}
+		got := v.cps[c.cp-1]
+		if got.n != c.n || got.h != c.h {
+			if l, t := v.firstDifference(min(c.n, got.n)); l > 0 {
 				v.fail(l, "the event differs from the same event in %s, and the hashes from here on were written again to hide it (the copy of checkpoint %d in %s:%d doesn't match)", t, c.cp, c.file, c.line)
 				return
 			}
-			v.fail(0, "the ledger doesn't match the copy of checkpoint %d in %s:%d: a line at or before entry %d was changed and the hashes after it written again", c.cp, c.file, c.line, c.n)
+			v.fail(got.line, "checkpoint %d doesn't match its copy in %s:%d: this line or one before it was changed, and the hashes after it written again", c.cp, c.file, c.line)
 			return
-		case c.end && c.n != v.n:
-			v.fail(0, "%s:%d says the run ended at entry %d, but the ledger goes on to %d: entries were added", c.file, c.line, c.n, v.n)
+		}
+		if c.end && !v.ended {
+			v.fail(0, "%s:%d shows the run ended after checkpoint %d, but the ledger has no end line: the end was removed", c.file, c.line, c.cp)
+			return
+		}
+		if c.end && c.cp != v.cp {
+			v.fail(0, "%s:%d shows checkpoint %d was the last, but the ledger has %d: checkpoints were added", c.file, c.line, c.cp, v.cp)
 			return
 		}
 	}

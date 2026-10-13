@@ -743,7 +743,9 @@ func TestObserverToldOfLostEvents(t *testing.T) {
 	if dropped == 0 {
 		t.Fatal("nothing was dropped; the test needs the plugin to fall behind")
 	}
-	want := fmt.Sprintf("events %d lost %d\n", int64(n)-dropped, dropped)
+	// Everything queued came before the drops, so the mark comes after
+	// every event the plugin got.
+	want := fmt.Sprintf("events %d lost %d after %d\n", int64(n)-dropped, dropped, int64(n)-dropped)
 	if stderr.String() != want {
 		t.Fatalf("plugin says %q, want %q", stderr.String(), want)
 	}

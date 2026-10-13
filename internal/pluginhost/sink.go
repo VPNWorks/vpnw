@@ -31,7 +31,7 @@ type Sink struct {
 	in      *Instance
 	own     string // the prefix of the plugin's own events
 	onFail  func(name string, err error)
-	ch      chan []byte
+	ch      chan queued
 	done    chan struct{}
 	ctx     context.Context // cancelled to cut short a call in flight
 	cancel  context.CancelFunc
@@ -39,13 +39,20 @@ type Sink struct {
 	closed  bool
 	failed  atomic.Bool
 	dropped atomic.Int64
-	told    int64 // dropped events the plugin has been told about; loop only
+	pending atomic.Int64 // drops not yet attached to a queued event
+}
+
+// queued is an event waiting for the plugin, with the number of events
+// dropped just before it.
+type queued struct {
+	b    []byte
+	lost int64
 }
 
 // NewSink starts handing events to in. onFail, if not nil, is called once,
 // from the Sink's goroutine, if the plugin fails.
 func NewSink(in *Instance, onFail func(name string, err error)) *Sink {
-	s := &Sink{in: in, own: "plugin." + in.Name() + ".", onFail: onFail, ch: make(chan []byte, QueueLen), done: make(chan struct{})}
+	s := &Sink{in: in, own: "plugin." + in.Name() + ".", onFail: onFail, ch: make(chan queued, QueueLen), done: make(chan struct{})}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	go s.loop()
 	return s
@@ -70,39 +77,44 @@ func (s *Sink) Emit(e *events.Event) {
 	if s.closed {
 		return
 	}
+	// Emit is called by the bus one event at a time, so the drops before
+	// this event are exactly those pending now.
+	lost := s.pending.Swap(0)
 	select {
-	case s.ch <- b:
+	case s.ch <- queued{b, lost}:
 	default:
+		s.pending.Add(lost + 1)
 		s.dropped.Add(1)
 	}
 }
 
 func (s *Sink) loop() {
 	defer close(s.done)
-	for b := range s.ch {
+	for q := range s.ch {
 		if s.failed.Load() {
 			continue
 		}
-		s.tellLost()
-		if err := s.in.Event(s.ctx, b); err != nil {
+		s.tellLost(q.lost)
+		if s.failed.Load() {
+			continue
+		}
+		if err := s.in.Event(s.ctx, q.b); err != nil {
 			s.fail(err)
 		}
 	}
+	// Drops after the last event that was queued.
 	if !s.failed.Load() {
-		s.tellLost()
+		s.tellLost(s.pending.Swap(0))
 	}
 }
 
-// tellLost hands the plugin an EventsLost event for drops it hasn't been
-// told about. The events were dropped after the ones it has had and before
+// tellLost hands the plugin an EventsLost event for n events dropped, in
+// the place where they were dropped: after the event it had last, before
 // the one it gets next.
-func (s *Sink) tellLost() {
-	d := s.dropped.Load()
-	if d <= s.told {
+func (s *Sink) tellLost(n int64) {
+	if n <= 0 {
 		return
 	}
-	n := d - s.told
-	s.told = d
 	b, _ := json.Marshal(events.Event{V: version.Schema, TS: time.Now().UTC(), Type: EventsLost, Run: s.in.opt.Run,
 		Fields: map[string]any{"count": n}})
 	if err := s.in.Event(s.ctx, b); err != nil {

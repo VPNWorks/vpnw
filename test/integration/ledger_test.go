@@ -35,7 +35,7 @@ func TestLedgerRun(t *testing.T) {
 	head := m[1]
 
 	got := e.must("verify", led, tr, "--head", head)
-	if !strings.HasPrefix(got, "intact: ") || !strings.Contains(got, "checkpoint copies in "+tr+" match") ||
+	if !strings.HasPrefix(got, "intact: ") || !regexp.MustCompile(`checkpoint copies in \S+run.jsonl that match the ledger: ([1-9]\d*) of ([1-9]\d*)`).MatchString(got) || !allMatch(got) ||
 		!strings.Contains(got, "the last hash is the one you kept") {
 		t.Fatalf("verify:\n%s", got)
 	}
@@ -81,7 +81,7 @@ func TestLedgerRun(t *testing.T) {
 	if fi, err := os.Stat(m[1]); err != nil || fi.Mode().Perm() != 0o600 {
 		t.Fatalf("ledger file: %v %v", fi, err)
 	}
-	if got := e.must("verify", m[1]); !strings.Contains(got, "checkpoint copies in last match") {
+	if got := e.must("verify", m[1]); !strings.Contains(got, "checkpoint copies in last that match the ledger: 1 of 1") {
 		t.Fatalf("verify with the saved trace:\n%s", got)
 	}
 }
@@ -137,4 +137,10 @@ func TestLedgerKilledRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+// allMatch says the report's "N of M" copies line has N == M.
+func allMatch(report string) bool {
+	m := regexp.MustCompile(`match the ledger: (\d+) of (\d+)`).FindStringSubmatch(report)
+	return m != nil && m[1] == m[2]
 }

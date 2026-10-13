@@ -156,21 +156,25 @@ vpnw guard --plugin ledger --policy agent.toml -- ./my-agent
 vpnw verify ~/.local/state/vpnw/ledger/r-3f9a1c.ledger
 ```
 
-The ledger is JSON Lines. Each event is written as it arrives, exactly as vpnw sent it, with a SHA-256 hash that covers the hash before it, its number and the event. Every 100 entries (`--set ledger.every=N`) and at the end, Ledger writes a checkpoint; at the end it writes an end line, then prints the ledger's path and its last hash. Each checkpoint is also copied into the run's trace as a `plugin.ledger.checkpoint` event (fields `cp`, `n`, `h`, and `end` on the last).
+The ledger is JSON Lines. Each event is written as it arrives, exactly as vpnw sent it, with a SHA-256 hash that covers the line before it, its number and the event. Every 100 entries (`--set ledger.every=N`) and at the end, Ledger writes a checkpoint; at the end it writes an end line, then prints the ledger's path and its last hash. Each checkpoint is also copied into the run's trace as a `plugin.ledger.checkpoint` event (fields `cp`, `n`, `h`, and `end` on the last).
 
 ```
 {"vpnw-ledger":1,"run":"r-3f9a1c"}
 {"n":1,"ev":{"v":1,"ts":"…","type":"run.start",…},"h":"7e3b…"}
 {"n":7,"lost":12,"h":"…"}
 {"cp":1,"n":100,"h":"…"}
-{"end":143,"h":"…"}
+{"end":143,"cp":2,"h":"…"}
 ```
 
 ```
 h0 = SHA-256("vpnw-ledger v1\n" || the header line)
-hN = SHA-256(hN-1 || 0x00 || N as 8 bytes, big-endian || the event)
-hN = SHA-256(hN-1 || 0x01 || N as 8 bytes || the count as 8 bytes)    a lost-events entry
+h = SHA-256(h' || 0x00 || N as 8 bytes || the event)          event N
+h = SHA-256(h' || 0x01 || N as 8 bytes || count as 8 bytes)    lost-events entry N
+h = SHA-256(h' || 0x02 || K as 8 bytes || N as 8 bytes)        checkpoint K, after entry N
+h = SHA-256(h' || 0x03 || N as 8 bytes || K as 8 bytes)        the end: N entries, K checkpoints
 ```
+
+`h'` is the hash of the line before; numbers are big-endian. Every line after the header is a link in the chain, checkpoints and the end line included.
 
 `vpnw verify` reports the first problem with its file and line:
 
@@ -183,7 +187,7 @@ hN = SHA-256(hN-1 || 0x01 || N as 8 bytes || the count as 8 bytes)    a lost-eve
 
 `lost` entries mark events that never reached Ledger because it fell behind the run. They are part of the chain and reported, and don't make a ledger changed.
 
-What a ledger can't show alone: anyone who can write the file and knows the format can write a new one from scratch. Keep the last hash Ledger prints, or the trace with its checkpoint copies, somewhere the person holding the ledger can't change.
+What a ledger can't show alone: anyone who can write the file and knows the format can write a new one from scratch. That includes the program being watched, while it runs: vpnw limits the network, not files, and the program runs as your user. Keep the last hash Ledger prints, or the trace with its checkpoint copies, somewhere neither the program nor the person holding the ledger can change.
 
 ## Where things are kept
 
