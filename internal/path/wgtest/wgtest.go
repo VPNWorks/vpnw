@@ -183,6 +183,11 @@ func (s *Server) StrangerConfig() string {
 func (s *Server) config(priv []byte) string { return s.configAt(priv, s.Port) }
 
 func (s *Server) configAt(priv []byte, port int) string {
+	return s.configAllowed(priv, port, "10.9.0.0/24")
+}
+
+// configAllowed is configAt with the client's AllowedIPs.
+func (s *Server) configAllowed(priv []byte, port int, allowed string) string {
 	return fmt.Sprintf(`[Interface]
 PrivateKey = %s
 Address = %s/32
@@ -191,8 +196,8 @@ DNS = %s
 [Peer]
 PublicKey = %s
 Endpoint = 127.0.0.1:%d
-AllowedIPs = 10.9.0.0/24
-`, b64(priv), ClientIP, PeerIP, b64(s.peer.pub), port)
+AllowedIPs = %s
+`, b64(priv), ClientIP, PeerIP, b64(s.peer.pub), port, allowed)
 }
 
 // Close stops the peer.

@@ -105,7 +105,11 @@ out = "trace.jsonl"
 
 The usual wg-quick format, as VPN providers and `wg` hand it out. In `[Interface]`: `PrivateKey`, `Address`, and optionally `DNS`, `MTU` and `ListenPort`; `Table`, `SaveConfig` and `FwMark` are accepted and have no effect, since the tunnel has no routing table or interface. IPv6 endpoints are written `[address]:port`. In each `[Peer]`: `PublicKey`, `Endpoint`, `AllowedIPs`, and optionally `PresharedKey` and `PersistentKeepalive`. Unknown keys are errors, and so are wg-quick's shell hooks (`PreUp`, `PostUp`, `PreDown`, `PostDown`): vpnw runs no commands from a config file.
 
-Before the program starts, vpnw waits up to 12 seconds for a handshake with every peer (WireGuard retries after 5) and stops with exit code 123 if one doesn't answer. A connection to an address outside every peer's `AllowedIPs` is refused with that reason. The peers' endpoints are looked up on this machine, the one lookup that can't go through the tunnel.
+Before the program starts, vpnw waits up to 12 seconds for a handshake with every peer (WireGuard retries after 5) and stops with exit code 123 if one doesn't answer. A connection to an address outside every peer's `AllowedIPs` is refused with that reason. So is one to a loopback, link-local or multicast address, even with `AllowedIPs = 0.0.0.0/0`: through a tunnel those could only reach the peer's own machine or its network segment, where cloud metadata lives, so a lying DNS answer from the tunnel can't send a program there. The peers' endpoints are looked up on this machine, the one lookup that can't go through the tunnel.
+
+### When connections end
+
+On every path, a connection ends when both sides are done. When the program has stopped sending (it closed its side, say after giving up on a timeout) and the destination then sends nothing for 2 minutes, vpnw closes the connection and records it, so a path that went silent doesn't hold it open until the run ends. A destination that keeps sending, however slowly, keeps it open. When the run ends, connections still open are closed and recorded, and lookups or dials still waiting are recorded as cut off by the end of the run.
 
 ## Policy
 

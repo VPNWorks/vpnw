@@ -89,9 +89,13 @@ func TestWireGuardGuard(t *testing.T) {
 		t.Error("a refused connection reached the peer")
 	}
 
-	out, _ = e.run("trace", "--wireguard", conf, "--", "python3", "-c", pyGet("http://127.0.0.2:9/"))
-	if !strings.Contains(out, "127.0.0.2 is outside the tunnel: no peer's AllowedIPs include it") {
+	out, _ = e.run("trace", "--wireguard", conf, "--", "python3", "-c", pyGet("http://192.0.2.7:9/"))
+	if !strings.Contains(out, "192.0.2.7 is outside the tunnel: no peer's AllowedIPs include it") {
 		t.Errorf("outside AllowedIPs:\n%s", out)
+	}
+	out, _ = e.run("trace", "--wireguard", conf, "--", "python3", "-c", pyGet("http://127.0.0.2:9/"))
+	if !strings.Contains(out, "127.0.0.2 can't be reached through a tunnel") {
+		t.Errorf("loopback through the tunnel:\n%s", out)
 	}
 }
 

@@ -270,6 +270,13 @@ func (w *WireGuard) Dial(ctx context.Context, host string, ip net.IP, port int) 
 		return nil, fmt.Errorf("bad address %v", ip)
 	}
 	addr = addr.Unmap()
+	// These never lead anywhere through a tunnel: loopback is this
+	// machine, and link-local is the peer's own network segment, where
+	// its cloud metadata service lives. A DNS answer from the tunnel that
+	// points at one is refused, whatever AllowedIPs says.
+	if addr.IsLoopback() || addr.IsUnspecified() || addr.IsLinkLocalUnicast() || addr.IsMulticast() {
+		return nil, fmt.Errorf("%s can't be reached through a tunnel: it's a loopback, link-local or multicast address", addr)
+	}
 	peer, ok := w.Conf.Covers(addr)
 	if !ok {
 		return nil, fmt.Errorf("%s is outside the tunnel: no peer's AllowedIPs include it", addr)
@@ -303,7 +310,10 @@ func (r tunnelResolver) LookupIP(ctx context.Context, host string) ([]net.IP, er
 		return []net.IP{ip}, nil
 	}
 	// The tunnel's resolver doesn't always stop when ctx does (a silent
-	// peer leaves it waiting out its own timeouts), so wait on both.
+	// peer leaves it waiting out its own timeouts), so wait on both. A
+	// lookup given up on this way keeps its goroutine and UDP socket until
+	// the resolver's own timeouts end it, about 10 s at most; the channel
+	// is buffered so it never blocks.
 	type answer struct {
 		addrs []string
 		err   error

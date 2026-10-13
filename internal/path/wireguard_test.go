@@ -191,6 +191,26 @@ func TestWireGuardOutsideAllowedIPs(t *testing.T) {
 	}
 }
 
+// Loopback and link-local addresses are refused even when AllowedIPs
+// covers everything: through a tunnel they would reach the peer's own
+// machine or its network segment, cloud metadata included.
+func TestWireGuardNeverLoopbackOrLinkLocal(t *testing.T) {
+	s := startPeer(t)
+	full := strings.Replace(s.ClientConfig(), "AllowedIPs = 10.9.0.0/24", "AllowedIPs = 0.0.0.0/0", 1)
+	if full == s.ClientConfig() {
+		t.Fatal("no AllowedIPs line to widen")
+	}
+	w := tunnel(t, full, "")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for _, ip := range []net.IP{net.IPv4(127, 0, 0, 1), net.IPv4(169, 254, 169, 254), net.IPv4(0, 0, 0, 0), net.IPv4(224, 0, 0, 1)} {
+		_, err := w.Dial(ctx, "", ip, 80)
+		if err == nil || !strings.Contains(err.Error(), "can't be reached through a tunnel") {
+			t.Errorf("%v: err = %v", ip, err)
+		}
+	}
+}
+
 // A peer that doesn't know our key never answers; Health says so, rather
 // than letting the program start on a dead tunnel.
 func TestWireGuardUnknownKey(t *testing.T) {

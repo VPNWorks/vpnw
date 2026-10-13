@@ -145,3 +145,9 @@ func (r *Relay) Close() {
 func (s *Server) ConfigVia(r *Relay) string {
 	return s.configAt(s.client.priv, r.Port)
 }
+
+// FullConfigVia is ConfigVia for a full tunnel, AllowedIPs = 0.0.0.0/0, the
+// way most VPN providers hand configs out.
+func (s *Server) FullConfigVia(r *Relay) string {
+	return s.configAllowed(s.client.priv, r.Port, "0.0.0.0/0")
+}

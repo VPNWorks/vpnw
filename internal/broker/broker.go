@@ -18,6 +18,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -330,7 +331,9 @@ func (b *Broker) open(rawHost string, port int, proto string) outcome {
 		return nil
 	}
 	fail := func(err error, code byte) outcome {
-		if b.baseCtx().Err() != nil {
+		// A lookup or dial cut off by the end of the run says so; any
+		// other failure keeps its own reason, even if it raced the end.
+		if b.baseCtx().Err() != nil && (errors.Is(err, context.Canceled) || strings.Contains(err.Error(), context.Canceled.Error())) {
 			err = errRunEnded
 		}
 		b.failed.Add(1)
@@ -474,11 +477,15 @@ func sanitize(s string) string {
 // QuietAfterClose is how long a connection out may stay silent after the
 // program has stopped sending on it. A program that gave up (a timeout,
 // say) closes its side; without this limit, a path that had gone silent
-// would hold the other side open until the run ended.
+// would hold the other side open until the run ended. The limit is counted
+// in whole windows: a connection is closed once a full window passes with
+// nothing arriving, so between one and two windows of silence in all.
 var QuietAfterClose = 2 * time.Minute
 
 // quietReader reads from a connection out; once the program has stopped
-// sending, each read must bring something within QuietAfterClose.
+// sending, each read must bring something within QuietAfterClose. Only the
+// rewriting path uses it; the plain copy keeps the kernel's fast path and
+// renews the deadline window by window instead.
 type quietReader struct {
 	c    net.Conn
 	done *atomic.Bool
@@ -518,15 +525,23 @@ func (b *Broker) finish(o outcome, client net.Conn, fromClient io.Reader, extraU
 	}()
 	go func() {
 		defer wg.Done()
-		var n int64
 		var err error
-		from := quietReader{o.conn, &clientDone}
 		if rewrite != nil {
-			n, err = rewrite(from, client)
+			down, err = rewrite(quietReader{o.conn, &clientDone}, client)
 		} else {
-			n, err = io.Copy(client, from)
+			for {
+				var n int64
+				n, err = io.Copy(client, o.conn)
+				down += n
+				// The quiet limit ended this copy. Something arrived in
+				// the window, so the connection is alive: renew it.
+				if err != nil && errors.Is(err, os.ErrDeadlineExceeded) && clientDone.Load() && n > 0 {
+					o.conn.SetReadDeadline(time.Now().Add(QuietAfterClose))
+					continue
+				}
+				break
+			}
 		}
-		down = n
 		if err != nil {
 			o.conn.Close()
 			client.Close()

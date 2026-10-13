@@ -494,3 +494,41 @@ func TestShutdownClosesSilentConnections(t *testing.T) {
 	}
 	waitEvents(r, events.ConnectionClose, 1)
 }
+
+// A destination that is slow but alive keeps its connection after the
+// program stops sending: the quiet limit only ends real silence.
+func TestQuietAfterCloseSlowButAlive(t *testing.T) {
+	old := QuietAfterClose
+	QuietAfterClose = 300 * time.Millisecond
+	defer func() { QuietAfterClose = old }()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	go func() {
+		c, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		for i := 0; i < 8; i++ { // 1.6 s in all, several windows
+			time.Sleep(200 * time.Millisecond)
+			c.Write([]byte{'.'})
+		}
+	}()
+	r := newRig(t, nil)
+	c, status := connect(t, r.addr, fmt.Sprintf("echo.test:%d", l.Addr().(*net.TCPAddr).Port), "")
+	if status != "HTTP/1.1 200 Connection established" {
+		t.Fatalf("status %q", status)
+	}
+	defer c.Close()
+	io.WriteString(c, "go\n")
+	c.(*bufConn).Conn.(*net.TCPConn).CloseWrite()
+	c.SetReadDeadline(time.Now().Add(5 * time.Second))
+	b, _ := io.ReadAll(c)
+	if string(b) != "........" {
+		t.Fatalf("got %q, want all 8 bytes", b)
+	}
+	waitEvents(r, events.ConnectionClose, 1)
+}

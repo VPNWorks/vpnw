@@ -146,10 +146,15 @@ echo "$(grep -c '^| [a-z]' "$OUT/ledger-tamper.md") kinds of change; verdicts: $
 
 say "Lab: faults on the WireGuard path"
 rm -f "$OUT/lab.md"
-VPNW_LAB_OUT="$PWD/$OUT/lab.md" go test -count=1 -run 'TestLab' -v ./test/integration/ 2>&1 \
-  | grep -E '^(---|ok|FAIL)' | tee "$OUT/lab.txt"
-cat "$OUT/lab.md"
-echo "$(grep -c '| passed |' "$OUT/lab.md") of $(grep -cE '\| (passed|FAILED) \|' "$OUT/lab.md") faults handled" | tee -a "$OUT/lab.md"
+lab=0
+VPNW_LAB_OUT="$PWD/$OUT/lab.md" go test -count=1 -run 'TestLab' -v ./test/integration/ >"$OUT/lab.log" 2>&1 || lab=$?
+grep -E '^(---|ok|FAIL)' "$OUT/lab.log" | tee "$OUT/lab.txt"; rm -f "$OUT/lab.log"
+if [ ! -s "$OUT/lab.md" ] || ! grep -qE '\| (passed|FAILED) \|' "$OUT/lab.md"; then
+  echo "Lab didn't run: it needs a sealed run (Linux with user namespaces)" | tee "$OUT/lab.md"
+else
+  cat "$OUT/lab.md"
+  echo "$(grep -c '| passed |' "$OUT/lab.md") of $(grep -cE '\| (passed|FAILED) \|' "$OUT/lab.md") faults handled$([ "$lab" -ne 0 ] && echo "; go test FAILED (exit $lab)")" | tee -a "$OUT/lab.md"
+fi
 
 say "bypass matrix"
 rm -f "$OUT/bypass-matrix.md" "$OUT/bypass-matrix-ci.md"
