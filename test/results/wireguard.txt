@@ -1,2 +1,3 @@
-opening a TCP connection through a WireGuard tunnel: 386.0 µs (median of 3 runs)
-data through a WireGuard tunnel: 60 MB/s (median of 3 runs)
+moving to the next config: its tunnel up, handshake done: 31.5 ms (median of 3 runs)
+opening a TCP connection through a WireGuard tunnel: 407.5 µs (median of 3 runs)
+data through a WireGuard tunnel: 54 MB/s (median of 3 runs)

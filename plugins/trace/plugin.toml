@@ -1,5 +1,5 @@
 name = "trace"
-version = "0.7.0"
+version = "0.8.0"
 type = "observer"
 abi = 1
 description = "Prints a run's events for people, one line each"

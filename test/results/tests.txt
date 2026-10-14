@@ -1,11 +1,12 @@
-test functions: 188 (188 passed, 0 failed, 0 skipped)
-with subtests: 316 (314 passed, 0 failed, 2 skipped)
+test functions: 236 (236 passed, 0 failed, 0 skipped)
+with subtests: 408 (406 passed, 0 failed, 2 skipped)
   internal/broker               35 passed
   internal/config                9 passed
-  internal/events                3 passed
+  internal/events                4 passed
   internal/exit                  9 passed
-  internal/path                 32 passed
-  internal/pluginhost           28 passed
+  internal/path                 49 passed
+  internal/path/netstack         1 passed
+  internal/pluginhost           41 passed
   internal/policy                9 passed
   internal/process               3 passed
   plugins/builtin                1 passed
@@ -13,6 +14,7 @@ with subtests: 316 (314 passed, 0 failed, 2 skipped)
   plugins/ledger/chain          10 passed
   plugins/ledger/seal            2 passed
   plugins/ledgerverify/check     2 passed
-  plugins/sdk                    1 passed
-  plugins/trace/render           5 passed
-  test/integration              35 passed
+  plugins/rotate/rotate          7 passed
+  plugins/sdk                    2 passed
+  plugins/trace/render           6 passed
+  test/integration              42 passed

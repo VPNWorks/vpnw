@@ -1,19 +1,21 @@
 ?   	github.com/VPNWorks/vpnw/cmd/vpnw	[no test files]
-ok  	github.com/VPNWorks/vpnw/internal/broker	5.698s
-ok  	github.com/VPNWorks/vpnw/internal/config	1.030s
-ok  	github.com/VPNWorks/vpnw/internal/events	1.025s
-ok  	github.com/VPNWorks/vpnw/internal/exit	3.192s
-ok  	github.com/VPNWorks/vpnw/internal/path	16.486s
+ok  	github.com/VPNWorks/vpnw/internal/broker	5.680s
+ok  	github.com/VPNWorks/vpnw/internal/config	1.024s
+ok  	github.com/VPNWorks/vpnw/internal/events	1.020s
+ok  	github.com/VPNWorks/vpnw/internal/exit	3.141s
+ok  	github.com/VPNWorks/vpnw/internal/path	57.438s
+ok  	github.com/VPNWorks/vpnw/internal/path/netstack	1.309s
 ?   	github.com/VPNWorks/vpnw/internal/path/wgtest	[no test files]
-ok  	github.com/VPNWorks/vpnw/internal/pluginhost	440.505s
-ok  	github.com/VPNWorks/vpnw/internal/policy	1.035s
-ok  	github.com/VPNWorks/vpnw/internal/process	1.033s
+ok  	github.com/VPNWorks/vpnw/internal/pluginhost	524.702s
+ok  	github.com/VPNWorks/vpnw/internal/policy	1.031s
+ok  	github.com/VPNWorks/vpnw/internal/process	1.023s
 ?   	github.com/VPNWorks/vpnw/internal/version	[no test files]
-ok  	github.com/VPNWorks/vpnw/plugins/builtin	1.073s
-ok  	github.com/VPNWorks/vpnw/plugins/learn/learn	1.023s
-ok  	github.com/VPNWorks/vpnw/plugins/ledger/chain	1.110s
+ok  	github.com/VPNWorks/vpnw/plugins/builtin	1.075s
+ok  	github.com/VPNWorks/vpnw/plugins/learn/learn	1.032s
+ok  	github.com/VPNWorks/vpnw/plugins/ledger/chain	1.068s
 ok  	github.com/VPNWorks/vpnw/plugins/ledger/seal	1.027s
-ok  	github.com/VPNWorks/vpnw/plugins/ledgerverify/check	1.036s
-ok  	github.com/VPNWorks/vpnw/plugins/sdk	1.028s
-ok  	github.com/VPNWorks/vpnw/plugins/trace/render	1.037s
-ok  	github.com/VPNWorks/vpnw/test/integration	170.491s
+ok  	github.com/VPNWorks/vpnw/plugins/ledgerverify/check	1.028s
+ok  	github.com/VPNWorks/vpnw/plugins/rotate/rotate	1.046s
+ok  	github.com/VPNWorks/vpnw/plugins/sdk	1.034s
+ok  	github.com/VPNWorks/vpnw/plugins/trace/render	1.068s
+ok  	github.com/VPNWorks/vpnw/test/integration	392.151s

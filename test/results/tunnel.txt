@@ -1,0 +1,8 @@
+--- PASS: TestTunnelStartSkipsBadConfigs (13.09s)
+--- PASS: TestTunnelNothingComesUp (1.59s)
+--- PASS: TestTunnelRotation (22.05s)
+--- PASS: TestTunnelRotationKeepsConnections (12.57s)
+--- PASS: TestTunnelFailover (41.18s)
+--- PASS: TestTunnelPluginFails (11.89s)
+--- PASS: TestTunnelOptions (1.48s)
+ok  	github.com/VPNWorks/vpnw/test/integration	105.583s

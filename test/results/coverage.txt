@@ -1,18 +1,19 @@
-  github.com/VPNWorks/vpnw/cmd/vpnw    coverage: 77.2% of statements
-  github.com/VPNWorks/vpnw/internal/broker    coverage: 88.3% of statements
+  github.com/VPNWorks/vpnw/cmd/vpnw    coverage: 78.8% of statements
+  github.com/VPNWorks/vpnw/internal/broker    coverage: 88.4% of statements
   github.com/VPNWorks/vpnw/internal/config    coverage: 85.0% of statements
-  github.com/VPNWorks/vpnw/internal/events    coverage: 82.4% of statements
+  github.com/VPNWorks/vpnw/internal/events    coverage: 84.3% of statements
   github.com/VPNWorks/vpnw/internal/exit    coverage: 91.6% of statements
-  github.com/VPNWorks/vpnw/internal/path    coverage: 85.9% of statements
-  github.com/VPNWorks/vpnw/internal/path/wgtest    coverage: 43.3% of statements
-  github.com/VPNWorks/vpnw/internal/pluginhost    coverage: 83.5% of statements
+  github.com/VPNWorks/vpnw/internal/path    coverage: 89.1% of statements
+  github.com/VPNWorks/vpnw/internal/path/wgtest    coverage: 81.4% of statements
+  github.com/VPNWorks/vpnw/internal/pluginhost    coverage: 83.8% of statements
   github.com/VPNWorks/vpnw/internal/policy    coverage: 94.0% of statements
   github.com/VPNWorks/vpnw/internal/process    coverage: 66.8% of statements
   github.com/VPNWorks/vpnw/plugins/learn/learn    coverage: 95.1% of statements
   github.com/VPNWorks/vpnw/plugins/ledger/chain    coverage: 88.7% of statements
   github.com/VPNWorks/vpnw/plugins/ledger/seal    coverage: 85.7% of statements
   github.com/VPNWorks/vpnw/plugins/ledgerverify/check    coverage: 90.3% of statements
-  github.com/VPNWorks/vpnw/plugins/sdk    coverage: 74.4% of statements
-  github.com/VPNWorks/vpnw/plugins/trace/render    coverage: 94.2% of statements
-total: statements: 83.5%
-(the plugin programs run as WebAssembly, where Go records no coverage; their logic is covered through plugins/trace/render, plugins/learn/learn, plugins/ledger/seal, plugins/ledger/chain and plugins/ledgerverify/check)
+  github.com/VPNWorks/vpnw/plugins/rotate/rotate    coverage: 97.6% of statements
+  github.com/VPNWorks/vpnw/plugins/sdk    coverage: 76.9% of statements
+  github.com/VPNWorks/vpnw/plugins/trace/render    coverage: 92.1% of statements
+total: statements: 85.4%
+(the plugin programs run as WebAssembly, where Go records no coverage; their logic is covered through plugins/trace/render, plugins/learn/learn, plugins/ledger/seal, plugins/ledger/chain, plugins/ledgerverify/check and plugins/rotate/rotate)

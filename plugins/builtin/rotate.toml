@@ -1,5 +1,5 @@
 name = "rotate"
-version = "0.7.0"
+version = "0.8.0"
 type = "tunnel"
 abi = 1
 description = "Rotates through the WireGuard configs in a folder"

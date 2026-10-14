@@ -1,18 +1,20 @@
-core: 11363 lines of Go (tests not counted)
-plugins and SDK: 2348 lines of Go
-tests: 9556 lines of Go, test plugins included
-  cmd/vpnw                1968 lines
-  internal/broker         1726 lines
+core: 13183 lines of Go (tests not counted, nor the copy of wireguard-go's netstack)
+copied: internal/path/netstack, 1076 lines of wireguard-go's tun/netstack, with one change
+plugins and SDK: 2887 lines of Go
+tests: 12197 lines of Go, test plugins included
+  cmd/vpnw                2160 lines
+  internal/broker         1732 lines
   internal/config         1071 lines
-  internal/events          320 lines
+  internal/events          372 lines
   internal/exit            974 lines
-  internal/path           2102 lines
-  internal/pluginhost     1641 lines
+  internal/path           3212 lines
+  internal/pluginhost     2100 lines
   internal/policy          612 lines
   internal/process         934 lines
-  internal/version          15 lines
-  plugins/sdk              506 lines
-  plugins/trace            350 lines
+  internal/version          16 lines
+  plugins/sdk              739 lines
+  plugins/trace            433 lines
   plugins/learn            421 lines
   plugins/ledger           918 lines
   plugins/ledgerverify     105 lines
+  plugins/rotate           223 lines

@@ -9,8 +9,9 @@ package version
 // runs the IPv6 escape tests in CI and fixes a race in closing plugins;
 // 0.5.0 adds Ledger and the file.write permission. 0.6.0 adds Lab, the
 // fault kit in the tests, and the fixes it found. 0.7.0 adds Exit, the
-// server end of a path (vpnw exit).
-const Version = "0.7.0"
+// server end of a path (vpnw exit). 0.8.0 adds Tunnel plugins, the
+// folder.read permission and the built-in rotate plugin.
+const Version = "0.8.0"
 
 // Schema is the version of the event schema written to every event ("v").
 const Schema = 1

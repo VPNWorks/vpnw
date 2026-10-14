@@ -6,8 +6,8 @@ how that works, for whoever (person or Claude session) works on this repo next.
 ## The short version
 
 1. Raise `const Version = "X.Y.Z"` in `internal/version/version.go`, and the
-   `version` in `plugins/trace/plugin.toml` and `plugins/learn/plugin.toml`
-   to match.
+   `version` in every built-in plugin's `plugins/*/plugin.toml` to match (a
+   test checks).
 2. Run `sh tools/build-plugins.sh` and commit `plugins/builtin`.
 3. Write what changed into the commit message, and push the commit to `main`.
 

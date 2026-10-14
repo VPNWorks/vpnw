@@ -1,2 +1,2 @@
-opening a connection through an exit, TLS, token and decision included: 2.0 ms (median of 3 runs)
-data through an exit: 511 MB/s (median of 3 runs)
+opening a connection through an exit, TLS, token and decision included: 1.8 ms (median of 3 runs)
+data through an exit: 541 MB/s (median of 3 runs)

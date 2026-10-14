@@ -1,5 +1,5 @@
 name = "ledger"
-version = "0.7.0"
+version = "0.8.0"
 type = "observer"
 abi = 1
 description = "Seals a run's events into a tamper-evident ledger file"

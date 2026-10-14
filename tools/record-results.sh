@@ -4,7 +4,7 @@
 
 # Records every figure quoted for VPN Works on vpnw.com and in the README,
 # into test/results/. Needs Linux (for the sealed tests), Go and python3.
-# Takes about fifteen minutes.
+# Takes about fifty minutes on a machine with 2 CPUs.
 #
 #   tools/record-results.sh                 everything
 #   FUZZTIME=10s tools/record-results.sh    shorter fuzzing
@@ -95,8 +95,8 @@ PKGS=$(go list ./cmd/... ./internal/... ./plugins/... | grep -v /internal/path/n
 go test -count=1 -cover -coverpkg="$PKGS" ./internal/... ./plugins/... -args -test.gocoverdir="$COV/unit" >/dev/null
 GOCOVERDIR="$COV/it" go test -count=1 ./test/integration/ >/dev/null
 {
-  go tool covdata percent -i="$COV/unit,$COV/it" | sed 's/\t/  /g' | grep -v -E 'internal/version|plugins/builtin'
-  go tool covdata textfmt -i="$COV/unit,$COV/it" -o "$COV/all.txt"
+  go tool covdata percent -i="$COV/unit,$COV/it" -pkg="$PKGS" | sed 's/\t/  /g' | grep -v -E 'internal/version|plugins/builtin'
+  go tool covdata textfmt -i="$COV/unit,$COV/it" -pkg="$PKGS" -o "$COV/all.txt"
   go tool cover -func="$COV/all.txt" | tail -1 | sed 's/(statements)\s*/statements: /; s/\t\+/ /g'
   echo "(the plugin programs run as WebAssembly, where Go records no coverage; their logic is covered through plugins/trace/render, plugins/learn/learn, plugins/ledger/seal, plugins/ledger/chain, plugins/ledgerverify/check and plugins/rotate/rotate)"
 } | tee "$OUT/coverage.txt"

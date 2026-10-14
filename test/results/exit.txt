@@ -1,9 +1,9 @@
---- PASS: TestExitFixedAddresses (1.43s)
---- PASS: TestExitTamperedClient (0.70s)
---- PASS: TestExitAgreesWithClient (1.10s)
---- PASS: TestExitFailover (5.15s)
---- PASS: TestExitRefusesBadClients (1.73s)
---- PASS: TestExitServeChecks (0.48s)
---- PASS: TestExitPlugins (1.58s)
---- PASS: TestExitOwnMachine (0.70s)
-ok  	github.com/VPNWorks/vpnw/test/integration	14.360s
+--- PASS: TestExitFixedAddresses (1.73s)
+--- PASS: TestExitTamperedClient (1.01s)
+--- PASS: TestExitAgreesWithClient (1.40s)
+--- PASS: TestExitFailover (5.34s)
+--- PASS: TestExitRefusesBadClients (2.01s)
+--- PASS: TestExitServeChecks (0.67s)
+--- PASS: TestExitPlugins (1.85s)
+--- PASS: TestExitOwnMachine (0.89s)
+ok  	github.com/VPNWorks/vpnw/test/integration	16.590s
