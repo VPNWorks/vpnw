@@ -63,6 +63,8 @@ func FuzzTunnelOffer(f *testing.F) {
 	f.Add([]byte(`{"name":"de-1.conf","config":"[Interface]\n","keep":600}`))
 	f.Add([]byte(`{"name":"a","config":"x"}`))
 	f.Add([]byte(`{"name":"a","config":"x","keep":1e3}`))
+	f.Add([]byte(`{"name":"a","config":"x","keep":99999999999}`))
+	f.Add([]byte(`{"name":"a","config":"\u003c\r\n"}`))
 	f.Add([]byte(`{"name":"‮","config":"x"}`))
 	f.Fuzz(func(t *testing.T, b []byte) {
 		o, err := pluginhost.ParseOffer(b)

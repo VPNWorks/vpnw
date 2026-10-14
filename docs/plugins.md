@@ -118,7 +118,9 @@ func main() {}
 
 with `type = "tunnel"` and `permissions = ["folder.read"]` in its manifest. `TunnelRequest.Reason` says why vpnw asks: `start`, `due` (the config in use, `Current`, was kept as long as asked), `failed` (the tunnel of `Config` didn't come up or, when `Config` is `Current`, stopped answering) or `refused` (vpnw refused `Config`, and `Error` says why). Handing back the config in use keeps it. `sdk.NoConfig(why)` says there is nothing to give: vpnw records why and keeps the tunnel in use, if there is one. Any other error stops the plugin.
 
-vpnw checks every config as it checks a `--wireguard` file before it brings a tunnel up, and tries at most 8 in a row before it gives up for the time being. The built-in `rotate` is a Tunnel like this one, over every `.conf` file in its folder; its source is in [plugins/rotate](../plugins/rotate).
+vpnw checks every config as it checks a `--wireguard` file before it brings a tunnel up, and tries at most 8 in a row before it gives up for the time being. It refuses a config with more than 16 peers, one with the same key and peer as the config in use, and one whose `ListenPort` another tunnel holds; and handing over a config whose tunnel was rotated out and still carries connections moves back to that tunnel. Of a tunnel that didn't come up, `Error` says no more than the config does: not where an endpoint's name led, nor what this machine's resolver answered. The built-in `rotate` is a Tunnel like this one, over every `.conf` file in its folder; its source is in [plugins/rotate](../plugins/rotate).
+
+A Tunnel decides where a run's traffic goes, and users are told to choose one as they would a VPN provider. It has no network of its own, but its configs reach the network for it: vpnw looks up their endpoint names on the user's machine and sends WireGuard handshakes to them.
 
 ## Manifest
 
@@ -147,7 +149,7 @@ vpnw creates the file new when the plugin starts in `run`, `trace`, `guard` or `
 
 ### folder.read
 
-vpnw opens the folder when the plugin starts in `run`, `trace`, `guard` or `exit serve`: `--plugin-folder NAME=PATH`, or by default `~/.config/vpnw/NAME`, which must exist. `Config.Folder` is its path. `sdk.FolderList` names the regular files directly in it, in name order, with their sizes; `sdk.FolderRead` reads one of them, of at most 1 MiB. A name is one entry of the folder: no separators, no `.` or `..`. A subfolder, a named pipe or a device isn't listed or read, and a link is followed only when it leads to a file in the same folder, so nothing outside the folder can be reached. A listing names at most 10,000 files. In `vpnw advise` no folder is opened, and both fail; a failure's reason is in vpnw's plugin log (`-v`).
+vpnw opens the folder when the plugin starts in `run`, `trace`, `guard` or `exit serve`: `--plugin-folder NAME=PATH`, or by default `~/.config/vpnw/NAME`, which must exist. `Config.Folder` is its path. `sdk.FolderList` names the regular files directly in it, in name order, with their sizes; `sdk.FolderRead` reads one of them, of at most 1 MiB. A name is one entry of the folder: no separators, no `.` or `..`. A subfolder, a named pipe or a device isn't listed or read. A link is followed when it leads to a file inside the folder, in a subfolder of it too, and never out of it, so nothing outside the folder can be reached. A folder with more than 10,000 entries, files, subfolders and anything else counted, can't be listed. In `vpnw advise` no folder is opened, and both fail; a failure's reason is in vpnw's plugin log (`-v`).
 
 Logging (`sdk.Log`, shown with `--verbose`), reporting an error, and giving the reason for a refusal need no permission.
 
@@ -192,7 +194,7 @@ Decoding JSON is a large share of a plugin's time. A plugin that decodes events 
 
 Every plugin is held to its budgets: the runtime checks for the end of the budget at every function call and loop, and stops the plugin there. A sleep never lasts past the end of the budget either; the plugin's clock and sleep come from vpnw, and vpnw cuts the sleep short. That makes plugin code roughly four to five times slower than it would otherwise be, and it's the only safe choice: code that can't be interrupted can't be paused by Go's garbage collector either, so one endless loop would freeze vpnw.
 
-A request that waits longer than 5 seconds for a busy Guard is refused, with a reason that says so, and the Guard carries on. A Tunnel that fails when the run starts stops the run before the program starts (exit 123); one that fails later stops the rotation, and the tunnel in use carries on. A plugin that panics, traps, exits, reports an error or runs out of budget is stopped for the rest of the command. vpnw reports it on the console and records a `plugin.error` event; the program keeps running. A Guard that has stopped refuses every connection it's asked about from then on: Guards fail closed. Calls into one plugin are taken one at a time, so a Guard asked about many connections at once answers them in turn.
+A request that waits longer than 5 seconds for a busy Guard is refused, with a reason that says so, and the Guard carries on. A Tunnel that fails while it loads (in `Init`, say for a setting it doesn't take) stops the run before anything starts (exit 121); one that fails when asked for the first config stops the run before the program starts (exit 123); one that fails later stops the rotation, and the tunnel in use carries on. A plugin that panics, traps, exits, reports an error or runs out of budget is stopped for the rest of the command. vpnw reports it on the console and records a `plugin.error` event; the program keeps running. A Guard that has stopped refuses every connection it's asked about from then on: Guards fail closed. Calls into one plugin are taken one at a time, so a Guard asked about many connections at once answers them in turn.
 
 An Observer gets events through a queue of 8,192. If it falls further behind, events are dropped for it, counted, and reported at the end of the run; the program is never slowed down. After the run it has 5 seconds to work through what's queued.
 
@@ -264,7 +266,7 @@ At an exit, the request also has `client`, the exit's client the connection came
 {"name":"se-02.conf","config":"[Interface]\nPrivateKey = …","keep":600}
 ```
 
-`name` is how the record names the config, printable, at most 128 characters; `config` is the wg-quick text, at most 64 KiB; `keep` is how long to use it, in whole seconds, 0 or left out for until it stops working. An answer that isn't this exactly, one JSON object with these keys, stops the plugin.
+`name` is how the record names the config, printable, at most 128 characters; `config` is the wg-quick text, at most 64 KiB; `keep` is how long to use it, in whole seconds, 0 or left out for until it stops working. vpnw keeps a config at least 5 seconds and at most 30 days: a longer `keep` is taken as 30 days (the SDK brings `Keep` within both). An answer that isn't this exactly, one JSON object with these keys, stops the plugin; the answer may take up to 448 KiB as JSON, enough for a config of 64 KiB however its text is escaped.
 
 ## Signatures
 

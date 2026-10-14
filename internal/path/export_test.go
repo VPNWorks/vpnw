@@ -30,8 +30,10 @@ func (t *Tunnels) Open() int {
 	return n
 }
 
-// UnicastData and WGMessage are unicastData and wgMessage, for their tests.
+// UnicastData, WGMessage and ToPlugin are unicastData, wgMessage and
+// toPlugin, for their tests.
 var (
 	UnicastData = unicastData
 	WGMessage   = wgMessage
+	ToPlugin    = toPlugin
 )

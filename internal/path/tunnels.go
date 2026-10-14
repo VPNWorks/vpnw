@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -29,9 +30,11 @@ import (
 // or whose tunnel doesn't come up, is recorded and skipped. A new tunnel is
 // up before anything moves to it. New connections then go through it, and
 // connections already open stay on the tunnel they started on until they
-// close; that tunnel is closed after its last one. When no config can be
-// had, the tunnel in use stays, even a silent one: nothing ever goes around
-// the tunnels.
+// close; that tunnel is closed after its last one. A config handed over
+// again while its tunnel still carries connections gets that tunnel back,
+// since a second tunnel with the same key would take the peer from it.
+// When no config can be had, the tunnel in use stays, even a silent one:
+// nothing ever goes around the tunnels.
 type Tunnels struct {
 	Name   string
 	Source TunnelSource
@@ -114,17 +117,26 @@ const (
 	// connections. When another would join them, the oldest is closed, with
 	// the connections it still has.
 	MaxDraining = 4
+	// MaxTunnelPeers is how many peers a config from a tunnel plugin may
+	// have. Each is looked up and sent a handshake on every try; a VPN
+	// provider's config has one.
+	MaxTunnelPeers = 16
+	// maxErrorText bounds an error about a config in the record.
+	maxErrorText = 400
 )
 
 // tunnel is one config's tunnel.
 type tunnel struct {
 	name   string
+	text   string // the config as handed over
 	wg     *WireGuard
 	keep   time.Duration
 	upMS   int64
 	users  int // open connections, and dials and lookups going on
 	conns  map[*tunnelConn]struct{}
 	closed bool
+	failed bool // rotated out because it stopped answering
+	again  bool // moved back to while it was rotated out, not brought up anew
 }
 
 func (t *Tunnels) init() {
@@ -285,9 +297,10 @@ func clampKeep(d time.Duration) time.Duration {
 }
 
 // bringUp asks the source for configs and tries each, at most TunnelTries,
-// until one's tunnel comes up. cur is the tunnel in use, or nil at the
-// start. It returns the new tunnel; or kept, when the source chose the one
-// in use; or why nothing came up.
+// until one's tunnel is up. cur is the tunnel in use, or nil at the start.
+// It returns the tunnel to move to, a new one or one rotated out that is
+// still up; or kept, when the source chose the one in use; or why nothing
+// came up.
 func (t *Tunnels) bringUp(ctx context.Context, q TunnelQuery, cur *tunnel) (tn *tunnel, kept bool, why string) {
 	tried := map[string]bool{}
 	var whys []string
@@ -310,14 +323,14 @@ func (t *Tunnels) bringUp(ctx context.Context, q TunnelQuery, cur *tunnel) (tn *
 			t.mu.Lock()
 			t.gone = true
 			t.mu.Unlock()
-			return nil, false, end(fmt.Sprintf("tunnel plugin %s stopped: %v", t.Source.Name(), err))
+			return nil, false, end(fmt.Sprintf("tunnel plugin %s stopped: %s", t.Source.Name(), events.Clean(err.Error(), maxErrorText)))
 		case off == nil:
 			msg := "the plugin has no other config"
 			if cur == nil && len(tried) == 0 {
 				msg = "the plugin has no config"
 			}
 			if none != "" {
-				msg += ": " + none
+				msg += ": " + events.Clean(none, maxErrorText)
 			}
 			return nil, false, end(msg)
 		}
@@ -331,34 +344,78 @@ func (t *Tunnels) bringUp(ctx context.Context, q TunnelQuery, cur *tunnel) (tn *
 			return nil, false, end("the plugin came round to " + off.Name + " again")
 		}
 		tried[off.Name] = true
-		w, err := t.build(off)
-		reason := "refused"
-		if err == nil {
-			t0 := time.Now()
-			if err = w.Health(ctx); err == nil {
-				return &tunnel{name: off.Name, wg: w, keep: clampKeep(off.Keep), upMS: time.Since(t0).Milliseconds(),
-					conns: map[*tunnelConn]struct{}{}}, false, ""
-			}
-			w.Close()
-			reason = "failed"
-			if ctx.Err() != nil {
-				return nil, false, end("stopped before a tunnel came up")
-			}
+		if d := t.again(off); d != nil {
+			return d, false, ""
 		}
-		whys = append(whys, off.Name+": "+err.Error())
+		tn, reason, err := t.try(ctx, off, cur)
+		if tn != nil {
+			return tn, false, ""
+		}
+		if ctx.Err() != nil {
+			return nil, false, end("stopped before a tunnel came up")
+		}
+		msg := events.Clean(err.Error(), maxErrorText)
+		whys = append(whys, off.Name+": "+msg)
 		if cur == nil {
 			t.mu.Lock()
-			t.skipped = append(t.skipped, Skipped{Config: off.Name, Error: err.Error()})
+			t.skipped = append(t.skipped, Skipped{Config: off.Name, Error: msg})
 			t.mu.Unlock()
 		} else {
-			t.record(events.TunnelError, map[string]any{"config": off.Name, "error": err.Error()})
+			t.record(events.TunnelError, map[string]any{"config": off.Name, "error": msg})
 		}
-		q = TunnelQuery{Reason: reason, Config: off.Name, Error: err.Error()}
+		q = TunnelQuery{Reason: reason, Config: off.Name, Error: toPlugin(reason, err)}
 		if cur != nil {
 			q.Current = cur.name
 		}
 	}
 	return nil, false, end(fmt.Sprintf("tried %d configs", TunnelTries))
+}
+
+// again finds the tunnel of the config handed over among those rotated out,
+// to move back to while it is still up and answering: its connections
+// carry on, where a second tunnel with the same key would take the peer
+// from it. A tunnel rotated out because it stopped answering is not taken
+// back; a new one is brought up in its place.
+func (t *Tunnels) again(off *TunnelOffer) *tunnel {
+	t.mu.Lock()
+	var d *tunnel
+	for _, o := range t.old {
+		if o.name == off.Name && o.text == off.Text && !o.failed && !o.closed {
+			d = o
+		}
+	}
+	t.mu.Unlock()
+	if d == nil || d.wg.Silent(TunnelSilence) {
+		return nil
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	i := slices.Index(t.old, d)
+	if i < 0 || d.closed {
+		return nil
+	}
+	t.old = slices.Delete(t.old, i, i+1)
+	d.keep, d.again = clampKeep(off.Keep), true
+	return d
+}
+
+// try checks a config and brings its tunnel up. When it doesn't come up,
+// reason is what the source is told: "refused" or "failed".
+func (t *Tunnels) try(ctx context.Context, off *TunnelOffer, cur *tunnel) (tn *tunnel, reason string, err error) {
+	w, err := t.build(off)
+	if err == nil {
+		err = t.clash(w, cur)
+	}
+	if err != nil {
+		return nil, "refused", err
+	}
+	t0 := time.Now()
+	if err := w.Health(ctx); err != nil {
+		w.Close()
+		return nil, "failed", err
+	}
+	return &tunnel{name: off.Name, text: off.Text, wg: w, keep: clampKeep(off.Keep), upMS: time.Since(t0).Milliseconds(),
+		conns: map[*tunnelConn]struct{}{}}, "", nil
 }
 
 // build checks a config the way a --wireguard file is checked.
@@ -367,8 +424,93 @@ func (t *Tunnels) build(off *TunnelOffer) (*WireGuard, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(c.Peers) > MaxTunnelPeers {
+		return nil, fmt.Errorf("it has %d peers; a config from a tunnel plugin may have at most %d", len(c.Peers), MaxTunnelPeers)
+	}
 	c.Source = off.Name
 	return NewWireGuard(t.Name, c, t.DNS)
+}
+
+// sharesPeer reports two configs whose tunnels can't both work: the same
+// private key and a peer in common. The peer talks to whichever of them
+// made the last handshake.
+func sharesPeer(a, b *WGConf) bool {
+	if a.PrivateKey != b.PrivateKey {
+		return false
+	}
+	for _, p := range a.Peers {
+		for _, q := range b.Peers {
+			if p.PublicKey == q.PublicKey {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// clash refuses a config whose tunnel can't be up beside the one in use or
+// those rotated out: one that shares a peer with the tunnel in use, or
+// whose ListenPort another tunnel holds.
+func (t *Tunnels) clash(w *WireGuard, cur *tunnel) error {
+	if cur != nil && sharesPeer(w.Conf, cur.wg.Conf) {
+		return fmt.Errorf("it has the same private key and peer as %s, the config in use, and a WireGuard peer talks to one tunnel of a key at a time", cur.name)
+	}
+	port := w.Conf.ListenPort
+	if port == 0 {
+		return nil
+	}
+	t.mu.Lock()
+	up := append([]*tunnel{}, t.old...)
+	t.mu.Unlock()
+	if cur != nil {
+		up = append(up, cur)
+	}
+	for _, o := range up {
+		if o.wg.Conf.ListenPort == port {
+			return fmt.Errorf("its ListenPort %d is taken by the tunnel of %s; configs that rotate can't share a fixed port, so leave ListenPort out of them", port, o.name)
+		}
+	}
+	return nil
+}
+
+// replace closes the rotated-out tunnels that share a peer with a tunnel
+// just brought up, with the connections they still have: the peer now
+// talks to the new tunnel, so theirs would only stall.
+func (t *Tunnels) replace(tn *tunnel) {
+	t.mu.Lock()
+	var gone, keep []*tunnel
+	for _, o := range t.old {
+		if sharesPeer(tn.wg.Conf, o.wg.Conf) {
+			gone = append(gone, o)
+		} else {
+			keep = append(keep, o)
+		}
+	}
+	t.old = keep
+	t.mu.Unlock()
+	for _, o := range gone {
+		t.cut(o, "replaced", tn.name)
+	}
+}
+
+// toPlugin is what the source is told of a config that wasn't used. A
+// refusal is about the config's own text, and the source is told the
+// reason. Of a tunnel that didn't come up it learns no more than its
+// config says: what an endpoint's name resolved to and what this machine's
+// resolver answered go to the record only, since a plugin told them could
+// look names up through vpnw and read the answers.
+func toPlugin(reason string, err error) string {
+	var le *LookupError
+	var he *HandshakeError
+	switch {
+	case reason == "refused":
+		return events.Clean(err.Error(), maxErrorText)
+	case errors.As(err, &le):
+		return events.Clean("cannot look up the name in endpoint "+le.Endpoint, maxErrorText)
+	case errors.As(err, &he):
+		return events.Clean(fmt.Sprintf("no WireGuard handshake from %s within %v", strings.Join(he.Endpoints, ", "), he.Timeout), maxErrorText)
+	}
+	return "its tunnel didn't start"
 }
 
 // loop watches the tunnel in use once a second: it moves on when the tunnel
@@ -411,7 +553,13 @@ func (t *Tunnels) move(reason string, cur *tunnel, why string) {
 	}
 	tn, kept, msg := t.bringUp(t.ctx, q, cur)
 	if t.ctx.Err() != nil {
-		if tn != nil {
+		switch {
+		case tn != nil && tn.again:
+			t.mu.Lock()
+			tn.again = false
+			t.old = append(t.old, tn)
+			t.mu.Unlock()
+		case tn != nil:
 			tn.wg.Close()
 		}
 		return
@@ -420,22 +568,40 @@ func (t *Tunnels) move(reason string, cur *tunnel, why string) {
 	case tn != nil:
 		t.mu.Lock()
 		t.cur = tn
+		cur.failed = reason == "failed"
 		t.old = append(t.old, cur)
-		var cut *tunnel
-		if len(t.old) > MaxDraining {
-			cut, t.old = t.old[0], t.old[1:]
-		}
 		t.dueAfter(tn.keep)
+		again := tn.again
+		tn.again = false
 		t.mu.Unlock()
 		f := map[string]any{"from": cur.name, "to": tn.name, "why": reason, "ms": tn.upMS, "peer": tn.wg.Endpoint()}
+		if again {
+			f["ms"], f["again"] = int64(0), true
+		}
 		if why != "" {
 			f["error"] = why
 		}
 		t.record(events.TunnelSwitch, f)
+		if !again {
+			t.replace(tn)
+		}
+		// Tunnels with no connections left close first, the one just left
+		// among them, so only tunnels still carrying some count against
+		// MaxDraining.
+		t.closeDrained()
+		t.mu.Lock()
+		var cut *tunnel
+		if len(t.old) > MaxDraining {
+			cut, t.old = t.old[0], t.old[1:]
+		}
+		t.mu.Unlock()
 		if cut != nil {
-			t.cut(cut)
+			t.cut(cut, "limit", "")
 		}
 	case kept:
+		if reason == "failed" {
+			t.record(events.TunnelError, map[string]any{"error": fmt.Sprintf("%s stopped answering (%s); the plugin handed it back, so it stays in use", cur.name, why)})
+		}
 		t.mu.Lock()
 		t.dueAfter(cur.keep)
 		t.mu.Unlock()
@@ -466,12 +632,14 @@ func (t *Tunnels) closeDrained() {
 	t.mu.Unlock()
 	for _, o := range done {
 		o.wg.Close()
-		t.record(events.TunnelClose, map[string]any{"config": o.name})
+		t.record(events.TunnelClose, map[string]any{"config": o.name, "why": "drained"})
 	}
 }
 
-// cut closes a rotated-out tunnel that still has connections, with them.
-func (t *Tunnels) cut(o *tunnel) {
+// cut closes a rotated-out tunnel that may still have connections, with
+// them. why is "limit", when more than MaxDraining would be left, or
+// "replaced", when by names the config whose new tunnel shares its peer.
+func (t *Tunnels) cut(o *tunnel, why, by string) {
 	t.mu.Lock()
 	o.closed = true
 	var conns []*tunnelConn
@@ -483,7 +651,11 @@ func (t *Tunnels) cut(o *tunnel) {
 		c.Conn.Close()
 	}
 	o.wg.Close()
-	t.record(events.TunnelClose, map[string]any{"config": o.name, "cut": len(conns)})
+	f := map[string]any{"config": o.name, "why": why, "cut": len(conns)}
+	if by != "" {
+		f["by"] = by
+	}
+	t.record(events.TunnelClose, f)
 }
 
 // use takes the tunnel in use for a dial or a lookup; release gives it back.

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The hooks decode what vpnw sends; RawEvents skips the decoding.
@@ -58,5 +59,26 @@ func TestHooks(t *testing.T) {
 	Emit("seen", map[string]any{"n": 1})
 	if out.String() != "o" || errOut.String() != "e" || len(emitted) != 1 || emitted[0] != `{"type":"seen","fields":{"n":1}}` {
 		t.Errorf("out %q err %q emitted %v", out.String(), errOut.String(), emitted)
+	}
+}
+
+// A keep outside what vpnw takes is brought within it, so a plugin isn't
+// stopped for it: more than 30 days is 30 days, under a second is a
+// second, and less than nothing is nothing.
+func TestTunnelKeep(t *testing.T) {
+	for keep, want := range map[time.Duration]string{
+		1000 * 24 * time.Hour:  `"keep":2592000`,
+		90 * time.Second:       `"keep":90`,
+		300 * time.Millisecond: `"keep":1`,
+		0:                      `"config":"x"}`,
+		-5 * time.Second:       `"config":"x"}`,
+	} {
+		Register(Plugin{OnTunnel: func(*TunnelRequest) (*TunnelConfig, error) {
+			return &TunnelConfig{Name: "a", Config: "x", Keep: keep}, nil
+		}})
+		offer, _, _, err := CallTunnel([]byte(`{"reason":"start"}`))
+		if err != nil || !strings.Contains(string(offer), want) {
+			t.Errorf("keep %v: %s, %v; want %s", keep, offer, err, want)
+		}
 	}
 }

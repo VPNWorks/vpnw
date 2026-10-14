@@ -99,11 +99,12 @@ func TestTunnelPluginNone(t *testing.T) {
 // failure is reported once, and only after the run has started.
 func TestTunnelPluginFailures(t *testing.T) {
 	for mode, want := range map[string]string{
-		"panic":   "panic: tunneler exploded",
-		"error":   "tunneler failed on purpose",
-		"badname": "isn't a config offer: a name must be printable",
-		"huge":    "handed over 102427 bytes, more than a config of 65536 bytes takes",
-		"spin":    "ran past its 5s time budget",
+		"panic":    "panic: tunneler exploded",
+		"error":    "tunneler failed on purpose",
+		"badname":  "isn't a config offer: a name must be printable",
+		"huge":     "isn't a config offer: a config of 102400 bytes, over the 65536-byte limit",
+		"enormous": "handed over 1048607 bytes, more than an offer of a config of 65536 bytes takes",
+		"spin":     "ran past its 5s time budget",
 	} {
 		t.Run(mode, func(t *testing.T) {
 			tp, in := tunneler(t, map[string]string{"mode": mode}, nil)
@@ -142,6 +143,20 @@ func TestTunnelPluginFailures(t *testing.T) {
 	defer cancel()
 	if _, _, err := tp.Next(ctx, path.TunnelQuery{Reason: "start"}); err == nil || called {
 		t.Errorf("cut short by the end of the run: %v, reported: %v", err, called)
+	}
+}
+
+// Any config of up to 64 KiB is taken, however long its JSON escapes make
+// the offer; and a keep longer than vpnw's 30 days is taken as 30 days.
+func TestTunnelPluginLimits(t *testing.T) {
+	tp, in := tunneler(t, map[string]string{"mode": "escaped"}, nil)
+	off, _, err := tp.Next(sharedCtx, path.TunnelQuery{Reason: "start"})
+	if err != nil || off == nil || len(off.Text) > pluginhost.MaxOffer || len(off.Text) < pluginhost.MaxOffer-100 || in.Err() != nil {
+		t.Fatalf("escaped: %d bytes, %v", len(off.Text), err)
+	}
+	tp, _ = tunneler(t, map[string]string{"mode": "forever"}, map[string]string{"a.conf": "A"})
+	if off, _, err := tp.Next(sharedCtx, path.TunnelQuery{Reason: "start"}); err != nil || off.Keep != pluginhost.MaxKeep {
+		t.Fatalf("forever: %+v, %v", off, err)
 	}
 }
 
@@ -293,18 +308,21 @@ func TestParseOffer(t *testing.T) {
 	if o, err := pluginhost.ParseOffer([]byte(`{"name":"a","config":"x"}`)); err != nil || o.Keep != 0 {
 		t.Errorf("no keep: %+v %v", o, err)
 	}
+	if o, err := pluginhost.ParseOffer([]byte(`{"name":"a","config":"x","keep":99999999999}`)); err != nil || o.Keep != pluginhost.MaxKeep {
+		t.Errorf("a keep past 30 days: %+v %v", o, err)
+	}
 	for src, want := range map[string]string{
-		`{"name":"a","config":"x","extra":1}`:          "unknown field",
-		`{"name":"a","config":"x"}{}`:                  "more than one JSON object",
-		`{"config":"x"}`:                               "no name",
-		`{"name":"a"}`:                                 "no config",
-		`{"name":"a\u0007","config":"x"}`:              "printable",
-		`{"name":"a","config":"x","keep":-1}`:          "keep must be whole seconds",
-		`{"name":"a","config":"x","keep":1.5}`:         "keep must be whole seconds",
-		`{"name":"a","config":"x","keep":99999999999}`: "keep must be whole seconds",
-		`[1]`:  "cannot unmarshal",
-		`"x"`:  "cannot unmarshal",
-		`{"na`: "unexpected EOF",
+		`{"name":"a","config":"x","extra":1}`:    "unknown field",
+		`{"name":"a","config":"x"}{}`:            "more than one JSON object",
+		`{"config":"x"}`:                         "no name",
+		`{"name":"a"}`:                           "no config",
+		`{"name":"a\u0007","config":"x"}`:        "printable",
+		`{"name":"a","config":"x","keep":-1}`:    "keep must be whole seconds",
+		`{"name":"a","config":"x","keep":1.5}`:   "keep must be whole seconds",
+		`{"name":"a","config":"x","keep":1e999}`: "keep must be whole seconds",
+		`[1]`:                                    "cannot unmarshal",
+		`"x"`:                                    "cannot unmarshal",
+		`{"na`:                                   "unexpected EOF",
 		`{"name":"` + strings.Repeat("n", 129) + `","config":"x"}`:                   "at most 128",
 		`{"name":"a","config":"` + strings.Repeat("c", pluginhost.MaxOffer+1) + `"}`: "over the 65536-byte limit",
 	} {

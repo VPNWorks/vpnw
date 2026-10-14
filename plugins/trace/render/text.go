@@ -257,14 +257,18 @@ func (t *Text) render(e *events.Event) string {
 		if !dec {
 			return ""
 		}
-		up := fmt.Sprintf("%s up in %s", e.Str("to"), HumanDuration(e.Int("ms")))
+		to := fmt.Sprintf("to %s up in %s", e.Str("to"), HumanDuration(e.Int("ms")))
+		if e.Fields["again"] == true {
+			// Back to a tunnel rotated out, still up with connections on it.
+			to = "back to " + e.Str("to") + ", whose tunnel was still up"
+		}
 		if p := e.Str("peer"); p != "" {
-			up += " (peer " + p + ")"
+			to += " (peer " + p + ")"
 		}
 		if e.Str("why") == "failed" {
-			return fmt.Sprintf("%s  %s stopped answering (%s); moved to %s", t.c(bold, "tunnel"), e.Str("from"), e.Str("error"), up)
+			return fmt.Sprintf("%s  %s stopped answering (%s); moved %s", t.c(bold, "tunnel"), e.Str("from"), e.Str("error"), to)
 		}
-		return fmt.Sprintf("%s  rotated from %s to %s", t.c(bold, "tunnel"), e.Str("from"), up)
+		return fmt.Sprintf("%s  rotated from %s %s", t.c(bold, "tunnel"), e.Str("from"), to)
 	case events.TunnelError:
 		if !dec {
 			return ""
@@ -277,8 +281,17 @@ func (t *Text) render(e *events.Event) string {
 		if !all {
 			return ""
 		}
-		if n := e.Int("cut"); n > 0 {
-			return fmt.Sprintf("%s  %s closed with %d connections still open: too many tunnels were winding down", t.c(bold, "tunnel"), e.Str("config"), n)
+		with := ""
+		if n := e.Int("cut"); n == 1 {
+			with = " with 1 connection still open"
+		} else if n > 1 {
+			with = fmt.Sprintf(" with %d connections still open", n)
+		}
+		switch e.Str("why") {
+		case "limit":
+			return fmt.Sprintf("%s  %s closed%s: too many tunnels were winding down", t.c(bold, "tunnel"), e.Str("config"), with)
+		case "replaced":
+			return fmt.Sprintf("%s  %s closed%s: the new tunnel of %s has the same key and peer", t.c(bold, "tunnel"), e.Str("config"), with, e.Str("by"))
 		}
 		return fmt.Sprintf("%s  %s closed after its last connection", t.c(bold, "tunnel"), e.Str("config"))
 	case events.AuthDeny:

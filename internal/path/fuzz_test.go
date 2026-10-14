@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // FuzzFromURL feeds arbitrary proxy URLs to the parser. Whatever it is
@@ -143,9 +144,23 @@ func (c *scripted) SetWriteDeadline(time.Time) error { return nil }
 func FuzzParseWGConf(f *testing.F) {
 	f.Add("[Interface]\nPrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\nAddress = 10.0.0.2/32\nDNS = 10.0.0.1\n[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = [2001:db8::1]:51820\nAllowedIPs = 0.0.0.0/0\n")
 	f.Add("[Interface]\nPostUp = rm -rf /\n")
+	f.Add("[Interface]\nPrivateKey: yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\n")
+	f.Add("[Interface]\n\x1b[2K\rvpnw FAKE\x1b[8m = 1\n")
 	f.Fuzz(func(t *testing.T, src string) {
 		c, err := ParseWGConf(src)
 		if err != nil {
+			// An error goes to the record and the console: short, printable,
+			// and with no key in it. Keys are base64, with "+" or "=" in
+			// them; an error has "=" only in its own " = " examples.
+			e := err.Error()
+			if len(e) > 300 || strings.Contains(strings.ReplaceAll(e, " = ", ""), "=") || strings.Contains(e, "+") {
+				t.Fatalf("error %q", e)
+			}
+			for _, r := range e {
+				if r < 0x20 || r == 0x7f || r >= 0x80 && r <= 0x9f || r == utf8.RuneError {
+					t.Fatalf("error with an unprintable character: %q", e)
+				}
+			}
 			return
 		}
 		if len(c.Addresses) == 0 || len(c.Peers) == 0 {

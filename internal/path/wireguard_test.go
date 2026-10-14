@@ -75,9 +75,31 @@ PersistentKeepalive = 25
 		{"Address = 1.2.3.4/32\n", "comes before any [Interface]"},
 		{"[Interface]\n" + key + "MTU = 9\n" + peer, "MTU must be"},
 		{"[Interface]\n" + key + "[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = 2001:db8::1:51820\nAllowedIPs = 10.0.0.0/8\n", "an IPv6 endpoint is written [address]:port"},
+		{"[Interface]\n" + key + "[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = vpn example.com:51820\nAllowedIPs = 10.0.0.0/8\n", "the host is neither an address nor a name"},
+		{"[Interface]\n" + key + "Address = 10.0.0.300/32\n" + peer, `line 4: Address "10.0.0.300/32" is not an address`},
 	} {
 		if _, err := path.ParseWGConf(tc.src); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("got %v, want %q\n%s", err, tc.want, tc.src)
+		}
+	}
+
+	// Errors go to the record and the console, and from a tunnel plugin's
+	// configs they reach the record too: a key on a mistyped line, or text
+	// that would draw on the terminal, never shows in one.
+	const priv = "yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk"
+	for _, line := range []string{
+		"PrivateKey: " + priv + "=", "PrivateKey " + priv + "=", "PrivateKey\t" + priv + "=", priv + "=",
+		"Address = " + priv + "=", "[" + priv + "=]", "\x1b[2K\rvpnw 00:00:00.000  FAKE\x1b[8m = 1",
+	} {
+		for _, src := range []string{"[Interface]\n" + line + "\n" + peer, line + "\n", "[Peer]\nEndpoint = " + priv + "=:51820\n"} {
+			_, err := path.ParseWGConf(src)
+			if err == nil {
+				t.Errorf("accepted %q", src)
+				continue
+			}
+			if e := err.Error(); strings.Contains(e, priv[:16]) || strings.ContainsAny(e, "\x1b\r\n") {
+				t.Errorf("the error shows what the line had: %q", e)
+			}
 		}
 	}
 }

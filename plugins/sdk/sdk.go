@@ -156,10 +156,14 @@ type TunnelConfig struct {
 	// checks it as it checks a --wireguard file.
 	Config string
 	// Keep is how long vpnw uses it before asking again; 0 is until it
-	// stops working. vpnw keeps a config at least 5 seconds. Handing back
-	// the config in use keeps it.
+	// stops working. vpnw keeps a config at least 5 seconds and at most 30
+	// days, and a Keep outside that is taken as the nearer of the two; a
+	// negative one as 0. Handing back the config in use keeps it.
 	Keep time.Duration
 }
+
+// maxKeep is the longest vpnw keeps a config: 30 days.
+const maxKeep = 30 * 24 * time.Hour
 
 // NoConfig is OnTunnel's error when it has no config to give: vpnw records
 // why, keeps the tunnel in use if there is one, and doesn't stop the plugin.
@@ -416,10 +420,11 @@ func doTunnel(b []byte) (offer []byte, none bool, why string, err error) {
 	case c == nil:
 		return nil, true, "", nil
 	}
-	keep := int64(c.Keep / time.Second)
+	keep := int64(min(c.Keep, maxKeep) / time.Second)
 	if c.Keep > 0 && keep == 0 {
 		keep = 1
 	}
+	keep = max(keep, 0)
 	offer, err = json.Marshal(struct {
 		Name   string `json:"name"`
 		Config string `json:"config"`

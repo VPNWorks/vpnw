@@ -136,7 +136,10 @@ func ParseWGConf(src string) (*WGConf, error) {
 				c.Peers = append(c.Peers, WGPeer{})
 				peer, section = &c.Peers[len(c.Peers)-1], "peer"
 			default:
-				return nil, errf("unknown section %s; a WireGuard file has [Interface] and [Peer]", l)
+				if w, ok := word(l[1 : len(l)-1]); ok {
+					return nil, errf("unknown section [%s]; a WireGuard file has [Interface] and [Peer]", w)
+				}
+				return nil, errf("unknown section; a WireGuard file has [Interface] and [Peer]")
 			}
 			have = map[string]bool{}
 			continue
@@ -147,17 +150,21 @@ func ParseWGConf(src string) (*WGConf, error) {
 		}
 		key := strings.ToLower(strings.TrimSpace(k))
 		v = strings.TrimSpace(v)
+		name, isWord := word(k)
+		if !isWord {
+			name = "a setting"
+		}
 		if section == "" {
-			return nil, errf("%s comes before any [Interface] or [Peer]", strings.TrimSpace(k))
+			return nil, errf("%s comes before any [Interface] or [Peer]", name)
 		}
 		multi := key == "address" || key == "dns" || key == "allowedips"
 		if have[key] && !multi {
-			return nil, errf("%s is given twice", strings.TrimSpace(k))
+			return nil, errf("%s is given twice", name)
 		}
 		have[key] = true
 		switch key {
 		case "preup", "postup", "predown", "postdown":
-			return nil, errf("%s is a wg-quick shell hook; vpnw runs no commands from a config file, so remove it", strings.TrimSpace(k))
+			return nil, errf("%s is a wg-quick shell hook; vpnw runs no commands from a config file, so remove it", name)
 		}
 		switch section + "." + key {
 		case "interface.privatekey":
@@ -172,7 +179,7 @@ func ParseWGConf(src string) (*WGConf, error) {
 				if err != nil {
 					ad, err2 := netip.ParseAddr(a)
 					if err2 != nil {
-						return nil, errf("Address %q is not an address such as 10.64.0.2/32", a)
+						return nil, errf("%s is not an address such as 10.64.0.2/32", about("Address", a))
 					}
 					p = netip.PrefixFrom(ad, ad.BitLen())
 				}
@@ -215,14 +222,14 @@ func ParseWGConf(src string) (*WGConf, error) {
 		case "peer.endpoint":
 			host, port, err := splitEndpoint(v)
 			if err != nil {
-				return nil, errf("Endpoint: %v", err)
+				return nil, errf("%s: %v", about("Endpoint", v), err)
 			}
 			peer.Endpoint = netjoin(host, port)
 		case "peer.allowedips":
 			for _, a := range list(v) {
 				p, err := netip.ParsePrefix(a)
 				if err != nil {
-					return nil, errf("AllowedIPs %q is not a range such as 0.0.0.0/0", a)
+					return nil, errf("%s is not a range such as 0.0.0.0/0", about("AllowedIPs", a))
 				}
 				peer.AllowedIPs = append(peer.AllowedIPs, p.Masked())
 			}
@@ -239,7 +246,11 @@ func ParseWGConf(src string) (*WGConf, error) {
 			}
 			peer.Keepalive = n
 		default:
-			return nil, errf("unknown key %s in [%s]", strings.TrimSpace(k), map[string]string{"interface": "Interface", "peer": "Peer"}[section])
+			sec := map[string]string{"interface": "Interface", "peer": "Peer"}[section]
+			if !isWord {
+				return nil, errf("not a setting vpnw knows, in [%s]; each line is Key = Value, such as Address = 10.64.0.2/32", sec)
+			}
+			return nil, errf("unknown key %s in [%s]", name, sec)
 		}
 	}
 	if err := sc.Err(); err != nil {
@@ -268,25 +279,91 @@ func ParseWGConf(src string) (*WGConf, error) {
 	return c, nil
 }
 
+// splitEndpoint takes an endpoint apart. Its errors leave the value out;
+// the caller shows it when it safely can.
 func splitEndpoint(v string) (string, int, error) {
 	i := strings.LastIndex(v, ":")
 	if i <= 0 {
-		return "", 0, fmt.Errorf("%q needs a host and a port, such as vpn.example.com:51820", v)
+		return "", 0, fmt.Errorf("needs a host and a port, such as vpn.example.com:51820")
 	}
 	host, ps := v[:i], v[i+1:]
+	ipv6 := false
 	if strings.HasPrefix(host, "[") {
 		if !strings.HasSuffix(host, "]") {
-			return "", 0, fmt.Errorf("%q: an IPv6 endpoint is written [address]:port", v)
+			return "", 0, fmt.Errorf("an IPv6 endpoint is written [address]:port")
 		}
-		host = host[1 : len(host)-1]
+		host, ipv6 = host[1:len(host)-1], true
 	} else if strings.Contains(host, ":") {
-		return "", 0, fmt.Errorf("%q: an IPv6 endpoint is written [address]:port", v)
+		return "", 0, fmt.Errorf("an IPv6 endpoint is written [address]:port")
 	}
 	port, err := strconv.Atoi(ps)
 	if err != nil || port < 1 || port > 65535 || host == "" {
-		return "", 0, fmt.Errorf("%q needs a host and a port, such as vpn.example.com:51820", v)
+		return "", 0, fmt.Errorf("needs a host and a port, such as vpn.example.com:51820")
+	}
+	if _, err := netip.ParseAddr(host); err != nil {
+		if ipv6 {
+			return "", 0, fmt.Errorf("an IPv6 endpoint is written [address]:port")
+		}
+		if !hostName(host) {
+			return "", 0, fmt.Errorf("the host is neither an address nor a name such as vpn.example.com")
+		}
 	}
 	return host, port, nil
+}
+
+// hostName reports a name DNS could hold: labels of letters, digits, "-"
+// and "_", separated by dots, 253 characters at most.
+func hostName(s string) bool {
+	s = strings.TrimSuffix(s, ".")
+	if s == "" || len(s) > 253 {
+		return false
+	}
+	for _, l := range strings.Split(s, ".") {
+		if l == "" || len(l) > 63 {
+			return false
+		}
+		for _, r := range l {
+			if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// word is a key or section name from a config as an error may show it:
+// letters only, as every real one is. A typo can put a private key where
+// a key belongs (in "PrivateKey: <key>" the first "=" is the key's own
+// padding), and errors from configs go to the record and the console, so
+// anything else is left out of them.
+func word(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" || len(s) > 32 {
+		return "", false
+	}
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') {
+			return "", false
+		}
+	}
+	return s, true
+}
+
+// about names a setting for an error message, with its value when that is
+// safe to show: one that could be an address, a range or an endpoint. Any
+// other value is left out, since it could be anything: a private key on
+// the wrong line (a key has "=" or "+"), or text that draws on the
+// terminal.
+func about(key, v string) string {
+	if v == "" || len(v) > 64 {
+		return key
+	}
+	for _, r := range v {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune(".:/[]%_-", r)) {
+			return key
+		}
+	}
+	return key + " " + strconv.Quote(v)
 }
 
 func netjoin(host string, port int) string {

@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -149,6 +151,45 @@ func fetch(t *testing.T, p path.Path) (string, string) {
 	return strings.TrimSpace(body), ci.Tunnel
 }
 
+// keepAlive is a connection through the path to the web server inside the
+// tunnel, asked for its page again and again.
+type keepAlive struct {
+	c  net.Conn
+	br *bufio.Reader
+}
+
+// openKeepAlive opens a connection and asks once.
+func openKeepAlive(t *testing.T, p path.Path) *keepAlive {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c, err := p.Dial(ctx, "", net.ParseIP("10.9.0.1"), 80)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	k := &keepAlive{c: c, br: bufio.NewReader(c)}
+	if _, err := k.get(); err != nil {
+		t.Fatal(err)
+	}
+	return k
+}
+
+// get asks for the page on the same connection and returns its body.
+func (k *keepAlive) get() (string, error) {
+	k.c.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := fmt.Fprintf(k.c, "GET / HTTP/1.1\r\nHost: web.tunnel.test\r\n\r\n"); err != nil {
+		return "", err
+	}
+	resp, err := http.ReadResponse(k.br, nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	return strings.TrimSpace(string(b)), err
+}
+
 // A config that is refused (a shell hook, no DNS server) or whose tunnel
 // doesn't come up is skipped at the start, and the plugin is told why each
 // time; the first that comes up is used.
@@ -268,7 +309,7 @@ func TestTunnelsRotate(t *testing.T) {
 	}
 	long.Close()
 	p.CloseDrained()
-	if cl := rec.of(events.TunnelClose); len(cl) != 1 || cl[0].Fields["config"] != "a.conf" || p.Open() != 1 {
+	if cl := rec.of(events.TunnelClose); len(cl) != 1 || cl[0].Fields["config"] != "a.conf" || cl[0].Fields["why"] != "drained" || p.Open() != 1 {
 		t.Errorf("close events %v, %d open", cl, p.Open())
 	}
 	// And round again to A.
@@ -278,6 +319,188 @@ func TestTunnelsRotate(t *testing.T) {
 	}
 	if got := src.reasons(); got != "start, due, due" {
 		t.Errorf("asked: %s", got)
+	}
+}
+
+// Round again to a config whose tunnel still carries connections: that
+// tunnel is moved back to, not brought up anew, so its connections carry
+// on. A second tunnel with the same key would take the peer from it, and
+// they would stall.
+func TestTunnelsRotateBackToDraining(t *testing.T) {
+	a, b := named(t, "A"), named(t, "B")
+	src := &source{list: []path.TunnelOffer{{Name: "a.conf", Text: a.ClientConfig()}, {Name: "b.conf", Text: b.ClientConfig()}}}
+	p := up(t, src)
+	rec := &recorder{}
+	p.Start(rec.emit)
+	// A download that has started, and a connection that asks now and then.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	long, err := p.Dial(ctx, "", net.ParseIP("10.9.0.1"), 80)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer long.Close()
+	fmt.Fprintf(long, "GET /big HTTP/1.0\r\n\r\n")
+	br := bufio.NewReader(long)
+	if _, err := io.ReadFull(br, make([]byte, 64<<10)); err != nil {
+		t.Fatal(err)
+	}
+	ka := openKeepAlive(t, p)
+
+	p.MoveNow("due") // to b
+	p.MoveNow("due") // back to a, whose tunnel still carries both
+	sw := rec.of(events.TunnelSwitch)
+	if len(sw) != 2 || sw[1].Fields["to"] != "a.conf" || sw[1].Fields["again"] != true || sw[1].Fields["ms"] != int64(0) {
+		t.Fatalf("switch events: %v", sw)
+	}
+	// b had no connection left: it closed at once.
+	if cl := rec.of(events.TunnelClose); len(cl) != 1 || cl[0].Fields["config"] != "b.conf" || p.Open() != 1 {
+		t.Errorf("close events %v, %d open", cl, p.Open())
+	}
+	if body, err := ka.get(); err != nil || !strings.Contains(body, "from peer A") {
+		t.Errorf("the connection that asks now and then, after a, b and a again: %q, %v", body, err)
+	}
+	long.SetReadDeadline(time.Now().Add(20 * time.Second))
+	if rest, err := io.Copy(io.Discard, br); err != nil || rest < wgtest.BigSize-(64<<10) {
+		t.Errorf("the download, after a, b and a again: %d of %d bytes, %v", rest, wgtest.BigSize-(64<<10), err)
+	}
+	if body, cfg := fetch(t, p); !strings.Contains(body, "from peer A") || cfg != "a.conf" {
+		t.Errorf("a new connection: %q via %q", body, cfg)
+	}
+	if got := src.reasons(); got != "start, due, due" {
+		t.Errorf("asked: %s", got)
+	}
+}
+
+// Two configs with the same key and peer can't both be up. One handed over
+// while the other is in use is refused; one that comes up while the other
+// is rotated out takes its place, and the old tunnel is closed with its
+// connections, which would only stall.
+func TestTunnelsSamePeer(t *testing.T) {
+	a, b := named(t, "A"), named(t, "B")
+	src := &source{list: []path.TunnelOffer{
+		{Name: "a.conf", Text: a.ClientConfig()},
+		{Name: "a-copy.conf", Text: a.ClientConfig()},
+		{Name: "b.conf", Text: b.ClientConfig()},
+		{Name: "a-again.conf", Text: "# the same, written again\n" + a.ClientConfig()},
+	}}
+	p := up(t, src)
+	rec := &recorder{}
+	p.Start(rec.emit)
+	ka := openKeepAlive(t, p)
+	p.MoveNow("due")
+	if p.Current() != "b.conf" {
+		t.Fatalf("in use: %s", p.Current())
+	}
+	te := rec.of(events.TunnelError)
+	if len(te) != 1 || te[0].Fields["config"] != "a-copy.conf" || !strings.Contains(fmt.Sprint(te[0].Fields["error"]), "same private key and peer as a.conf") {
+		t.Errorf("errors: %v", te)
+	}
+	if got := src.reasons(); got != "start, due, refused a-copy.conf" {
+		t.Errorf("asked: %s", got)
+	}
+	p.MoveNow("due") // to a-again.conf: a's tunnel, with ka on it, makes way
+	if p.Current() != "a-again.conf" {
+		t.Fatalf("in use: %s", p.Current())
+	}
+	cl := rec.of(events.TunnelClose)
+	if len(cl) != 2 || cl[0].Fields["config"] != "a.conf" || cl[0].Fields["why"] != "replaced" || cl[0].Fields["by"] != "a-again.conf" || cl[0].Fields["cut"] != 1 {
+		t.Errorf("close events: %v", cl)
+	}
+	if _, err := ka.get(); err == nil || isDeadline(err) {
+		t.Errorf("a connection of the replaced tunnel: %v, want closed", err)
+	}
+	if body, cfg := fetch(t, p); !strings.Contains(body, "from peer A") || cfg != "a-again.conf" {
+		t.Errorf("after: %q via %q", body, cfg)
+	}
+}
+
+// Two tunnels can't listen on one port: a config whose ListenPort another
+// tunnel holds is refused, and says so.
+func TestTunnelsListenPortTaken(t *testing.T) {
+	a, b := named(t, "A"), named(t, "B")
+	pc, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := pc.LocalAddr().(*net.UDPAddr).Port
+	pc.Close()
+	at := func(conf string) string {
+		return strings.Replace(conf, "[Interface]\n", "[Interface]\nListenPort = "+strconv.Itoa(port)+"\n", 1)
+	}
+	src := &source{list: []path.TunnelOffer{{Name: "a.conf", Text: at(a.ClientConfig())}, {Name: "b.conf", Text: at(b.ClientConfig())}}}
+	p := up(t, src)
+	rec := &recorder{}
+	p.Start(rec.emit)
+	p.MoveNow("due")
+	te := rec.of(events.TunnelError)
+	if p.Current() != "a.conf" || len(te) != 1 || !strings.Contains(fmt.Sprint(te[0].Fields["error"]), fmt.Sprintf("its ListenPort %d is taken by the tunnel of a.conf", port)) {
+		t.Errorf("in use %s; errors %v", p.Current(), te)
+	}
+}
+
+// Errors about a config go to the record, the console, and back to the
+// plugin. None shows a key from a mistyped line, draws on the terminal, or
+// runs long; and what the plugin is told of a tunnel that didn't come up
+// says no more than its config: not where its endpoint's name led.
+func TestTunnelsConfigErrors(t *testing.T) {
+	shorten(t, &path.HandshakeTimeout, time.Second)
+	a := named(t, "A")
+	good := a.ClientConfig()
+	var key string
+	for _, l := range strings.Split(good, "\n") {
+		if v, ok := strings.CutPrefix(l, "PrivateKey = "); ok {
+			key = strings.TrimSuffix(v, "=")
+		}
+	}
+	var peers strings.Builder
+	for range path.MaxTunnelPeers {
+		peers.WriteString("\n[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = 127.0.0.1:9\nAllowedIPs = 10.0.0.0/8\n")
+	}
+	stranger := strings.Replace(a.StrangerConfig(), "Endpoint = 127.0.0.1:", "Endpoint = localhost:", 1)
+	src := &source{list: []path.TunnelOffer{
+		{Name: "typo.conf", Text: strings.Replace(good, "PrivateKey = ", "PrivateKey: ", 1)},
+		{Name: "escape.conf", Text: "[Interface]\n\x1b[2K\rvpnw 00:00:00.000  FAKE\x1b[8m = 1\n"},
+		{Name: "long.conf", Text: "[Interface]\n" + strings.Repeat("x", 60<<10) + " = 1\n"},
+		{Name: "peers.conf", Text: good + peers.String()},
+		{Name: "stranger.conf", Text: stranger},
+		{Name: "a.conf", Text: good},
+	}}
+	p := up(t, src)
+	sk, _ := p.Started()["skipped"].([]any)
+	if len(sk) != 5 {
+		t.Fatalf("skipped %v", sk)
+	}
+	var told []string
+	src.mu.Lock()
+	for _, q := range src.asked[1:] {
+		told = append(told, q.Error)
+	}
+	src.mu.Unlock()
+	for i, x := range sk {
+		e := fmt.Sprint(x.(map[string]any)["error"])
+		for _, s := range []string{e, told[i]} {
+			if strings.Contains(s, key[:12]) || strings.ContainsAny(s, "\x1b\r\n") || len(s) > 450 {
+				t.Errorf("%q", s)
+			}
+		}
+	}
+	if e := fmt.Sprint(sk[3].(map[string]any)["error"]); !strings.Contains(e, fmt.Sprintf("it has %d peers", path.MaxTunnelPeers+1)) {
+		t.Errorf("peers.conf: %s", e)
+	}
+	// The record says where the handshakes went; the plugin is told the
+	// endpoint as its config has it.
+	if e := fmt.Sprint(sk[4].(map[string]any)["error"]); !strings.Contains(e, "no WireGuard handshake from 127.0.0.1:") {
+		t.Errorf("recorded: %s", e)
+	}
+	if !strings.HasPrefix(told[4], "no WireGuard handshake from localhost:") || strings.Contains(told[4], "127.0.0.1") {
+		t.Errorf("told: %s", told[4])
+	}
+	if got := path.ToPlugin("failed", &path.LookupError{Endpoint: "x.example:51820", Err: errors.New("lookup x.example on 192.0.2.53:53: no such host")}); got != "cannot look up the name in endpoint x.example:51820" {
+		t.Errorf("lookup: %s", got)
+	}
+	if got := path.ToPlugin("failed", errors.New("wireguard: listen udp4 :51820: bind: address already in use")); got != "its tunnel didn't start" {
+		t.Errorf("other: %s", got)
 	}
 }
 
@@ -349,6 +572,12 @@ func TestTunnelsSilentWithNowhereToGo(t *testing.T) {
 	if !strings.Contains(src.reasons(), "failed a.conf") || p.Current() != "a.conf" || len(rec.of(events.TunnelSwitch)) != 0 {
 		t.Fatalf("asked %s; in use %s; switches %v", src.reasons(), p.Current(), rec.of(events.TunnelSwitch))
 	}
+	// The record says it stopped answering and stays.
+	time.Sleep(100 * time.Millisecond)
+	if te := rec.of(events.TunnelError); len(te) < 1 || te[0].Fields["config"] != nil ||
+		te[0].Fields["error"] != "a.conf stopped answering (nothing came back through it for 2s); the plugin handed it back, so it stays in use" {
+		t.Errorf("errors: %v", te)
+	}
 	relay.Silence(false)
 	if body, _ := fetch(t, p); !strings.Contains(body, "from peer A") {
 		t.Errorf("after the peer came back: %q", body)
@@ -379,40 +608,43 @@ func TestTunnelsSourceFailsMidRun(t *testing.T) {
 }
 
 // Rotating out keeps at most MaxDraining tunnels with connections; the
-// oldest is closed with its connections when another would join them.
+// oldest is closed with its connections when another would join them. A
+// tunnel left with no connections closes at once and doesn't count.
 func TestTunnelsDrainingLimit(t *testing.T) {
-	a := named(t, "A")
 	var list []path.TunnelOffer
-	for i := range path.MaxDraining + 2 {
-		list = append(list, path.TunnelOffer{Name: fmt.Sprintf("a%d.conf", i), Text: a.ClientConfig()})
+	for i := range path.MaxDraining + 3 {
+		s := named(t, strconv.Itoa(i))
+		list = append(list, path.TunnelOffer{Name: fmt.Sprintf("a%d.conf", i), Text: s.ClientConfig()})
 	}
 	p := up(t, &source{list: list})
 	rec := &recorder{}
 	p.Start(rec.emit)
-	var first net.Conn
-	for i := range path.MaxDraining + 1 {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		c, err := p.Dial(ctx, "", net.ParseIP("10.9.0.1"), 80)
-		cancel()
-		if err != nil {
-			t.Fatalf("dial %d: %v", i, err)
-		}
-		defer c.Close()
-		if first == nil {
-			first = c
-		}
+	var ka []*keepAlive
+	for range path.MaxDraining {
+		ka = append(ka, openKeepAlive(t, p))
 		p.MoveNow("due")
 	}
+	// The one in use has no connection; moving on from it cuts nothing.
+	p.MoveNow("due")
+	if cl := rec.of(events.TunnelClose); len(cl) != 1 || cl[0].Fields["config"] != fmt.Sprintf("a%d.conf", path.MaxDraining) || cl[0].Fields["why"] != "drained" {
+		t.Fatalf("close events after leaving an idle tunnel: %v", cl)
+	}
+	ka = append(ka, openKeepAlive(t, p))
+	p.MoveNow("due")
 	cl := rec.of(events.TunnelClose)
-	if len(cl) != 1 || cl[0].Fields["config"] != "a0.conf" || cl[0].Fields["cut"] != 1 {
+	if len(cl) != 2 || cl[1].Fields["config"] != "a0.conf" || cl[1].Fields["why"] != "limit" || cl[1].Fields["cut"] != 1 {
 		t.Fatalf("close events: %v", cl)
 	}
 	if p.Open() != path.MaxDraining+1 {
 		t.Errorf("%d tunnels open", p.Open())
 	}
-	first.SetReadDeadline(time.Now().Add(2 * time.Second))
-	if _, err := first.Read(make([]byte, 1)); err == nil || isDeadline(err) {
-		t.Errorf("a connection of the cut tunnel still reads: %v", err)
+	if _, err := ka[0].get(); err == nil || isDeadline(err) {
+		t.Errorf("a connection of the cut tunnel: %v, want closed", err)
+	}
+	for i, k := range ka[1:] {
+		if body, err := k.get(); err != nil || !strings.Contains(body, "hello through the tunnel") {
+			t.Errorf("connection %d, still draining: %q, %v", i+1, body, err)
+		}
 	}
 }
 
@@ -485,6 +717,66 @@ func TestWireGuardSilent(t *testing.T) {
 	}
 	if w.Silent(time.Second) {
 		t.Error("still silent after the peer answered")
+	}
+}
+
+// Packets forged to look like a peer's don't hide a peer that is gone:
+// only what WireGuard accepts counts as heard.
+func TestWireGuardSilentForged(t *testing.T) {
+	a := named(t, "A")
+	relay, err := wgtest.NewRelay(a.Port)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer relay.Close()
+	pc, err := net.ListenPacket("udp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := pc.LocalAddr().(*net.UDPAddr).Port
+	pc.Close()
+	w := tunnel(t, strings.Replace(a.ConfigVia(relay), "[Interface]\n", "[Interface]\nListenPort = "+strconv.Itoa(port)+"\n", 1), "")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := w.Health(ctx); err != nil {
+		t.Fatal(err)
+	}
+	relay.Silence(true)
+	// Someone sends what looks like a keepalive, and handshakes, every 100 ms.
+	u, err := net.Dial("udp4", "127.0.0.1:"+strconv.Itoa(port))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer u.Close()
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		keepalive, response := make([]byte, 32), make([]byte, 92)
+		keepalive[0], response[0] = 4, 2
+		for {
+			select {
+			case <-done:
+				return
+			case <-time.After(100 * time.Millisecond):
+				u.Write(keepalive)
+				u.Write(response)
+			}
+		}
+	}()
+	dctx, dcancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if c, err := w.Dial(dctx, "", net.ParseIP("10.9.0.1"), 80); err == nil {
+		c.Close()
+	}
+	dcancel()
+	silent := false
+	for range 25 {
+		if silent = w.Silent(time.Second); silent {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	if !silent {
+		t.Fatal("not silent while forged packets came in")
 	}
 }
 

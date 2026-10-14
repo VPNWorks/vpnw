@@ -162,10 +162,49 @@ func (w *WireGuard) up(ctx context.Context) error {
 }
 
 // liveness is what a tunnel knows of its peers being there: when it last
-// heard anything from one, and when the first packet went out after that,
-// both in nanoseconds on a monotonic clock, or 0.
+// heard from one, and when the first packet went out after that, both in
+// nanoseconds on a monotonic clock, or 0.
+//
+// Heard means a packet WireGuard accepted: a handshake that checked out, or
+// a transport packet that decrypted, keepalives included. The tunnel's
+// socket notes when each packet shaped like a WireGuard message came in
+// (arrived), but anyone can send a packet of that shape, so it counts as
+// heard only once WireGuard's own count of bytes received from its peers
+// has grown (confirm).
 type liveness struct {
-	heard, waiting atomic.Int64
+	heard, waiting, arrived atomic.Int64
+
+	mu sync.Mutex
+	rx uint64 // bytes WireGuard had accepted from the peers at the last confirm
+}
+
+// begin starts counting after the handshakes that bring a tunnel up: rx is
+// the bytes WireGuard has accepted so far, and the peers were heard now.
+// What came in before doesn't count again later.
+func (l *liveness) begin(rx uint64) {
+	l.mu.Lock()
+	l.rx = rx
+	l.mu.Unlock()
+	l.heard.Store(monotonic())
+}
+
+// confirm takes rx, the bytes WireGuard has accepted from the peers so far.
+// If that grew since the last time, what arrived came from a peer: the
+// last packet that arrived counts as heard.
+func (l *liveness) confirm(rx uint64) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if rx == l.rx {
+		return
+	}
+	l.rx = rx
+	a := l.arrived.Load()
+	if a == 0 {
+		a = monotonic()
+	}
+	if a > l.heard.Load() {
+		l.heard.Store(a)
+	}
 }
 
 var clockStart = time.Now()
@@ -216,9 +255,9 @@ func (t *watchedTUN) Read(bufs [][]byte, sizes []int, offset int) (int, error) {
 	return n, err
 }
 
-// watchedBind is the tunnel's UDP socket. It notes each WireGuard packet
-// that comes in: data, a keepalive or a handshake, all of which say the
-// peer is there.
+// watchedBind is the tunnel's UDP socket. It notes when each packet shaped
+// like a WireGuard message comes in: data, a keepalive or a handshake. Once
+// WireGuard has accepted it, it says the peer is there (see liveness).
 type watchedBind struct {
 	conn.Bind
 	live *liveness
@@ -231,7 +270,7 @@ func (b *watchedBind) Open(port uint16) ([]conn.ReceiveFunc, uint16, error) {
 			n, err := fn(packets, sizes, eps)
 			for j := 0; j < n && j < len(packets) && j < len(sizes); j++ {
 				if sizes[j] <= len(packets[j]) && wgMessage(packets[j][:sizes[j]]) {
-					b.live.heard.Store(monotonic())
+					b.live.arrived.Store(monotonic())
 					break
 				}
 			}
@@ -281,9 +320,33 @@ func unicastData(p []byte) bool {
 // it more than d ago, and nothing has come back from any peer since, not
 // even a keepalive. A live WireGuard peer answers data within 10 seconds,
 // with a keepalive when it has nothing else to send, so it is never silent
-// for long.
+// for long. Only what WireGuard accepted counts: packets forged to look
+// like a peer's don't hide a peer that is gone.
 func (w *WireGuard) Silent(d time.Duration) bool {
-	return w.live != nil && w.live.silentFor() > d
+	if w.live == nil {
+		return false
+	}
+	if rx, ok := w.received(); ok {
+		w.live.confirm(rx)
+	}
+	return w.live.silentFor() > d
+}
+
+// received is how many bytes WireGuard has accepted from the peers: only
+// handshakes that checked out and packets that decrypted count.
+func (w *WireGuard) received() (uint64, bool) {
+	st, err := w.dev.IpcGet()
+	if err != nil {
+		return 0, false
+	}
+	var n uint64
+	for _, l := range strings.Split(st, "\n") {
+		if v, ok := strings.CutPrefix(l, "rx_bytes="); ok {
+			b, _ := strconv.ParseUint(v, 10, 64)
+			n += b
+		}
+	}
+	return n, true
 }
 
 // quietAgain makes Silent count again from the next packet that goes out.
@@ -301,6 +364,31 @@ func (w *WireGuard) Endpoint() string {
 	return w.peers[0]
 }
 
+// LookupError is a peer's endpoint whose name couldn't be looked up on
+// this machine.
+type LookupError struct {
+	Endpoint string // as the config has it
+	Err      error
+}
+
+func (e *LookupError) Error() string {
+	return fmt.Sprintf("wireguard endpoint %s: cannot look up its name: %v", e.Endpoint, e.Err)
+}
+
+func (e *LookupError) Unwrap() error { return e.Err }
+
+// HandshakeError is peers that didn't complete a WireGuard handshake in
+// time.
+type HandshakeError struct {
+	Endpoints []string // as the config has them
+	Addrs     []string // where the handshakes went: the endpoints, looked up
+	Timeout   time.Duration
+}
+
+func (e *HandshakeError) Error() string {
+	return fmt.Sprintf("no WireGuard handshake from %s within %v: check the endpoint and the keys, and that UDP to it gets through", strings.Join(e.Addrs, ", "), e.Timeout)
+}
+
 func resolveEndpoint(ctx context.Context, ep string) (string, error) {
 	host, port, err := net.SplitHostPort(ep)
 	if err != nil {
@@ -310,8 +398,11 @@ func resolveEndpoint(ctx context.Context, ep string) (string, error) {
 		return netip.AddrPortFrom(ip, mustPort(port)).String(), nil
 	}
 	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
-	if err != nil || len(ips) == 0 {
-		return "", fmt.Errorf("wireguard endpoint %s: cannot look up %s: %v", ep, host, err)
+	if err == nil && len(ips) == 0 {
+		err = errors.New("no addresses")
+	}
+	if err != nil {
+		return "", &LookupError{Endpoint: ep, Err: err}
 	}
 	return netip.AddrPortFrom(ips[0].Unmap(), mustPort(port)).String(), nil
 }
@@ -355,22 +446,34 @@ func (w *WireGuard) Health(ctx context.Context) error {
 	for {
 		missing := w.withoutHandshake()
 		if len(missing) == 0 {
+			if rx, ok := w.received(); ok {
+				w.live.begin(rx)
+			}
 			return nil
 		}
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("no WireGuard handshake from %s within %v: check the endpoint and the keys, and that UDP to it gets through", strings.Join(missing, ", "), HandshakeTimeout)
+			e := &HandshakeError{Timeout: HandshakeTimeout}
+			for _, i := range missing {
+				e.Endpoints = append(e.Endpoints, w.Conf.Peers[i].Endpoint)
+				e.Addrs = append(e.Addrs, w.peers[i])
+			}
+			return e
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
 }
 
-// withoutHandshake lists the endpoints of peers that have not completed a
-// handshake yet.
-func (w *WireGuard) withoutHandshake() []string {
+// withoutHandshake lists the peers, by their place in the config, that have
+// not completed a handshake yet.
+func (w *WireGuard) withoutHandshake() []int {
 	st, err := w.dev.IpcGet()
 	if err != nil {
-		return w.peers
+		all := make([]int, len(w.Conf.Peers))
+		for i := range all {
+			all[i] = i
+		}
+		return all
 	}
 	done := map[string]bool{}
 	cur := ""
@@ -385,10 +488,10 @@ func (w *WireGuard) withoutHandshake() []string {
 			}
 		}
 	}
-	var out []string
+	var out []int
 	for i, p := range w.Conf.Peers {
 		if !done[hexKey(p.PublicKey)] {
-			out = append(out, w.peers[i])
+			out = append(out, i)
 		}
 	}
 	return out

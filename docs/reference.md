@@ -106,7 +106,7 @@ out = "trace.jsonl"
 
 ### WireGuard config files
 
-The usual wg-quick format, as VPN providers and `wg` hand it out. In `[Interface]`: `PrivateKey`, `Address`, and optionally `DNS`, `MTU` and `ListenPort`; `Table`, `SaveConfig` and `FwMark` are accepted and have no effect, since the tunnel has no routing table or interface. IPv6 endpoints are written `[address]:port`. In each `[Peer]`: `PublicKey`, `Endpoint`, `AllowedIPs`, and optionally `PresharedKey` and `PersistentKeepalive`. Unknown keys are errors, and so are wg-quick's shell hooks (`PreUp`, `PostUp`, `PreDown`, `PostDown`): vpnw runs no commands from a config file.
+The usual wg-quick format, as VPN providers and `wg` hand it out. In `[Interface]`: `PrivateKey`, `Address`, and optionally `DNS`, `MTU` and `ListenPort`; `Table`, `SaveConfig` and `FwMark` are accepted and have no effect, since the tunnel has no routing table or interface. In each `[Peer]`: `PublicKey`, `Endpoint`, `AllowedIPs`, and optionally `PresharedKey` and `PersistentKeepalive`. An endpoint's host is an address or a name; IPv6 endpoints are written `[address]:port`. Unknown keys are errors, and so are wg-quick's shell hooks (`PreUp`, `PostUp`, `PreDown`, `PostDown`): vpnw runs no commands from a config file. An error names the line, and shows what's on it only when that is a key's name or an address, so a mistyped line never puts a private key in the record.
 
 Before the program starts, vpnw waits up to 12 seconds for a handshake with every peer (WireGuard retries after 5) and stops with exit code 123 if one doesn't answer. A connection to an address outside every peer's `AllowedIPs` is refused with that reason. So is one to a loopback, link-local (169.254.0.0/16, fe80::/10) or multicast address, always, even with `AllowedIPs = 0.0.0.0/0` and with no setting to allow it: through a tunnel those could only reach the peer's own machine or its network segment, where cloud metadata lives, so a lying DNS answer from the tunnel can't send a program there. The peers' endpoints are looked up on this machine, the one lookup that can't go through the tunnel.
 
@@ -118,7 +118,7 @@ A tunnel plugin hands vpnw WireGuard configs, and says how long to keep each. vp
 vpnw guard --tunnel rotate --set rotate.every=10m --policy scraper.toml -- ./scraper
 ```
 
-The built-in `rotate` hands over the `.conf` files in its folder (`~/.config/vpnw/rotate`, or `--plugin-folder rotate=PATH`), one after the other. It reads the folder each time it's asked, so a config added while vpnw runs joins the rotation, and one taken out leaves it. Files whose names start with a dot, empty files and files that aren't `.conf` are passed over.
+The built-in `rotate` hands over the `.conf` files in its folder (`~/.config/vpnw/rotate`, or `--plugin-folder rotate=PATH`), one after the other. It reads the folder each time it's asked, so a config added while vpnw runs joins the rotation, and one taken out leaves it. It passes over files that aren't `.conf`, empty files, and files whose names start with a dot, run past 128 characters or hold control characters; and it skips a file it can't read, one over 64 KiB and one that isn't text.
 
 | Setting | Value |
 |---|---|
@@ -129,9 +129,15 @@ vpnw asks the plugin for a config:
 
 - **when the run starts.** It tries what the plugin hands over, up to 8 configs, each with 12 seconds for its handshake, until one comes up; the program starts only then. If none does, the program never starts (exit 123), and vpnw says why for each.
 - **when the config in use is due**, kept as long as the plugin asked (at least 5 seconds).
-- **when the tunnel in use stops answering**: data went out through it and nothing came back, not even a WireGuard keepalive, for 20 seconds. A live WireGuard peer answers within 10 seconds, with a keepalive when it has nothing else to send.
+- **when the tunnel in use stops answering**: data went out through it and nothing came back that WireGuard accepted, not even a keepalive, for 20 seconds. A live WireGuard peer answers within 10 seconds, with a keepalive when it has nothing else to send. Packets that only look like a peer's don't count, so someone sending them can't hide a peer that is gone.
 
-A config is checked as a `--wireguard` file is: one that is refused (a shell hook, a file that isn't a WireGuard config, no DNS server) or whose tunnel doesn't come up is recorded with the reason and skipped, and the plugin is told why. The next tunnel is up before anything moves to it. New connections then go through it; connections already open stay on the tunnel they started on until they close, and that tunnel closes after its last one. At most 4 rotated-out tunnels keep their connections; when a fifth would join them, the oldest is closed with what it still carries. If the plugin hands back the config in use, or no other config comes up, the tunnel in use stays, a silent one included: vpnw never falls back to connecting directly. A tunnel plugin that fails is stopped, its failure recorded, and the tunnel in use carries on without rotating.
+A config is checked as a `--wireguard` file is, and may have at most 16 peers. One that is refused (a shell hook, a file that isn't a WireGuard config, no DNS server) or whose tunnel doesn't come up is recorded with the reason and skipped, and the plugin is told why. Of a tunnel that didn't come up, the plugin learns no more than its config says: where an endpoint's name led, and what this machine's resolver answered, go to the record only. The next tunnel is up before anything moves to it. New connections then go through it; connections already open stay on the tunnel they started on until they close, and that tunnel closes after its last one. At most 4 rotated-out tunnels keep their connections; when a fifth would join them, the oldest is closed with what it still carries. A tunnel with no connections left doesn't count; it closes at once.
+
+Two tunnels can't share a key and a peer: the peer talks to whichever made the last handshake. So when the plugin hands over a config whose tunnel was rotated out and still carries connections, vpnw moves back to that tunnel, still up, instead of starting another; one rotated out because it stopped answering is replaced by a new one. A config with the same key and peer as the one in use is refused. One that comes up while a rotated-out tunnel has its key and peer closes that tunnel, with its connections, which would only stall. Two tunnels can't listen on one port either: a config whose `ListenPort` another tunnel holds is refused, so leave `ListenPort` out of configs that rotate.
+
+If the plugin hands back the config in use, or no other config comes up, the tunnel in use stays, a silent one included, and the record says so: vpnw never falls back to connecting directly. A tunnel plugin that fails is stopped, its failure recorded, and the tunnel in use carries on without rotating.
+
+A tunnel plugin decides where the program's traffic goes: choose one as you would a VPN provider. It has no network of its own, but its configs reach the network for it, as vpnw looks up their endpoint names on this machine and sends WireGuard handshakes to them.
 
 `--dns` applies to every config the plugin hands over.
 
@@ -174,9 +180,9 @@ One JSON object per line, schema version 1. Every event has `v`, `ts`, `type` an
 | `connection.error` | `error`, `exit`, `tunnel`, and `refused` as for `connection.open` |
 | `plugin.error` | `plugin`, `type`, `error` |
 | `auth.deny` | at an exit: `peer`, `proto`, `reason`, and `host` or `ip` and `port` when the request named them |
-| `tunnel.switch` | with `--tunnel`: new connections moved to another config's tunnel. `from`, `to`, `why` (`due` or `failed`), `error` (why the one left failed), `ms` (to bring the new one up), `peer` |
-| `tunnel.error` | with `--tunnel`: `config` and `error` for a config refused or whose tunnel didn't come up during the run; `error` alone when no other config came up and the one in use stays |
-| `tunnel.close` | with `--tunnel`: a rotated-out tunnel closed after its last connection. `config`, and `cut` when connections still open were closed with it |
+| `tunnel.switch` | with `--tunnel`: new connections moved to another config's tunnel. `from`, `to`, `why` (`due` or `failed`), `error` (why the one left failed), `ms` (to bring the new one up), `peer`; `again` when vpnw moved back to a rotated-out tunnel still up, with `ms` 0 |
+| `tunnel.error` | with `--tunnel`: `config` and `error` for a config refused or whose tunnel didn't come up during the run; `error` alone when the one in use stays, because no other config came up or because the plugin handed back the one that stopped answering |
+| `tunnel.close` | with `--tunnel`: a rotated-out tunnel closed. `config`; `why`: `drained` (after its last connection), `limit` (more than 4 would have been winding down) or `replaced` (a new tunnel with its key and peer came up, the config named in `by`); `cut`, the connections still open closed with it |
 | `process.exit` | `code`, `signal`, `ms` |
 | `run.end` | `connections`, `opened`, `allowed`, `denied`, `failed`, `bytes_up`, `bytes_down`, `code` |
 | `plugin.NAME.TYPE` | whatever plugin NAME emitted |

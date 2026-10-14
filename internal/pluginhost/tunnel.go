@@ -18,11 +18,15 @@ import (
 )
 
 // Limits on what a tunnel plugin hands over: a config of at most MaxOffer
-// bytes, named in at most MaxOfferName characters, kept at most MaxKeep.
+// bytes, named in at most MaxOfferName characters, kept at most MaxKeep
+// (a longer keep is taken as MaxKeep). MaxOfferJSON is the most the offer
+// may take as JSON: enough for a config of MaxOffer bytes however it is
+// escaped, since an escape takes at most 6 bytes for one.
 const (
 	MaxOffer     = 64 << 10
 	MaxOfferName = 128
 	MaxKeep      = 30 * 24 * time.Hour
+	MaxOfferJSON = 6*MaxOffer + 64<<10
 )
 
 // Offer is a WireGuard config a tunnel plugin handed over.
@@ -36,8 +40,8 @@ type Offer struct {
 // ParseOffer reads what a tunnel plugin hands over: one JSON object,
 // {"name": ..., "config": ..., "keep": seconds}, and nothing else.
 func ParseOffer(b []byte) (*Offer, error) {
-	if len(b) > MaxOffer+4096 {
-		return nil, fmt.Errorf("%d bytes, more than a config of %d bytes takes", len(b), MaxOffer)
+	if len(b) > MaxOfferJSON {
+		return nil, fmt.Errorf("%d bytes, more than an offer of a config of %d bytes takes", len(b), MaxOffer)
 	}
 	var w struct {
 		Name   *string      `json:"name"`
@@ -68,10 +72,10 @@ func ParseOffer(b []byte) (*Offer, error) {
 	o := &Offer{Name: *w.Name, Text: *w.Config}
 	if w.Keep != nil {
 		n, err := w.Keep.Int64()
-		if err != nil || n < 0 || n > int64(MaxKeep/time.Second) {
-			return nil, fmt.Errorf("keep must be whole seconds, from 0 to %d", int64(MaxKeep/time.Second))
+		if err != nil || n < 0 {
+			return nil, errors.New("keep must be whole seconds, 0 or more")
 		}
-		o.Keep = time.Duration(n) * time.Second
+		o.Keep = time.Duration(min(n, int64(MaxKeep/time.Second))) * time.Second
 	}
 	return o, nil
 }
@@ -112,8 +116,8 @@ func (in *Instance) Tunnel(ctx context.Context, req any) (*Offer, string, error)
 		return nil, "", in.pluginErr()
 	}
 	p, n := uint32(res>>32), uint32(res)
-	if n > MaxOffer+4096 {
-		return nil, "", in.stop(fmt.Errorf("handed over %d bytes, more than a config of %d bytes takes", n, MaxOffer))
+	if n > MaxOfferJSON {
+		return nil, "", in.stop(fmt.Errorf("handed over %d bytes, more than an offer of a config of %d bytes takes", n, MaxOffer))
 	}
 	raw, ok := in.mod.Memory().Read(p, n)
 	if !ok {

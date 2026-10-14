@@ -280,73 +280,96 @@ func TestTunnelRotation(t *testing.T) {
 	}
 }
 
-// A download still going when the path rotates finishes through the
-// tunnel it started on, while new requests go through the next one; the
-// old tunnel closes after the download.
-func TestTunnelRotationKeepsDownloads(t *testing.T) {
+// Connections that outlast a rotation carry on through the tunnel they
+// started on, the return to their own config included: rotating from a.conf
+// to b.conf and back to a.conf moves back to a.conf's tunnel, still up with
+// those connections, instead of bringing up a second tunnel with the same
+// key, which would take the peer from them. The program waits for each move
+// before it goes on, so the test doesn't depend on how fast the machine is.
+func TestTunnelRotationKeepsConnections(t *testing.T) {
 	skipIfNoSeal(t)
 	tunGuard(t)
 	a, b := namedPeer(t, "A"), namedPeer(t, "B")
-	relay, err := wgtest.NewRelay(a.Port)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(relay.Close)
-	relay.Delay(2 * time.Millisecond) // slow enough to last past a rotation
 	e := newEnv(t)
-	_, args := configs(t, e, map[string]string{"a.conf": a.ConfigVia(relay), "b.conf": b.ClientConfig()})
+	_, args := configs(t, e, map[string]string{"a.conf": a.ClientConfig(), "b.conf": b.ClientConfig()})
 	tr := filepath.Join(e.dir, "run.jsonl")
-	prog := `import urllib.request as u, threading, time, sys
-def big():
-    r = u.urlopen('http://web.tunnel.test/big', timeout=20)
-    got = 0
-    t0 = time.time()
-    while True:
-        x = r.read(65536)
-        if not x: break
-        got += len(x)
-    sys.stdout.write('DONE %d %.1f\n' % (got, time.time() - t0)); sys.stdout.flush()
-th = threading.Thread(target=big); th.start()
-time.sleep(1)
-for i in range(12):
+	prog := `import http.client, os, sys, time, urllib.parse, urllib.request as u
+pu = urllib.parse.urlparse(os.environ['HTTP_PROXY'])
+def kept(timeout):
+    c = http.client.HTTPConnection(pu.hostname, pu.port, timeout=timeout)
+    c.set_tunnel('web.tunnel.test', 80)
+    return c
+def peer(body):
+    return body.decode().split()[-1]
+def new():
     try:
-        b = u.urlopen('http://web.tunnel.test/', timeout=3).read().decode()
-        sys.stdout.write('OK %d %s\n' % (i, b.split()[-1]))
+        return peer(u.urlopen('http://web.tunnel.test/', timeout=3).read())
     except Exception as e:
-        sys.stdout.write('FAIL %d %s\n' % (i, type(e).__name__))
-    sys.stdout.flush()
-    time.sleep(0.5)
-th.join()
-time.sleep(2.5)
+        return 'FAIL'
+def until(want, secs):
+    seen, t0 = [], time.time()
+    while time.time() - t0 < secs:
+        seen.append(new())
+        if seen[-1] == want:
+            break
+        time.sleep(0.3)
+    return ' '.join(seen)
+k = kept(5)
+def ask():
+    try:
+        k.request('GET', '/')
+        return peer(k.getresponse().read())
+    except Exception as e:
+        return 'FAIL ' + type(e).__name__
+d = kept(30)
+d.request('GET', '/big')
+r = d.getresponse()
+got = len(r.read(65536))
+def say(*a):
+    sys.stdout.write(' '.join(a) + '\n'); sys.stdout.flush()
+say('K1', ask())
+say('NEW1', until('B', 15))
+say('K2', ask())
+say('NEW2', until('A', 15))
+say('K3', ask())
+while True:
+    x = r.read(65536)
+    if not x:
+        break
+    got += len(x)
+say('DONE', str(got))
 `
 	out, code := e.run(append(append([]string{"run"}, args...), "--set", "rotate.every=5s", "--out", tr, "--", "python3", "-c", prog)...)
-	_, switches, _, closes, opened := tunnelEvents(t, tr)
-	var done, secs float64
-	for _, l := range strings.Split(out, "\n") {
-		fmt.Sscanf(l, "DONE %f %f", &done, &secs)
-	}
-	peers, fails := answers(out)
-	order := runs(peers)
-	// The download's connection is the first opened, through a.conf; its
-	// close comes before a.conf's tunnel closes.
-	var closedAt, tunnelClosedAt int
-	for i, ev := range readTrace(t, tr) {
-		f, _ := ev["fields"].(map[string]any)
-		if ev["type"] == "connection.close" && f["bytes_down"].(float64) >= wgtest.BigSize {
-			closedAt = i
+	_, switches, errs, closes, opened := tunnelEvents(t, tr)
+	line := func(prefix string) string {
+		for _, l := range strings.Split(out, "\n") {
+			if strings.HasPrefix(l, prefix+" ") {
+				return strings.TrimPrefix(l, prefix+" ")
+			}
 		}
-		if ev["type"] == "tunnel.close" && f["config"] == "a.conf" {
-			tunnelClosedAt = i
-		}
+		return ""
 	}
-	ok := code == 0 && done == wgtest.BigSize && secs > 5 && len(switches) >= 1 && len(opened) > 0 && opened[0] == "a.conf" &&
-		fails == 0 && len(order) >= 2 && order[0] == "A" && order[1] == "B" && tunnelClosedAt > closedAt && closedAt > 0
-	tunRecord(t, "a 16 MB download through a slow tunnel when the path rotates (every 5 s)",
-		"the download finishes through the tunnel it started on; new requests go through the next one; the old tunnel closes after the download",
-		fmt.Sprintf("download: %.0f bytes in %.1f s through %s; requests: %d, %d failed, peers in turn %s; a.conf's tunnel closed after the download: %v", done, secs, opened[0], len(peers), fails, strings.Join(order, " "), tunnelClosedAt > closedAt), ok)
+	var done int64
+	fmt.Sscanf(line("DONE"), "%d", &done)
+	var back map[string]any
+	if len(switches) >= 2 {
+		back = switches[1]
+	}
+	aClosed := false
+	for _, c := range closes {
+		aClosed = aClosed || c == "a.conf"
+	}
+	ok := code == 0 && line("K1") == "A" && line("K2") == "A" && line("K3") == "A" && strings.HasSuffix(line("NEW1"), "B") &&
+		strings.HasSuffix(line("NEW2"), "A") && !strings.Contains(out, "FAIL") && done == wgtest.BigSize &&
+		len(switches) >= 2 && switches[0]["to"] == "b.conf" && back["to"] == "a.conf" && back["again"] == true &&
+		!aClosed && len(errs) == 0 && len(opened) >= 2 && opened[0] == "a.conf" && opened[1] == "a.conf"
+	tunRecord(t, "a connection that asks now and then, and a 16 MB download that pauses, while the path rotates from a.conf to b.conf and back (rotate.every=5s)",
+		"both carry on through a.conf's tunnel the whole time: vpnw moves back to that tunnel, still up, instead of starting a second one with the same key; new requests go A, B, A",
+		fmt.Sprintf("the connection's answers: %s, %s, %s; new requests went to %s in turn; the download: %d bytes; the move back to a.conf reused its tunnel: %v; a.conf's tunnel closed: %v",
+			line("K1"), line("K2"), line("K3"), strings.Join(runs(strings.Fields(line("NEW1")+" "+line("NEW2"))), ", "), done, back["again"] == true, aClosed), ok)
 	if !ok {
 		b, _ := os.ReadFile(tr)
-		t.Fatalf("exit %d, done %v in %v s, switches %v, closes %v, opened %v, order %v, fails %d\n%s\n%s", code, done, secs, switches, closes, opened, order, fails, out, b)
+		t.Fatalf("exit %d, switches %v, closes %v, errors %v, opened %v\n%s\n%s", code, switches, closes, errs, opened, out, b)
 	}
 }
 
@@ -474,6 +497,9 @@ func TestTunnelOptions(t *testing.T) {
 		{[]string{"run", "--tunnel", "rotate", "--plugin-folder", "rotate=" + dir, "--dns", "remote", "--", "true"}, "--dns with --tunnel is tunnel or local"},
 		{[]string{"run", "--tunnel", "rotate", "--plugin-folder", "rotate=" + dir, "--set", "rotate.every=1s", "--", "true"}, "every must be a duration from 5s"},
 		{[]string{"run", "--tunnel", "rotate", "--plugin-folder", "rotate=/no/such/folder", "--", "true"}, "plugin rotate's folder:"},
+		{[]string{"run", "--tunnel", "", "--", "true"}, "--tunnel was given an empty value"},
+		{[]string{"run", "--wireguard", "", "--", "true"}, "--wireguard was given an empty value"},
+		{[]string{"run", "--via", "", "--", "true"}, "--via was given an empty value"},
 	} {
 		out, code := e.run(c.args...)
 		if code != 121 || !strings.Contains(out, c.want) {

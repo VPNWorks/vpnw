@@ -11,6 +11,10 @@
 //	spin        loops forever
 //	badname     hands over a config named with a newline
 //	huge        hands over a config of 100 KiB
+//	enormous    hands over a config of 1 MiB
+//	escaped     hands over a config just under 64 KiB that JSON escapes
+//	            at length: lines ending in CR LF, and "<" (6 bytes each)
+//	forever     hands over its first file, kept for 1000 days
 //	error       fails with an error
 package main
 
@@ -66,6 +70,11 @@ func init() {
 				return &sdk.TunnelConfig{Name: "two\nlines", Config: "x"}, nil
 			case "huge":
 				return &sdk.TunnelConfig{Name: "huge", Config: strings.Repeat("#", 100<<10)}, nil
+			case "enormous":
+				return &sdk.TunnelConfig{Name: "enormous", Config: strings.Repeat("#", 1<<20)}, nil
+			case "escaped":
+				line := "# <" + strings.Repeat("<", 60) + "\r\n"
+				return &sdk.TunnelConfig{Name: "escaped", Config: strings.Repeat(line, (64<<10)/len(line))}, nil
 			case "error":
 				return nil, errors.New("tunneler failed on purpose")
 			}
@@ -89,6 +98,9 @@ func init() {
 			b, err := sdk.FolderRead(list[i].Name)
 			if err != nil {
 				return nil, err
+			}
+			if mode == "forever" {
+				return &sdk.TunnelConfig{Name: list[i].Name, Config: string(b), Keep: 1000 * 24 * time.Hour}, nil
 			}
 			return &sdk.TunnelConfig{Name: list[i].Name, Config: string(b), Keep: keep}, nil
 		},

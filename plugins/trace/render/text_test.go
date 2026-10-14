@@ -155,3 +155,42 @@ func TestTextForgets(t *testing.T) {
 		t.Errorf("the lines lost their hosts:\n%s", buf.String()[len(buf.String())-300:])
 	}
 }
+
+// A run through a tunnel plugin: what it started with, each move, and each
+// tunnel that closed, and why.
+func TestTextTunnels(t *testing.T) {
+	var all, dec bytes.Buffer
+	b := events.NewBus("r-1", nil)
+	b.Add(NewText(&all, All))
+	b.Add(NewText(&dec, Decisions))
+	b.Emit(events.RunStart, 0, "rotate", 0, map[string]any{"mode": "trace", "backend": "sealed",
+		"tunnel": map[string]any{"plugin": "rotate", "config": "b.conf", "keep": 600,
+			"skipped": []any{map[string]any{"config": "a.conf", "error": "line 3: PostUp is a wg-quick shell hook"}}}})
+	b.Emit(events.ConnectionOpen, 7, "rotate", 1, map[string]any{"ip": "93.184.215.14", "ms": 4, "tunnel": "b.conf", "exit": "198.51.100.7:51820"})
+	b.Emit(events.TunnelSwitch, 0, "rotate", 0, map[string]any{"from": "b.conf", "to": "c.conf", "why": "due", "ms": 40, "peer": "203.0.113.9:51820"})
+	b.Emit(events.TunnelSwitch, 0, "rotate", 0, map[string]any{"from": "c.conf", "to": "b.conf", "why": "failed", "error": "nothing came back through it for 20s", "ms": 0, "again": true, "peer": "198.51.100.7:51820"})
+	b.Emit(events.TunnelError, 0, "rotate", 0, map[string]any{"config": "d.conf", "error": "no WireGuard handshake from 192.0.2.4:51820 within 12s"})
+	b.Emit(events.TunnelError, 0, "rotate", 0, map[string]any{"error": "the plugin has no other config; b.conf stays in use"})
+	b.Emit(events.TunnelClose, 0, "rotate", 0, map[string]any{"config": "c.conf", "why": "drained"})
+	b.Emit(events.TunnelClose, 0, "rotate", 0, map[string]any{"config": "e.conf", "why": "limit", "cut": 2})
+	b.Emit(events.TunnelClose, 0, "rotate", 0, map[string]any{"config": "f.conf", "why": "replaced", "by": "f2.conf", "cut": 1})
+	for _, want := range []string{
+		"trace  run r-1  path rotate  tunnel b.conf from rotate, kept 10m",
+		"tunnel  skipped a.conf: line 3: PostUp is a wg-quick shell hook",
+		"open  93.184.215.14 via rotate (b.conf, exit 198.51.100.7:51820)",
+		"tunnel  rotated from b.conf to c.conf up in 40 ms (peer 203.0.113.9:51820)",
+		"tunnel  c.conf stopped answering (nothing came back through it for 20s); moved back to b.conf, whose tunnel was still up (peer 198.51.100.7:51820)",
+		"tunnel  d.conf not used: no WireGuard handshake from 192.0.2.4:51820 within 12s",
+		"tunnel  the plugin has no other config; b.conf stays in use",
+		"tunnel  c.conf closed after its last connection",
+		"tunnel  e.conf closed with 2 connections still open: too many tunnels were winding down",
+		"tunnel  f.conf closed with 1 connection still open: the new tunnel of f2.conf has the same key and peer",
+	} {
+		if !strings.Contains(all.String(), want) {
+			t.Errorf("all lacks %q:\n%s", want, all.String())
+		}
+	}
+	if strings.Contains(dec.String(), "closed") || !strings.Contains(dec.String(), "stopped answering") {
+		t.Errorf("decisions:\n%s", dec.String())
+	}
+}

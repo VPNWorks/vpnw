@@ -204,6 +204,24 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	if len(argv) == 0 {
 		return fail(stderr, process.ExitConfig, "%s needs a command after --, as in: vpnw %s -- curl https://example.com", mode, mode)
 	}
+	// A path flag given empty (an unset shell variable, say) would leave the
+	// run on the default path without a word.
+	given := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
+	for _, f := range []struct{ name, val, want string }{
+		{"via", o.via, "a path from --config, or direct"},
+		{"wireguard", o.wg, "a wg-quick file"},
+		{"tunnel", o.tunnel, "a tunnel plugin, such as rotate"},
+	} {
+		if given[f.name] && f.val == "" {
+			return fail(stderr, process.ExitConfig, "--%s was given an empty value; it takes %s", f.name, f.want)
+		}
+	}
+	for _, u := range o.proxy {
+		if u == "" {
+			return fail(stderr, process.ExitConfig, "--proxy was given an empty value; it takes a proxy URL")
+		}
+	}
 
 	// Configuration.
 	var files []*config.File
@@ -512,6 +530,10 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	}
 	pid, err := be.Start(spec)
 	if err != nil {
+		if tp != nil {
+			// No more rotation, so nothing is recorded after the run's end.
+			tp.Stop()
+		}
 		code := process.ExitInternal
 		var se *process.StartError
 		if errors.As(err, &se) {

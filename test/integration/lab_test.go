@@ -95,7 +95,14 @@ func labGuard(t *testing.T) {
 		labMu.Lock()
 		defer labMu.Unlock()
 		if t.Failed() && labSeen[t.Name()] == 0 {
-			labRows = append(labRows, fmt.Sprintf("| %s | %s | (see the test) | stopped before its check | FAILED |", t.Name(), t.Name()))
+			// Each case runs once for each way to the tunnel, named after it.
+			via := "(see the test)"
+			for _, v := range labVias {
+				if strings.HasSuffix(t.Name(), "/"+v.name) {
+					via = v.label
+				}
+			}
+			labRows = append(labRows, fmt.Sprintf("| %s | %s | (see the test) | stopped before its check | FAILED |", via, t.Name()))
 		}
 	})
 }
