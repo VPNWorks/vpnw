@@ -11,8 +11,9 @@ This page shows how to write one in Go with the SDK, then documents the interfac
 | `observer` | `OnEvent` for every event of a run, as it happens, then `Finish` | `vpnw run/trace/guard --plugin NAME`, and at an exit, `vpnw exit serve --plugin NAME` |
 | `advisor` | `OnEvent` for every event of the traces it's given (or `OnLine` for every line of its files, with `input = "lines"`), then `Finish`, where it writes its advice | `vpnw advise NAME --from FILE` |
 | `guard` | `OnDecide` for every connection the policy allowed | `vpnw run/trace/guard --plugin NAME`, and at an exit, `vpnw exit serve --plugin NAME` |
+| `tunnel` | `OnTunnel` when vpnw needs a WireGuard config: when the run starts, when the one in use is due, when its tunnel stops answering, and after vpnw refused one or it didn't come up | `vpnw run/trace/guard --tunnel NAME` |
 
-`Init` comes first for every type. `tunnel`, `exit` and `identity` are reserved for later versions of vpnw; a manifest with one of them is refused with that message. A Tunnel plugin will manage tunnels (fetch and rotate a provider's WireGuard configs, say) and hand them to the core; the tunnel itself, like every byte of traffic, stays in the core.
+`Init` comes first for every type. `exit` and `identity` are reserved for later versions of vpnw; a manifest with one of them is refused with that message. A Tunnel plugin hands vpnw configs and says how long to keep each; the tunnel itself, like every byte of traffic, stays in the core.
 
 ## A Guard in Go
 
@@ -73,15 +74,59 @@ vpnw guard --policy p.toml --plugin no-domain --set no-domain.domain=tracker.exa
 
 A refusal shows up like any other denial, with the rule `plugin:no-domain` and your reason.
 
-The SDK's hooks run as ordinary Go: test them with `go test` on your machine. Outside WebAssembly, `sdk.CallInit`, `CallEvent`, `CallDecide` and `CallFinish` run your hooks with the JSON vpnw would send, and `sdk.TestStdout`, `TestStderr`, `TestEmit` and `TestLog` catch what the plugin sends back.
+The SDK's hooks run as ordinary Go: test them with `go test` on your machine. Outside WebAssembly, `sdk.CallInit`, `CallEvent`, `CallDecide`, `CallTunnel` and `CallFinish` run your hooks with the JSON vpnw would send, `sdk.TestStdout`, `TestStderr`, `TestEmit` and `TestLog` catch what the plugin sends back, and `sdk.TestFile` and `TestFolder` stand in for its file and its folder.
+
+## A Tunnel in Go
+
+A Tunnel that hands over two configs from its folder, in turn, each for an hour:
+
+```go
+package main
+
+import (
+	"time"
+
+	"github.com/VPNWorks/vpnw/plugins/sdk"
+)
+
+var names = []string{"home.conf", "office.conf"}
+
+func init() {
+	sdk.Register(sdk.Plugin{
+		OnTunnel: func(r *sdk.TunnelRequest) (*sdk.TunnelConfig, error) {
+			// The other one after the config a failure is about, or after
+			// the one in use; the first at the start.
+			after := r.Config
+			if after == "" {
+				after = r.Current
+			}
+			next := names[0]
+			if after == names[0] {
+				next = names[1]
+			}
+			b, err := sdk.FolderRead(next)
+			if err != nil {
+				return nil, sdk.NoConfig("cannot read " + next)
+			}
+			return &sdk.TunnelConfig{Name: next, Config: string(b), Keep: time.Hour}, nil
+		},
+	})
+}
+
+func main() {}
+```
+
+with `type = "tunnel"` and `permissions = ["folder.read"]` in its manifest. `TunnelRequest.Reason` says why vpnw asks: `start`, `due` (the config in use, `Current`, was kept as long as asked), `failed` (the tunnel of `Config` didn't come up or, when `Config` is `Current`, stopped answering) or `refused` (vpnw refused `Config`, and `Error` says why). Handing back the config in use keeps it. `sdk.NoConfig(why)` says there is nothing to give: vpnw records why and keeps the tunnel in use, if there is one. Any other error stops the plugin.
+
+vpnw checks every config as it checks a `--wireguard` file before it brings a tunnel up, and tries at most 8 in a row before it gives up for the time being. The built-in `rotate` is a Tunnel like this one, over every `.conf` file in its folder; its source is in [plugins/rotate](../plugins/rotate).
 
 ## Manifest
 
 | Key | Required | Value |
 |---|---|---|
-| `name` | yes | lower-case letters, digits and dashes, starting with a letter, at most 40. `trace`, `learn`, `ledger` and `ledger-verify` are taken by the built-in plugins |
+| `name` | yes | lower-case letters, digits and dashes, starting with a letter, at most 40. `trace`, `learn`, `ledger`, `ledger-verify` and `rotate` are taken by the built-in plugins |
 | `version` | yes | `X.Y.Z`, optionally with a `-pre` or `+build` part |
-| `type` | yes | `observer`, `advisor` or `guard` |
+| `type` | yes | `observer`, `advisor`, `guard` or `tunnel` |
 | `abi` | yes | `1` |
 | `description` | no | one line of at most 200 characters, shown by `vpnw plugin list` |
 | `permissions` | no | a list from the table below |
@@ -94,10 +139,15 @@ Unknown keys and tables are errors, never silently skipped.
 | `console` | write to vpnw's standard output and error (`sdk.Stdout`, `sdk.Stderr`) |
 | `events.emit` | add its own events to the run's record (`sdk.Emit`) |
 | `file.write` | append to one file that vpnw opens for it (`sdk.FileWrite`, `sdk.FileSync`) |
+| `folder.read` | read the files in one folder that vpnw opens for it (`sdk.FolderList`, `sdk.FolderRead`) |
 
 ### file.write
 
 vpnw creates the file new when the plugin starts in `run`, `trace`, `guard` or `exit serve`, readable by the user alone, at `--plugin-file NAME=PATH` or by default `~/.local/state/vpnw/NAME/RUN.NAME`. It never opens one that exists, so a plugin can only add to a file of its own: it can't read it, move in it, or reach any other. `Config.File` is the path. Writes go straight to the file, so what was written survives vpnw being killed. One write takes at most 1 MiB (the SDK splits bigger ones) and the file grows to at most 1 GiB; a write past either fails, the plugin gets an error, and vpnw's plugin log (`-v`) says why. In `vpnw advise` no file is opened, and writes fail.
+
+### folder.read
+
+vpnw opens the folder when the plugin starts in `run`, `trace`, `guard` or `exit serve`: `--plugin-folder NAME=PATH`, or by default `~/.config/vpnw/NAME`, which must exist. `Config.Folder` is its path. `sdk.FolderList` names the regular files directly in it, in name order, with their sizes; `sdk.FolderRead` reads one of them, of at most 1 MiB. A name is one entry of the folder: no separators, no `.` or `..`. A subfolder, a named pipe or a device isn't listed or read, and a link is followed only when it leads to a file in the same folder, so nothing outside the folder can be reached. A listing names at most 10,000 files. In `vpnw advise` no folder is opened, and both fail; a failure's reason is in vpnw's plugin log (`-v`).
 
 Logging (`sdk.Log`, shown with `--verbose`), reporting an error, and giving the reason for a refusal need no permission.
 
@@ -137,11 +187,12 @@ Decoding JSON is a large share of a plugin's time. A plugin that decodes events 
 | one event | 5 s |
 | `Finish` | 60 s |
 | one Guard decision | 250 ms |
+| one answer from a Tunnel | 5 s |
 | waiting for a Guard's turn, when many connections ask at once | 5 s |
 
 Every plugin is held to its budgets: the runtime checks for the end of the budget at every function call and loop, and stops the plugin there. A sleep never lasts past the end of the budget either; the plugin's clock and sleep come from vpnw, and vpnw cuts the sleep short. That makes plugin code roughly four to five times slower than it would otherwise be, and it's the only safe choice: code that can't be interrupted can't be paused by Go's garbage collector either, so one endless loop would freeze vpnw.
 
-A request that waits longer than 5 seconds for a busy Guard is refused, with a reason that says so, and the Guard carries on. A plugin that panics, traps, exits, reports an error or runs out of budget is stopped for the rest of the command. vpnw reports it on the console and records a `plugin.error` event; the program keeps running. A Guard that has stopped refuses every connection it's asked about from then on: Guards fail closed. Calls into one plugin are taken one at a time, so a Guard asked about many connections at once answers them in turn.
+A request that waits longer than 5 seconds for a busy Guard is refused, with a reason that says so, and the Guard carries on. A Tunnel that fails when the run starts stops the run before the program starts (exit 123); one that fails later stops the rotation, and the tunnel in use carries on. A plugin that panics, traps, exits, reports an error or runs out of budget is stopped for the rest of the command. vpnw reports it on the console and records a `plugin.error` event; the program keeps running. A Guard that has stopped refuses every connection it's asked about from then on: Guards fail closed. Calls into one plugin are taken one at a time, so a Guard asked about many connections at once answers them in turn.
 
 An Observer gets events through a queue of 8,192. If it falls further behind, events are dropped for it, counted, and reported at the end of the run; the program is never slowed down. After the run it has 5 seconds to work through what's queued.
 
@@ -161,8 +212,9 @@ For plugins in other languages: the module must be a WASI (`wasi_snapshot_previe
 | `vpnw_on_event` | `(ptr, len) -> i32` | one event, as JSON; 0 for success. Observers and Advisors |
 | `vpnw_finish` | `() -> i32` | the events are over; 0 for success. Advisors (and Observers, if exported) |
 | `vpnw_on_decide` | `(ptr, len) -> i32` | one request, as JSON; 0 lets it through, 1 refuses it. Guards |
+| `vpnw_tunnel` | `(ptr, len) -> i64` | a tunnel request, as JSON. 0: no config to give (with the reason through `reason` first); -1 (all bits set): failure; anything else is where the plugin's answer is in its memory, the address in the high 32 bits and the length in the low. The answer stays there until the next call. Tunnels |
 
-All of them take and return `i32`; vpnw refuses a module whose exports have other signatures. Any other result means failure: the plugin should have called `error` first with the message.
+They take `i32`, and all but `vpnw_tunnel` return `i32`; vpnw refuses a module whose exports have other signatures. Any other result of an `i32` hook means failure: the plugin should have called `error` first with the message.
 
 ### Host calls (module `vpnw`)
 
@@ -175,14 +227,16 @@ All of them take and return `i32`; vpnw refuses a module whose exports have othe
 | `emit` | `(ptr, len)` | `events.emit`; JSON `{"type": "...", "fields": {...}}` |
 | `file_write` | `(ptr, len) -> i32` | `file.write`; appends, 0 for success, 1 for failure (no file, over 1 MiB, the file full, a write error) |
 | `file_sync` | `() -> i32` | `file.write`; flushes the file to disk, 0 for success |
+| `folder_list` | `(ptr, cap) -> i32` | `folder.read`; the listing as JSON, `[{"name":"a.conf","size":412}]`, written into the buffer when it fits in `cap` bytes. Returns its length either way, or -1 for failure |
+| `folder_read` | `(name ptr, name len, ptr, cap) -> i32` | `folder.read`; the file, written into the buffer when it fits. Returns its length either way, or -1 for failure |
 
 ### Config (`vpnw_init`)
 
 ```json
-{"plugin":"no-domain","command":"guard","settings":{"domain":"tracker.example"},"color":false,"tz_offset":10800,"tz_name":"IDT","run":"r-3f9a1c","file":""}
+{"plugin":"no-domain","command":"guard","settings":{"domain":"tracker.example"},"color":false,"tz_offset":10800,"tz_name":"IDT","run":"r-3f9a1c","file":"","folder":""}
 ```
 
-`command` is `run`, `trace`, `guard`, `advise`, or `exit` at an exit. `run` is the run's identifier (empty in `advise`; at an exit, the identifier of the exit's record, as `x-4b1e07`); `file` is the path of the plugin's file, or empty.
+`command` is `run`, `trace`, `guard`, `advise`, or `exit` at an exit. `run` is the run's identifier (empty in `advise`; at an exit, the identifier of the exit's record, as `x-4b1e07`); `file` is the path of the plugin's file, or empty; `folder` the path of its folder, or empty.
 
 ### Lines (`input = "lines"`)
 
@@ -197,6 +251,20 @@ An Advisor with `input = "lines"` gets, through `vpnw_on_event`, one JSON object
 `host` is empty when the program asked for an address, which is then in `ip`. `proto` is `http-connect`, `http` or `socks5`. The policy has already allowed the connection; a Guard can only refuse it.
 
 At an exit, the request also has `client`, the exit's client the connection came from, and the policy that allowed it is that client's: `{"run":"x-4b1e07","conn":3,"path":"direct","host":"api.partner.example","port":443,"proto":"http-connect","client":"agent-1"}`. A Guard at an exit refuses for every client unless it reads `client`.
+
+### Tunnel requests (`vpnw_tunnel`)
+
+```json
+{"run":"r-3f9a1c","reason":"failed","current":"se-01.conf","config":"se-01.conf","error":"nothing came back through it for 20s"}
+```
+
+`reason` is `start`, `due`, `failed` or `refused`; `current` is the config in use (empty at the start); `config` and `error` say which config a failure or a refusal is about, and what went wrong. The answer:
+
+```json
+{"name":"se-02.conf","config":"[Interface]\nPrivateKey = …","keep":600}
+```
+
+`name` is how the record names the config, printable, at most 128 characters; `config` is the wg-quick text, at most 64 KiB; `keep` is how long to use it, in whole seconds, 0 or left out for until it stops working. An answer that isn't this exactly, one JSON object with these keys, stops the plugin.
 
 ## Signatures
 

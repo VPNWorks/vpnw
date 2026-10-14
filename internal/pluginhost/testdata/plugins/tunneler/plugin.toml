@@ -1,0 +1,6 @@
+name = "tunneler"
+version = "1.0.0"
+type = "tunnel"
+abi = 1
+description = "A test tunnel plugin that misbehaves on demand"
+permissions = ["folder.read"]

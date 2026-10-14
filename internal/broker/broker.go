@@ -425,6 +425,9 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		if ci.Exit != "" {
 			ef["exit"] = ci.Exit
 		}
+		if ci.Tunnel != "" {
+			ef["tunnel"] = ci.Tunnel
+		}
 		for k, v := range failExtra {
 			ef[k] = v
 		}
@@ -524,6 +527,9 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		}
 		if ci.Exit != "" {
 			of["exit"] = ci.Exit
+		}
+		if ci.Tunnel != "" {
+			of["tunnel"] = ci.Tunnel
 		}
 		if from.client != nil {
 			// At an exit: the address the connection really left from.

@@ -39,7 +39,7 @@ say "sizes"
     GOOS=${os_arch%/*} GOARCH=${os_arch#*/} CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /dev/null ./cmd/vpnw \
       && echo "vpnw, $os_arch: compiles (env backend; sealed runs need Linux)"
   done
-  for p in trace learn ledger ledger-verify; do
+  for p in trace learn ledger ledger-verify rotate; do
     printf 'built-in plugin %s: %s bytes of WebAssembly; gzip -9: %s bytes\n' "$p" \
       "$(stat -c %s "plugins/builtin/$p.wasm")" "$(gzip -9 -c "plugins/builtin/$p.wasm" | wc -c)"
   done
@@ -54,7 +54,7 @@ say "source lines"
   echo "core: $(count cmd internal) lines of Go (tests not counted)"
   echo "plugins and SDK: $(count plugins) lines of Go"
   echo "tests: $(find . -name '*_test.go' -o -path '*/testdata/plugins/*.go' | xargs cat | wc -l) lines of Go, test plugins included"
-  for d in cmd/vpnw internal/* plugins/sdk plugins/trace plugins/learn plugins/ledger plugins/ledgerverify; do
+  for d in cmd/vpnw internal/* plugins/sdk plugins/trace plugins/learn plugins/ledger plugins/ledgerverify plugins/rotate; do
     printf '  %-22s %5s lines\n' "$d" "$(count "$d")"
   done
 } | tee "$OUT/source.txt"
@@ -93,7 +93,7 @@ GOCOVERDIR="$COV/it" go test -count=1 ./test/integration/ >/dev/null
   go tool covdata percent -i="$COV/unit,$COV/it" | sed 's/\t/  /g' | grep -v -E 'internal/version|plugins/builtin'
   go tool covdata textfmt -i="$COV/unit,$COV/it" -o "$COV/all.txt"
   go tool cover -func="$COV/all.txt" | tail -1 | sed 's/(statements)\s*/statements: /; s/\t\+/ /g'
-  echo "(the plugin programs run as WebAssembly, where Go records no coverage; their logic is covered through plugins/trace/render, plugins/learn/learn, plugins/ledger/seal, plugins/ledger/chain and plugins/ledgerverify/check)"
+  echo "(the plugin programs run as WebAssembly, where Go records no coverage; their logic is covered through plugins/trace/render, plugins/learn/learn, plugins/ledger/seal, plugins/ledger/chain, plugins/ledgerverify/check and plugins/rotate/rotate)"
 } | tee "$OUT/coverage.txt"
 rm -rf "$COV"
 
@@ -103,7 +103,8 @@ for target in internal/config:FuzzParse internal/policy:FuzzParseRule internal/p
               internal/path:FuzzFromURL internal/path:FuzzExitAnswer internal/path:FuzzParseWGConf \
               internal/pluginhost:FuzzParseManifest internal/pluginhost:FuzzVerify \
               plugins/ledger/chain:FuzzParse plugins/ledger/chain:FuzzVerify \
-              internal/broker:FuzzExitFront internal/broker:FuzzExitIDs internal/exit:FuzzExitConfig; do
+              internal/broker:FuzzExitFront internal/broker:FuzzExitIDs internal/exit:FuzzExitConfig \
+              internal/pluginhost:FuzzTunnelOffer internal/pluginhost:FuzzFolderRead plugins/rotate/rotate:FuzzRotate; do
   pkg=./${target%%:*}; fn=${target##*:}
   log=$(go test -run '^$' -fuzz "^$fn\$" -fuzztime "$FUZZTIME" "$pkg" 2>&1 || true)
   execs=$(printf '%s\n' "$log" | grep -o 'execs: [0-9]*' | tail -1 | tr -dc 0-9)
@@ -127,7 +128,9 @@ label = {"BenchmarkGuardDecide": "a Guard decision (test guard, policy already p
          "BenchmarkWireGuardConnect": "opening a TCP connection through a WireGuard tunnel",
          "BenchmarkWireGuardThroughput": "data through a WireGuard tunnel",
          "BenchmarkExitConnect": "opening a connection through an exit, TLS, token and decision included",
-         "BenchmarkExitThroughput": "data through an exit"}
+         "BenchmarkExitThroughput": "data through an exit",
+         "BenchmarkTunnelSwitch": "moving to the next config: its tunnel up, handshake done",
+         "BenchmarkRotateNext": "the rotate plugin asked for the next config, a folder of 20 listed and one read"}
 for k, v in runs.items():
     v.sort(); m = v[len(v)//2]
     if mbs[k]:
@@ -138,9 +141,9 @@ for k, v in runs.items():
 ' | tee "$3"
 }
 
-say "plugin, WireGuard and exit costs"
+say "plugin, WireGuard, tunnel and exit costs"
 bench ./internal/pluginhost . "$OUT/plugins.txt"
-bench ./internal/path WireGuard "$OUT/wireguard.txt"
+bench ./internal/path 'WireGuard|Tunnel' "$OUT/wireguard.txt"
 bench ./internal/exit Exit "$OUT/exit-costs.txt"
 
 say "ledger tamper matrix"
@@ -148,7 +151,7 @@ VPNW_LEDGER_MATRIX_OUT="$PWD/$OUT/ledger-tamper.md" go test -count=1 -run 'TestT
 cat "$OUT/ledger-tamper.md"
 echo "$(grep -c '^| [a-z]' "$OUT/ledger-tamper.md") kinds of change; verdicts: $(awk -F' [|] ' 'NR>2{print $2}' "$OUT/ledger-tamper.md" | sort | uniq -c | tr -s ' ' | tr '\n' ';')" | tee -a "$OUT/ledger-tamper.md"
 
-say "Lab: faults on the WireGuard path"
+say "Lab: faults on the WireGuard paths, --wireguard and --tunnel rotate"
 rm -f "$OUT/lab.md"
 lab=0
 VPNW_LAB_OUT="$PWD/$OUT/lab.md" go test -count=1 -run 'TestLab' -v ./test/integration/ >"$OUT/lab.log" 2>&1 || lab=$?
@@ -158,6 +161,18 @@ if [ ! -s "$OUT/lab.md" ] || ! grep -qE '\| (passed|FAILED) \|' "$OUT/lab.md"; t
 else
   cat "$OUT/lab.md"
   echo "$(grep -c '| passed |' "$OUT/lab.md") of $(grep -cE '\| (passed|FAILED) \|' "$OUT/lab.md") faults handled$([ "$lab" -ne 0 ] && echo "; go test FAILED (exit $lab)")" | tee -a "$OUT/lab.md"
+fi
+
+say "Tunnel plugins: rotate and real WireGuard peers"
+rm -f "$OUT/tunnel.md"
+tun=0
+VPNW_TUNNEL_OUT="$PWD/$OUT/tunnel.md" go test -count=1 -run 'TestTunnel' -v ./test/integration/ >"$OUT/tunnel.log" 2>&1 || tun=$?
+grep -E '^(---|ok|FAIL)' "$OUT/tunnel.log" | tee "$OUT/tunnel.txt"; rm -f "$OUT/tunnel.log"
+if [ ! -s "$OUT/tunnel.md" ] || ! grep -qE '\| (passed|FAILED) \|' "$OUT/tunnel.md"; then
+  echo "The tunnel plugin tests didn't run: they need a sealed run (Linux with user namespaces)" | tee "$OUT/tunnel.md"
+else
+  cat "$OUT/tunnel.md"
+  echo "$(grep -c '| passed |' "$OUT/tunnel.md") of $(grep -cE '\| (passed|FAILED) \|' "$OUT/tunnel.md") checks passed$([ "$tun" -ne 0 ] && echo "; go test FAILED (exit $tun)")" | tee -a "$OUT/tunnel.md"
 fi
 
 say "Exit: the server end of a path"

@@ -119,7 +119,55 @@ type Config struct {
 	// manifest asks for "file.write" and the command opened one; "" if not.
 	// The plugin can only append to it, with FileWrite.
 	File string `json:"file"`
+	// Folder is the path of the folder vpnw opened for this plugin, if its
+	// manifest asks for "folder.read" and the command opened one; "" if not.
+	// The plugin can only list it and read the files in it, with FolderList
+	// and FolderRead.
+	Folder string `json:"folder"`
 }
+
+// TunnelRequest is what vpnw asks a tunnel plugin: a WireGuard config to
+// bring a tunnel up with.
+type TunnelRequest struct {
+	Run string `json:"run"`
+	// Reason is why vpnw asks:
+	//
+	//	start    the run is starting; no tunnel is up yet
+	//	due      the config in use (Current) was kept as long as asked
+	//	failed   the tunnel of Config didn't come up, or, when Config is
+	//	         Current, the tunnel in use stopped answering
+	//	refused  vpnw refused Config: not a WireGuard config, a shell hook,
+	//	         no DNS server, ...
+	Reason string `json:"reason"`
+	// Current is the config in use, "" before one is up.
+	Current string `json:"current"`
+	// Config is the config a failure or a refusal is about, and Error what
+	// went wrong with it.
+	Config string `json:"config"`
+	Error  string `json:"error"`
+}
+
+// TunnelConfig is a WireGuard config a tunnel plugin hands to vpnw.
+type TunnelConfig struct {
+	// Name is how the record names it: a file name, say. Printable, at most
+	// 128 characters.
+	Name string
+	// Config is the config in the wg-quick format, at most 64 KiB. vpnw
+	// checks it as it checks a --wireguard file.
+	Config string
+	// Keep is how long vpnw uses it before asking again; 0 is until it
+	// stops working. vpnw keeps a config at least 5 seconds. Handing back
+	// the config in use keeps it.
+	Keep time.Duration
+}
+
+// NoConfig is OnTunnel's error when it has no config to give: vpnw records
+// why, keeps the tunnel in use if there is one, and doesn't stop the plugin.
+func NoConfig(why string) error { return noConfig(why) }
+
+type noConfig string
+
+func (n noConfig) Error() string { return string(n) }
 
 // Line is one line of an Advisor's input, for an Advisor whose manifest says
 // input = "lines": the file it came from (as the user named it), its line
@@ -147,12 +195,16 @@ func (c *Config) Zone() *time.Location {
 //	advisor   OnEvent for every event of the traces it is given, then Finish,
 //	          where it writes its advice with Stdout
 //	guard     OnDecide for every connection the policy allowed
+//	tunnel    OnTunnel when vpnw needs a WireGuard config
 //
 // Init is called first for every type. Any hook may be nil.
 type Plugin struct {
 	Init     func(c *Config) error
 	OnEvent  func(e *Event) error
 	OnDecide func(r *Request) (deny bool, reason string)
+	// OnTunnel hands vpnw a config. It returns NoConfig(why) when it has
+	// none to give; any other error stops the plugin.
+	OnTunnel func(r *TunnelRequest) (*TunnelConfig, error)
 	Finish   func() error
 	// OnLine replaces OnEvent for an Advisor whose manifest says
 	// input = "lines": it gets every line of its input files as it is.
@@ -220,6 +272,58 @@ func FileSync() error {
 		return ErrNoFile
 	}
 	return nil
+}
+
+// FolderEntry is one file in the plugin's folder.
+type FolderEntry struct {
+	Name string `json:"name"`
+	Size int64  `json:"size"`
+}
+
+// ErrNoFolder is the error of FolderList and FolderRead when vpnw has no
+// folder open for the plugin, or the listing or the read failed; vpnw's
+// plugin log (--verbose) says why.
+var ErrNoFolder = errors.New("vpnw could not read the plugin's folder")
+
+// folderFailed is what the folder host calls return when they fail.
+const folderFailed = 0xFFFFFFFF
+
+// FolderList lists the regular files directly in the plugin's folder, in
+// name order, with their sizes. Needs the "folder.read" permission.
+func FolderList() ([]FolderEntry, error) {
+	b, err := fetch(4096, folderList)
+	if err != nil {
+		return nil, err
+	}
+	var list []FolderEntry
+	if err := json.Unmarshal(b, &list); err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+// FolderRead reads one file of the plugin's folder: a name from
+// FolderList, of a file of at most 1 MiB. Needs the "folder.read"
+// permission.
+func FolderRead(name string) ([]byte, error) {
+	return fetch(16<<10, func(buf []byte) uint32 { return folderRead(name, buf) })
+}
+
+// fetch calls a host call that fills buf when what it gives fits, and
+// otherwise says how big it is; it tries again with a buffer that big.
+func fetch(size int, call func(buf []byte) uint32) ([]byte, error) {
+	buf := make([]byte, size)
+	for range 4 {
+		n := call(buf)
+		switch {
+		case n == folderFailed:
+			return nil, ErrNoFolder
+		case int(n) <= len(buf):
+			return buf[:n], nil
+		}
+		buf = make([]byte, n)
+	}
+	return nil, ErrNoFolder
 }
 
 // The hook bodies, shared by the WebAssembly exports and the tests.
@@ -290,4 +394,36 @@ func doFinish() error {
 		return nil
 	}
 	return registered.Finish()
+}
+
+// doTunnel runs OnTunnel. It returns the offer as vpnw reads it, or none
+// and why.
+func doTunnel(b []byte) (offer []byte, none bool, why string, err error) {
+	if registered == nil || registered.OnTunnel == nil {
+		return nil, true, "this plugin hands over no configs", nil
+	}
+	var r TunnelRequest
+	if err := json.Unmarshal(b, &r); err != nil {
+		return nil, false, "", err
+	}
+	c, err := registered.OnTunnel(&r)
+	var nc noConfig
+	switch {
+	case errors.As(err, &nc):
+		return nil, true, string(nc), nil
+	case err != nil:
+		return nil, false, "", err
+	case c == nil:
+		return nil, true, "", nil
+	}
+	keep := int64(c.Keep / time.Second)
+	if c.Keep > 0 && keep == 0 {
+		keep = 1
+	}
+	offer, err = json.Marshal(struct {
+		Name   string `json:"name"`
+		Config string `json:"config"`
+		Keep   int64  `json:"keep,omitempty"`
+	}{c.Name, c.Config, keep})
+	return offer, false, "", err
 }

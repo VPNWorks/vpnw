@@ -1,0 +1,6 @@
+name = "rotate"
+version = "0.7.0"
+type = "tunnel"
+abi = 1
+description = "Rotates through the WireGuard configs in a folder"
+permissions = ["folder.read"]

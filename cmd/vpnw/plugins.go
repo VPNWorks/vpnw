@@ -81,7 +81,10 @@ type pluginRun struct {
 	settings map[string]map[string]string
 	verbose  bool
 	files    map[string]string // --plugin-file NAME=PATH
+	folders  map[string]string // --plugin-folder NAME=PATH
 	opened   []*os.File
+	dirs     []pluginhost.Folder
+	tunnel   *pluginhost.TunnelPlugin
 
 	host   *pluginhost.Host
 	store  *pluginhost.Store
@@ -89,6 +92,7 @@ type pluginRun struct {
 	sinks  []*pluginhost.Sink
 	guards []*pluginhost.GuardCheck
 	used   map[string]bool
+	mans   map[string]*pluginhost.Manifest // of the plugins used
 	mu     sync.Mutex
 	closed bool
 }
@@ -105,7 +109,7 @@ func (r *pluginRun) open() error {
 	if err != nil {
 		return fmt.Errorf("cannot start the plugin host: %v", err)
 	}
-	r.store, r.host, r.used = st, h, map[string]bool{}
+	r.store, r.host, r.used, r.mans = st, h, map[string]bool{}, map[string]*pluginhost.Manifest{}
 	return nil
 }
 
@@ -151,6 +155,7 @@ func (r *pluginRun) console(set map[string]string) error {
 	if err != nil {
 		return err
 	}
+	r.mans["trace"] = pkg.Manifest
 	opt := r.options("trace")
 	opt.Settings = set
 	in, err := r.host.Load(context.Background(), pkg, opt)
@@ -172,6 +177,9 @@ func (r *pluginRun) attach(name string) error {
 		if name == "trace" {
 			return errors.New("trace already prints this run's events; use --set trace.level=all to see them all")
 		}
+		if r.tunnel != nil && r.tunnel.Name() == name {
+			return fmt.Errorf("%s is a tunnel plugin and already the path, with --tunnel %s", name, name)
+		}
 		return fmt.Errorf("--plugin %s is given twice", name)
 	}
 	pkg, err := r.store.Find(name)
@@ -182,25 +190,14 @@ func (r *pluginRun) attach(name string) error {
 	case pluginhost.Observer, pluginhost.Guard:
 	case pluginhost.Advisor:
 		return fmt.Errorf("%s is an advisor plugin; run it on a trace with vpnw advise %s", name, name)
-	}
-	opt := r.options(name)
-	if pkg.Manifest.Has(pluginhost.PermFile) {
-		f, fn, err := r.openFile(name)
-		if err != nil {
-			return err
+	case pluginhost.Tunnel:
+		if r.mode == "exit" {
+			return fmt.Errorf("%s is a tunnel plugin; tunnel plugins hand a run its WireGuard configs, with vpnw run, trace or guard --tunnel %s", name, name)
 		}
-		opt.File, opt.FileName = f, fn
-	} else if _, ok := r.files[name]; ok {
-		return fmt.Errorf("--plugin-file %s=…: plugin %s doesn't ask for a file (file.write)", name, name)
+		return fmt.Errorf("%s is a tunnel plugin; use it as the path, with --tunnel %s", name, name)
 	}
-	in, err := r.host.Load(context.Background(), pkg, opt)
+	in, err := r.load(name, pkg)
 	if err != nil {
-		if f, ok := opt.File.(*os.File); ok {
-			// The plugin never started: leave no empty file behind.
-			r.opened = r.opened[:len(r.opened)-1]
-			f.Close()
-			os.Remove(opt.FileName)
-		}
 		return err
 	}
 	r.used[name] = true
@@ -212,6 +209,91 @@ func (r *pluginRun) attach(name string) error {
 	r.sinks = append(r.sinks, s)
 	r.bus.Add(s)
 	return nil
+}
+
+// load starts a plugin with what its manifest asks for: its file, its
+// folder.
+func (r *pluginRun) load(name string, pkg *pluginhost.Package) (*pluginhost.Instance, error) {
+	r.mans[name] = pkg.Manifest
+	opt := r.options(name)
+	if pkg.Manifest.Has(pluginhost.PermFile) {
+		f, fn, err := r.openFile(name)
+		if err != nil {
+			return nil, err
+		}
+		opt.File, opt.FileName = f, fn
+	} else if _, ok := r.files[name]; ok {
+		return nil, fmt.Errorf("--plugin-file %s=…: plugin %s doesn't ask for a file (file.write)", name, name)
+	}
+	if pkg.Manifest.Has(pluginhost.PermFolder) {
+		d, dn, err := r.openFolder(name)
+		if err != nil {
+			r.dropFile(opt)
+			return nil, err
+		}
+		opt.Folder, opt.FolderName = d, dn
+	} else if _, ok := r.folders[name]; ok {
+		r.dropFile(opt)
+		return nil, fmt.Errorf("--plugin-folder %s=…: plugin %s doesn't ask for a folder (folder.read)", name, name)
+	}
+	in, err := r.host.Load(context.Background(), pkg, opt)
+	if err != nil {
+		r.dropFile(opt)
+		return nil, err
+	}
+	return in, nil
+}
+
+// dropFile removes the file opened for a plugin that never started, so no
+// empty file is left behind.
+func (r *pluginRun) dropFile(opt pluginhost.Options) {
+	if f, ok := opt.File.(*os.File); ok {
+		r.opened = r.opened[:len(r.opened)-1]
+		f.Close()
+		os.Remove(opt.FileName)
+	}
+}
+
+// tunnelSource loads a tunnel plugin to hand the run its WireGuard configs.
+func (r *pluginRun) tunnelSource(name string) (*pluginhost.TunnelPlugin, error) {
+	if err := r.open(); err != nil {
+		return nil, err
+	}
+	pkg, err := r.store.Find(name)
+	if err != nil {
+		return nil, err
+	}
+	if pkg.Manifest.Type != pluginhost.Tunnel {
+		return nil, fmt.Errorf("--tunnel %s: %s is %s plugin; --tunnel takes a tunnel plugin, such as the built-in rotate", name, name, article(pkg.Manifest.Type))
+	}
+	in, err := r.load(name, pkg)
+	if err != nil {
+		return nil, err
+	}
+	r.used[name] = true
+	r.tunnel = pluginhost.NewTunnel(in)
+	return r.tunnel, nil
+}
+
+// openFolder opens the folder a plugin with the folder.read permission
+// reads: --plugin-folder NAME=PATH, or ~/.config/vpnw/NAME.
+func (r *pluginRun) openFolder(name string) (pluginhost.Folder, string, error) {
+	dir, given := r.folders[name]
+	if !given {
+		dir = filepath.Join(r.store.ConfigDir, name)
+	}
+	if abs, err := filepath.Abs(dir); err == nil {
+		dir = abs
+	}
+	d, err := pluginhost.OpenFolder(dir)
+	if err != nil {
+		if !given && errors.Is(err, os.ErrNotExist) {
+			return nil, "", fmt.Errorf("plugin %s reads the files in a folder, and %s doesn't exist; make it, or give another with --plugin-folder %s=PATH", name, dir, name)
+		}
+		return nil, "", fmt.Errorf("plugin %s's folder: %v", name, err)
+	}
+	r.dirs = append(r.dirs, d)
+	return d, dir, nil
 }
 
 // openFile creates the file a plugin with the file.write permission writes
@@ -244,14 +326,23 @@ func (r *pluginRun) openFile(name string) (*os.File, string, error) {
 }
 
 func parsePluginFiles(list []string) (map[string]string, error) {
+	return parseNamed("--plugin-file", list)
+}
+
+func parsePluginFolders(list []string) (map[string]string, error) {
+	return parseNamed("--plugin-folder", list)
+}
+
+// parseNamed reads repeated NAME=PATH options.
+func parseNamed(flag string, list []string) (map[string]string, error) {
 	out := map[string]string{}
 	for _, s := range list {
 		name, fn, ok := strings.Cut(s, "=")
 		if !ok || name == "" || fn == "" {
-			return nil, fmt.Errorf("--plugin-file %q: give NAME=PATH", s)
+			return nil, fmt.Errorf("%s %q: give NAME=PATH", flag, s)
 		}
 		if _, dup := out[name]; dup {
-			return nil, fmt.Errorf("--plugin-file %s is given twice", name)
+			return nil, fmt.Errorf("%s %s is given twice", flag, name)
 		}
 		out[name] = fn
 	}
@@ -263,6 +354,17 @@ func (r *pluginRun) unused() error {
 	for name := range r.files {
 		if !r.used[name] {
 			return fmt.Errorf("--plugin-file %s=…: plugin %s is not used in this run", name, name)
+		}
+		if m := r.mans[name]; m != nil && !m.Has(pluginhost.PermFile) {
+			return fmt.Errorf("--plugin-file %s=…: plugin %s doesn't ask for a file (file.write)", name, name)
+		}
+	}
+	for name := range r.folders {
+		if !r.used[name] {
+			return fmt.Errorf("--plugin-folder %s=…: plugin %s is not used in this run", name, name)
+		}
+		if m := r.mans[name]; m != nil && !m.Has(pluginhost.PermFolder) {
+			return fmt.Errorf("--plugin-folder %s=…: plugin %s doesn't ask for a folder (folder.read)", name, name)
 		}
 	}
 	for name := range r.settings {
@@ -303,6 +405,9 @@ func (r *pluginRun) close() {
 		return
 	}
 	r.closed = true
+	if r.tunnel != nil {
+		r.tunnel.Close()
+	}
 	for _, g := range r.guards {
 		g.Close()
 	}
@@ -320,6 +425,9 @@ func (r *pluginRun) close() {
 	for _, f := range r.opened {
 		f.Sync()
 		f.Close()
+	}
+	for _, d := range r.dirs {
+		d.Close()
 	}
 }
 

@@ -13,10 +13,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
+	"golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/tun/netstack"
 )
 
@@ -40,6 +42,7 @@ type WireGuard struct {
 	err   error
 	dev   *device.Device
 	tnet  *netstack.Net
+	live  *liveness
 	peers []string // each peer's endpoint, resolved, in config order
 }
 
@@ -143,7 +146,9 @@ func (w *WireGuard) up(ctx context.Context) error {
 			fmt.Fprintf(&b, "allowed_ip=%s\n", a)
 		}
 	}
-	dev := device.NewDevice(tdev, conn.NewDefaultBind(), device.NewLogger(device.LogLevelSilent, ""))
+	live := &liveness{}
+	dev := device.NewDevice(&watchedTUN{Device: tdev, live: live}, &watchedBind{Bind: conn.NewDefaultBind(), live: live},
+		device.NewLogger(device.LogLevelSilent, ""))
 	if err := dev.IpcSet(b.String()); err != nil {
 		dev.Close()
 		return fmt.Errorf("wireguard: %v", err)
@@ -152,8 +157,148 @@ func (w *WireGuard) up(ctx context.Context) error {
 		dev.Close()
 		return fmt.Errorf("wireguard: %v", err)
 	}
-	w.dev, w.tnet = dev, tnet
+	w.dev, w.tnet, w.live = dev, tnet, live
 	return nil
+}
+
+// liveness is what a tunnel knows of its peers being there: when it last
+// heard anything from one, and when the first packet went out after that,
+// both in nanoseconds on a monotonic clock, or 0.
+type liveness struct {
+	heard, waiting atomic.Int64
+}
+
+var clockStart = time.Now()
+
+func monotonic() int64 { return int64(time.Since(clockStart)) + 1 }
+
+// sent notes data going out: the first after the last packet heard starts
+// the wait for an answer.
+func (l *liveness) sent() {
+	now := monotonic()
+	for {
+		w, h := l.waiting.Load(), l.heard.Load()
+		if w != 0 && w > h {
+			return
+		}
+		if l.waiting.CompareAndSwap(w, now) {
+			return
+		}
+	}
+}
+
+// silentFor is how long the first packet that went out after the last one
+// heard has gone unanswered, or 0.
+func (l *liveness) silentFor() time.Duration {
+	w, h := l.waiting.Load(), l.heard.Load()
+	if w == 0 || w <= h {
+		return 0
+	}
+	return time.Duration(monotonic() - w)
+}
+
+// watchedTUN is the tunnel's end of vpnw's TCP/IP stack. It notes each
+// packet the stack sends out to a peer.
+type watchedTUN struct {
+	tun.Device
+	live *liveness
+}
+
+// Read hands WireGuard the packets the stack sends out through the tunnel.
+func (t *watchedTUN) Read(bufs [][]byte, sizes []int, offset int) (int, error) {
+	n, err := t.Device.Read(bufs, sizes, offset)
+	for i := 0; i < n && i < len(bufs) && i < len(sizes); i++ {
+		if end := offset + sizes[i]; end <= len(bufs[i]) && unicastData(bufs[i][offset:end]) {
+			t.live.sent()
+			break
+		}
+	}
+	return n, err
+}
+
+// watchedBind is the tunnel's UDP socket. It notes each WireGuard packet
+// that comes in: data, a keepalive or a handshake, all of which say the
+// peer is there.
+type watchedBind struct {
+	conn.Bind
+	live *liveness
+}
+
+func (b *watchedBind) Open(port uint16) ([]conn.ReceiveFunc, uint16, error) {
+	fns, actual, err := b.Bind.Open(port)
+	for i, fn := range fns {
+		fns[i] = func(packets [][]byte, sizes []int, eps []conn.Endpoint) (int, error) {
+			n, err := fn(packets, sizes, eps)
+			for j := 0; j < n && j < len(packets) && j < len(sizes); j++ {
+				if sizes[j] <= len(packets[j]) && wgMessage(packets[j][:sizes[j]]) {
+					b.live.heard.Store(monotonic())
+					break
+				}
+			}
+			return n, err
+		}
+	}
+	return fns, actual, err
+}
+
+// wgMessage reports a packet shaped like a WireGuard message: a handshake
+// initiation or response, a cookie reply, or a transport packet.
+func wgMessage(p []byte) bool {
+	if len(p) < 32 || p[1] != 0 || p[2] != 0 || p[3] != 0 {
+		return false
+	}
+	switch p[0] {
+	case 1:
+		return len(p) == 148
+	case 2:
+		return len(p) == 92
+	case 3:
+		return len(p) == 64
+	case 4:
+		return true
+	}
+	return false
+}
+
+// unicastData reports a TCP or UDP packet to a unicast address: one a live
+// peer receives and answers. Anything else the stack might send (multicast,
+// neighbour discovery) can go unanswered without the peer being gone.
+func unicastData(p []byte) bool {
+	var proto byte
+	var dst netip.Addr
+	switch {
+	case len(p) >= 20 && p[0]>>4 == 4:
+		proto, dst = p[9], netip.AddrFrom4([4]byte(p[16:20]))
+	case len(p) >= 40 && p[0]>>4 == 6:
+		proto, dst = p[6], netip.AddrFrom16([16]byte(p[24:40]))
+	default:
+		return false
+	}
+	return (proto == 6 || proto == 17) && !dst.IsMulticast() && !dst.IsUnspecified()
+}
+
+// Silent reports a tunnel that has stopped answering: data went out through
+// it more than d ago, and nothing has come back from any peer since, not
+// even a keepalive. A live WireGuard peer answers data within 10 seconds,
+// with a keepalive when it has nothing else to send, so it is never silent
+// for long.
+func (w *WireGuard) Silent(d time.Duration) bool {
+	return w.live != nil && w.live.silentFor() > d
+}
+
+// quietAgain makes Silent count again from the next packet that goes out.
+func (w *WireGuard) quietAgain() {
+	if w.live != nil {
+		w.live.waiting.Store(0)
+	}
+}
+
+// Endpoint is the first peer's endpoint, as resolved when the tunnel came up.
+func (w *WireGuard) Endpoint() string {
+	if len(w.peers) == 0 {
+		return ""
+	}
+	return w.peers[0]
 }
 
 func resolveEndpoint(ctx context.Context, ep string) (string, error) {
@@ -178,8 +323,9 @@ func mustPort(s string) uint16 {
 
 // HandshakeTimeout bounds how long Health waits for every peer to answer.
 // WireGuard sends a handshake again after 5 seconds without a reply, so 12
-// seconds leaves room for one lost packet and its retry.
-const HandshakeTimeout = 12 * time.Second
+// seconds leaves room for one lost packet and its retry. A variable so
+// tests can shorten it.
+var HandshakeTimeout = 12 * time.Second
 
 // Health brings the tunnel up and waits until every peer has completed a
 // WireGuard handshake: until then nothing is known to work, since
@@ -214,7 +360,7 @@ func (w *WireGuard) Health(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("no WireGuard handshake from %s within %v: check the endpoint and the keys, and that UDP to it gets through", strings.Join(missing, ", "), HandshakeTimeout)
-		case <-time.After(50 * time.Millisecond):
+		case <-time.After(10 * time.Millisecond):
 		}
 	}
 }

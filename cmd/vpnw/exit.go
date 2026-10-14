@@ -62,6 +62,8 @@ Options for serve:
   --set NAME.KEY=VALUE  a setting for plugin NAME (repeatable)
   --plugin-file NAME=PATH  the file vpnw opens for plugin NAME, if it asks
                       for one (file.write); it must not exist yet
+  --plugin-folder NAME=PATH  the folder plugin NAME reads, if it asks for one
+                      (folder.read); the default is ~/.config/vpnw/NAME
 
 Options for cert:
   --host HOST         an address or name clients reach the exit by (repeatable)
@@ -164,7 +166,7 @@ func newExitRunID() string {
 func exitServe(args []string, stderr io.Writer) int {
 	var file, out string
 	var jsonOut, verbose, quiet bool
-	var plugins, sets, pluginFiles multi
+	var plugins, sets, pluginFiles, pluginFolders multi
 	fs := exitFlags("serve")
 	fs.StringVar(&file, "config", "", "")
 	fs.StringVar(&out, "out", "", "")
@@ -176,6 +178,7 @@ func exitServe(args []string, stderr io.Writer) int {
 	fs.Var(&plugins, "plugin", "")
 	fs.Var(&sets, "set", "")
 	fs.Var(&pluginFiles, "plugin-file", "")
+	fs.Var(&pluginFolders, "plugin-folder", "")
 	if !parseExitFlags(fs, args, stderr) {
 		return process.ExitConfig
 	}
@@ -211,7 +214,12 @@ func exitServe(args []string, stderr io.Writer) int {
 		l.Close()
 		return fail(stderr, process.ExitConfig, "%v", err)
 	}
-	pr := &pluginRun{mode: "exit", bus: bus, stderr: stderr, settings: settings, verbose: verbose, files: pfiles}
+	pfolders, err := parsePluginFolders(pluginFolders)
+	if err != nil {
+		l.Close()
+		return fail(stderr, process.ExitConfig, "%v", err)
+	}
+	pr := &pluginRun{mode: "exit", bus: bus, stderr: stderr, settings: settings, verbose: verbose, files: pfiles, folders: pfolders}
 	defer pr.close()
 	if !quiet {
 		if jsonOut {

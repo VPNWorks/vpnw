@@ -69,7 +69,8 @@ func (zeros) Read(p []byte) (int, error) {
 
 // Server is a running test peer.
 type Server struct {
-	Port     int // its UDP port on 127.0.0.1
+	Port     int    // its UDP port on 127.0.0.1
+	Name     string // said in its web server's answers, when not ""
 	dev      *device.Device
 	peer     key
 	client   key
@@ -79,8 +80,12 @@ type Server struct {
 }
 
 // Start runs a test peer that accepts one client key.
-func Start() (*Server, error) {
-	s := &Server{peer: newKey(), client: newKey()}
+func Start() (*Server, error) { return StartNamed("") }
+
+// StartNamed is Start for a peer whose web server says its name, so a test
+// can tell which of several peers answered.
+func StartNamed(name string) (*Server, error) {
+	s := &Server{Name: name, peer: newKey(), client: newKey()}
 	tdev, tnet, err := netstack.CreateNetTUN([]netip.Addr{PeerIP}, nil, 1420)
 	if err != nil {
 		return nil, err
@@ -119,6 +124,10 @@ func Start() (*Server, error) {
 		}
 		s.Requests.Add(1)
 		host, _, _ := net.SplitHostPort(r.RemoteAddr)
+		if s.Name != "" {
+			fmt.Fprintf(w, "hello through the tunnel, %s, from peer %s\n", host, s.Name)
+			return
+		}
 		fmt.Fprintf(w, "hello through the tunnel, %s\n", host)
 	}))
 

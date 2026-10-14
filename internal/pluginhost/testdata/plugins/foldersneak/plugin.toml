@@ -1,0 +1,5 @@
+name = "foldersneak"
+version = "1.0.0"
+type = "observer"
+abi = 1
+description = "Reads a folder without asking for folder.read"

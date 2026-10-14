@@ -25,6 +25,10 @@ import (
 // when the program learns of the fault, nothing goes around the tunnel,
 // vpnw never hangs, and the record says what happened.
 //
+// Every case runs on each way vpnw has to a WireGuard tunnel: a config file
+// given with --wireguard, and the same config handed over by a tunnel
+// plugin, the built-in rotate (labVias).
+//
 // Set VPNW_LAB_OUT to a file to get the results as a Markdown table.
 
 var (
@@ -33,15 +37,54 @@ var (
 	labSeen = map[string]int{} // rows written, by test
 )
 
-func labRecord(t *testing.T, fault, want, got string, ok bool) {
+func labRecord(t *testing.T, v labVia, fault, want, got string, ok bool) {
 	res := "passed"
 	if !ok {
 		res = "FAILED"
 	}
 	labMu.Lock()
-	labRows = append(labRows, fmt.Sprintf("| %s | %s | %s | %s |", fault, want, got, res))
+	labRows = append(labRows, fmt.Sprintf("| %s | %s | %s | %s | %s |", v.label, fault, want, got, res))
 	labSeen[t.Name()]++
 	labMu.Unlock()
+}
+
+// labVia is a way to the test peer's tunnel: the flags that give vpnw the
+// config.
+type labVia struct {
+	name, label string
+	flags       func(t *testing.T, e *env, conf string) []string
+}
+
+var labVias = []labVia{
+	{"wireguard", "--wireguard", func(t *testing.T, e *env, conf string) []string {
+		return []string{"--wireguard", conf}
+	}},
+	// The rotate plugin hands vpnw the same config, from a folder of its
+	// own.
+	{"tunnel", "--tunnel rotate", func(t *testing.T, e *env, conf string) []string {
+		dir := filepath.Join(e.dir, "rotate-"+strings.TrimSuffix(filepath.Base(conf), ".conf"))
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		b, err := os.ReadFile(conf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, dir, "lab.conf", string(b))
+		return []string{"--tunnel", "rotate", "--plugin-folder", "rotate=" + dir}
+	}},
+}
+
+// labEach runs a Lab case once for each way to the tunnel.
+func labEach(t *testing.T, f func(t *testing.T, v labVia)) {
+	for _, v := range labVias {
+		t.Run(v.name, func(t *testing.T) { f(t, v) })
+	}
+}
+
+// args puts the way to the tunnel after the command: vpnw CMD FLAGS... REST...
+func (v labVia) args(t *testing.T, e *env, conf, cmd string, rest ...string) []string {
+	return append(append([]string{cmd}, v.flags(t, e, conf)...), rest...)
 }
 
 // labGuard gives a Lab test that stops before its check (a wait that ran
@@ -52,7 +95,7 @@ func labGuard(t *testing.T) {
 		labMu.Lock()
 		defer labMu.Unlock()
 		if t.Failed() && labSeen[t.Name()] == 0 {
-			labRows = append(labRows, fmt.Sprintf("| %s | (see the test) | stopped before its check | FAILED |", t.Name()))
+			labRows = append(labRows, fmt.Sprintf("| %s | %s | (see the test) | stopped before its check | FAILED |", t.Name(), t.Name()))
 		}
 	})
 }
@@ -64,7 +107,7 @@ func labWrite() {
 	}
 	labMu.Lock()
 	defer labMu.Unlock()
-	os.WriteFile(fn, []byte("| Fault | What must happen | What happened | Result |\n|---|---|---|---|\n"+strings.Join(labRows, "\n")+"\n"), 0o644)
+	os.WriteFile(fn, []byte("| Path | Fault | What must happen | What happened | Result |\n|---|---|---|---|---|\n"+strings.Join(labRows, "\n")+"\n"), 0o644)
 }
 
 // labPeer is a test peer behind a relay, with the client's config.
@@ -226,85 +269,91 @@ func count(out, prefix string) int {
 // time limit, nothing goes anywhere else, the record shows the failures,
 // and vpnw ends when the program does.
 func TestLabSilentPeer(t *testing.T) {
-	s, r, e, conf := labPeer(t)
-	tr := filepath.Join(e.dir, "run.jsonl")
-	p := e.start("run", "--wireguard", conf, "--out", tr, "--", "python3", "-c", loop(12))
-	p.waitFor(t, "OK", 3, 20*time.Second)
-	r.Silence(true)
-	// A request already past the relay may still land; count from after.
-	time.Sleep(300 * time.Millisecond)
-	before := s.Requests.Load()
-	code := p.wait(t, 40*time.Second)
-	out := p.output()
-	fails := count(out, "FAIL")
-	errs := 0
-	for _, ev := range readTrace(t, tr) {
-		if ev["type"] == "connection.error" {
-			errs++
+	labEach(t, func(t *testing.T, v labVia) {
+		s, r, e, conf := labPeer(t)
+		tr := filepath.Join(e.dir, "run.jsonl")
+		p := e.start(v.args(t, e, conf, "run", "--out", tr, "--", "python3", "-c", loop(12))...)
+		p.waitFor(t, "OK", 3, 20*time.Second)
+		r.Silence(true)
+		// A request already past the relay may still land; count from after.
+		time.Sleep(300 * time.Millisecond)
+		before := s.Requests.Load()
+		code := p.wait(t, 40*time.Second)
+		out := p.output()
+		fails := count(out, "FAIL")
+		errs := 0
+		for _, ev := range readTrace(t, tr) {
+			if ev["type"] == "connection.error" {
+				errs++
+			}
 		}
-	}
-	open := unsettled(t, tr)
-	ok := code == 0 && fails > 0 && s.Requests.Load() == before && errs > 0 && p.took < 25*time.Second && len(open) == 0
-	labRecord(t, "the peer goes silent mid-run", "requests fail in time, nothing reaches the peer, every connection in the record has an outcome, vpnw ends with the program",
-		fmt.Sprintf("%d requests failed, %d connection errors recorded, %d new requests at the peer, %s, vpnw exited %d after %.0f s", fails, errs, s.Requests.Load()-before, settled(open), code, p.took.Seconds()), ok)
-	if !ok {
-		t.Fatalf("exit %d, %d fails, %d errors recorded, %d new requests at the peer, took %v, no outcome: %v\n%s", code, fails, errs, s.Requests.Load()-before, p.took, open, out)
-	}
-	t.Logf("\n%s", out)
-	b, _ := os.ReadFile(tr)
-	t.Logf("trace:\n%s", b)
+		open := unsettled(t, tr)
+		ok := code == 0 && fails > 0 && s.Requests.Load() == before && errs > 0 && p.took < 25*time.Second && len(open) == 0
+		labRecord(t, v, "the peer goes silent mid-run", "requests fail in time, nothing reaches the peer, every connection in the record has an outcome, vpnw ends with the program",
+			fmt.Sprintf("%d requests failed, %d connection errors recorded, %d new requests at the peer, %s, vpnw exited %d after %.0f s", fails, errs, s.Requests.Load()-before, settled(open), code, p.took.Seconds()), ok)
+		if !ok {
+			t.Fatalf("exit %d, %d fails, %d errors recorded, %d new requests at the peer, took %v, no outcome: %v\n%s", code, fails, errs, s.Requests.Load()-before, p.took, open, out)
+		}
+		t.Logf("\n%s", out)
+		b, _ := os.ReadFile(tr)
+		t.Logf("trace:\n%s", b)
+	})
 }
 
 // The peer goes silent, then comes back. Requests fail while it's away and
 // succeed again after, without vpnw being restarted.
 func TestLabPeerComesBack(t *testing.T) {
-	_, r, e, conf := labPeer(t)
-	tr := filepath.Join(e.dir, "run.jsonl")
-	p := e.start("run", "--wireguard", conf, "--out", tr, "--", "python3", "-c", loop(40))
-	p.waitFor(t, "OK", 2, 20*time.Second)
-	r.Silence(true)
-	p.waitFor(t, "FAIL", 2, 30*time.Second)
-	r.Silence(false)
-	oks := count(p.output(), "OK")
-	p.waitFor(t, "OK", oks+2, 30*time.Second)
-	after := count(p.output(), "OK") - oks
-	p.cmd.Process.Signal(os.Interrupt)
-	p.wait(t, 40*time.Second)
-	out := p.output()
-	open := unsettled(t, tr)
-	labRecord(t, "the peer goes silent, then comes back", "requests fail while it's gone and work again after, with no restart; every connection has an outcome",
-		fmt.Sprintf("%d requests failed while it was gone, then %d worked; %s", count(out, "FAIL"), after, settled(open)), len(open) == 0 && after >= 2)
-	if len(open) > 0 {
-		t.Fatalf("connections with no outcome: %v", open)
-	}
-	t.Logf("\n%s", out)
+	labEach(t, func(t *testing.T, v labVia) {
+		_, r, e, conf := labPeer(t)
+		tr := filepath.Join(e.dir, "run.jsonl")
+		p := e.start(v.args(t, e, conf, "run", "--out", tr, "--", "python3", "-c", loop(40))...)
+		p.waitFor(t, "OK", 2, 20*time.Second)
+		r.Silence(true)
+		p.waitFor(t, "FAIL", 2, 30*time.Second)
+		r.Silence(false)
+		oks := count(p.output(), "OK")
+		p.waitFor(t, "OK", oks+2, 30*time.Second)
+		after := count(p.output(), "OK") - oks
+		p.cmd.Process.Signal(os.Interrupt)
+		p.wait(t, 40*time.Second)
+		out := p.output()
+		open := unsettled(t, tr)
+		labRecord(t, v, "the peer goes silent, then comes back", "requests fail while it's gone and work again after, with no restart; every connection has an outcome",
+			fmt.Sprintf("%d requests failed while it was gone, then %d worked; %s", count(out, "FAIL"), after, settled(open)), len(open) == 0 && after >= 2)
+		if len(open) > 0 {
+			t.Fatalf("connections with no outcome: %v", open)
+		}
+		t.Logf("\n%s", out)
+	})
 }
 
 // Lost handshakes: one lost is retried and the run starts; all of them
 // lost and the program never starts.
 func TestLabLostHandshakes(t *testing.T) {
-	s, r, e, conf := labPeer(t)
-	r.DropHandshakes(1)
-	t0 := time.Now()
-	out, code := e.run("run", "--wireguard", conf, "--", "python3", "-c", pyGet("http://web.tunnel.test/"))
-	ok1 := code == 0 && strings.Contains(out, "GOT http://web.tunnel.test/") && r.Handshakes() >= 2
-	labRecord(t, "the first handshake is lost", "WireGuard tries again and the run starts",
-		fmt.Sprintf("started after %d handshakes, %.1f s", r.Handshakes(), time.Since(t0).Seconds()), ok1)
-	if !ok1 {
-		t.Fatalf("one handshake lost: exit %d, %d handshakes\n%s", code, r.Handshakes(), out)
-	}
+	labEach(t, func(t *testing.T, v labVia) {
+		s, r, e, conf := labPeer(t)
+		r.DropHandshakes(1)
+		t0 := time.Now()
+		out, code := e.run(v.args(t, e, conf, "run", "--", "python3", "-c", pyGet("http://web.tunnel.test/"))...)
+		ok1 := code == 0 && strings.Contains(out, "GOT http://web.tunnel.test/") && r.Handshakes() >= 2
+		labRecord(t, v, "the first handshake is lost", "WireGuard tries again and the run starts",
+			fmt.Sprintf("started after %d handshakes, %.1f s", r.Handshakes(), time.Since(t0).Seconds()), ok1)
+		if !ok1 {
+			t.Fatalf("one handshake lost: exit %d, %d handshakes\n%s", code, r.Handshakes(), out)
+		}
 
-	r.DropHandshakes(1000)
-	marker := filepath.Join(e.dir, "ran")
-	before := s.Requests.Load()
-	out, code = e.run("run", "--wireguard", conf, "--", "touch", marker)
-	_, err := os.Stat(marker)
-	ok2 := code == 123 && err != nil && strings.Contains(out, "no WireGuard handshake") && s.Requests.Load() == before
-	labRecord(t, "every handshake is lost", "the program never starts; vpnw exits 123",
-		fmt.Sprintf("exit %d, program started: %v", code, err == nil), ok2)
-	if !ok2 {
-		t.Fatalf("all handshakes lost: exit %d, program ran: %v\n%s", code, err == nil, out)
-	}
+		r.DropHandshakes(1000)
+		marker := filepath.Join(e.dir, "ran")
+		before := s.Requests.Load()
+		out, code = e.run(v.args(t, e, conf, "run", "--", "touch", marker)...)
+		_, err := os.Stat(marker)
+		ok2 := code == 123 && err != nil && strings.Contains(out, "no WireGuard handshake") && s.Requests.Load() == before
+		labRecord(t, v, "every handshake is lost", "the program never starts; vpnw exits 123",
+			fmt.Sprintf("exit %d, program started: %v", code, err == nil), ok2)
+		if !ok2 {
+			t.Fatalf("all handshakes lost: exit %d, program ran: %v\n%s", code, err == nil, out)
+		}
+	})
 }
 
 // A network that sends the tunnel's packets to an impostor, a WireGuard
@@ -314,38 +363,40 @@ func TestLabLostHandshakes(t *testing.T) {
 // impostor gets only packets it can't read: requests fail as they would
 // with a silent peer, and none reaches the impostor or the real peer.
 func TestLabImpostor(t *testing.T) {
-	s, r, e, conf := labPeer(t)
-	imp := wgPeer(t)
-	r.Redirect(imp.Port)
-	marker := filepath.Join(e.dir, "ran")
-	out, code := e.run("run", "--wireguard", conf, "--", "touch", marker)
-	_, err := os.Stat(marker)
-	ok := code == 123 && err != nil && strings.Contains(out, "no WireGuard handshake")
-	labRecord(t, "the tunnel is sent to an impostor peer from the start", "no handshake completes; the program never starts; vpnw exits 123",
-		fmt.Sprintf("exit %d, program started: %v", code, err == nil), ok)
-	if !ok {
-		t.Fatalf("impostor at the start: exit %d, program ran: %v\n%s", code, err == nil, out)
-	}
+	labEach(t, func(t *testing.T, v labVia) {
+		s, r, e, conf := labPeer(t)
+		imp := wgPeer(t)
+		r.Redirect(imp.Port)
+		marker := filepath.Join(e.dir, "ran")
+		out, code := e.run(v.args(t, e, conf, "run", "--", "touch", marker)...)
+		_, err := os.Stat(marker)
+		ok := code == 123 && err != nil && strings.Contains(out, "no WireGuard handshake")
+		labRecord(t, v, "the tunnel is sent to an impostor peer from the start", "no handshake completes; the program never starts; vpnw exits 123",
+			fmt.Sprintf("exit %d, program started: %v", code, err == nil), ok)
+		if !ok {
+			t.Fatalf("impostor at the start: exit %d, program ran: %v\n%s", code, err == nil, out)
+		}
 
-	r.Redirect(s.Port)
-	tr := filepath.Join(e.dir, "mid.jsonl")
-	p := e.start("run", "--wireguard", conf, "--out", tr, "--", "python3", "-c", loop(10))
-	p.waitFor(t, "OK", 3, 20*time.Second)
-	r.Redirect(imp.Port)
-	time.Sleep(300 * time.Millisecond)
-	before := s.Requests.Load()
-	sent := r.Forwarded()
-	code = p.wait(t, 40*time.Second)
-	out = p.output()
-	fails := count(out, "FAIL")
-	open := unsettled(t, tr)
-	toImp := r.Forwarded() - sent
-	ok = code == 0 && fails > 0 && imp.Requests.Load() == 0 && s.Requests.Load() == before && len(open) == 0
-	labRecord(t, "the tunnel is sent to an impostor peer mid-run", "the impostor gets only packets it can't read; requests fail; every connection has an outcome",
-		fmt.Sprintf("%d requests failed, %d packets went to the impostor, %d requests reached it, %s", fails, toImp, imp.Requests.Load(), settled(open)), ok)
-	if !ok {
-		t.Fatalf("impostor mid-run: exit %d, %d fails, impostor requests %d, peer requests +%d, no outcome %v\n%s", code, fails, imp.Requests.Load(), s.Requests.Load()-before, open, out)
-	}
+		r.Redirect(s.Port)
+		tr := filepath.Join(e.dir, "mid.jsonl")
+		p := e.start(v.args(t, e, conf, "run", "--out", tr, "--", "python3", "-c", loop(10))...)
+		p.waitFor(t, "OK", 3, 20*time.Second)
+		r.Redirect(imp.Port)
+		time.Sleep(300 * time.Millisecond)
+		before := s.Requests.Load()
+		sent := r.Forwarded()
+		code = p.wait(t, 40*time.Second)
+		out = p.output()
+		fails := count(out, "FAIL")
+		open := unsettled(t, tr)
+		toImp := r.Forwarded() - sent
+		ok = code == 0 && fails > 0 && imp.Requests.Load() == 0 && s.Requests.Load() == before && len(open) == 0
+		labRecord(t, v, "the tunnel is sent to an impostor peer mid-run", "the impostor gets only packets it can't read; requests fail; every connection has an outcome",
+			fmt.Sprintf("%d requests failed, %d packets went to the impostor, %d requests reached it, %s", fails, toImp, imp.Requests.Load(), settled(open)), ok)
+		if !ok {
+			t.Fatalf("impostor mid-run: exit %d, %d fails, impostor requests %d, peer requests +%d, no outcome %v\n%s", code, fails, imp.Requests.Load(), s.Requests.Load()-before, open, out)
+		}
+	})
 }
 
 // The tunnel's DNS server answers with addresses a program must not be sent
@@ -357,104 +408,109 @@ func TestLabImpostor(t *testing.T) {
 // covers them. With deny_private, private answers are refused by the
 // policy, before anything but the lookup is sent.
 func TestLabHostileDNS(t *testing.T) {
-	s, r, e, narrow := labPeer(t)
-	full := writeFile(t, e.dir, "full.conf", s.FullConfigVia(r))
-	host := newServer(t) // 127.0.0.1, where loopback.tunnel.test points
-	never := "can't be reached through a tunnel"
-	cases := []struct {
-		name, ip, conf, label string
-		policy                []string
-		want                  string // in the connection's error or denial
-		denied, carried       bool
-	}{
-		{"loopback.tunnel.test", "127.0.0.1", narrow, "AllowedIPs 10.9.0.0/24", nil, never, false, false},
-		{"metadata.tunnel.test", "169.254.169.254", narrow, "AllowedIPs 10.9.0.0/24", nil, never, false, false},
-		{"lan.tunnel.test", "192.168.1.1", narrow, "AllowedIPs 10.9.0.0/24", nil, "outside the tunnel", false, false},
-		{"outside.tunnel.test", "1.1.1.1", narrow, "AllowedIPs 10.9.0.0/24", nil, "outside the tunnel", false, false},
-		{"loopback.tunnel.test", "127.0.0.1", full, "full tunnel", nil, never, false, false},
-		{"metadata.tunnel.test", "169.254.169.254", full, "full tunnel", nil, never, false, false},
-		{"lan.tunnel.test", "192.168.1.1", full, "full tunnel", nil, "", false, true},
-		{"metadata.tunnel.test", "169.254.169.254", full, "full tunnel, deny_private", []string{"--deny-private", "--default", "allow"}, "link-local", true, false},
-		{"loopback.tunnel.test", "127.0.0.1", full, "full tunnel, deny_private", []string{"--deny-private", "--default", "allow"}, "loopback", true, false},
-		{"lan.tunnel.test", "192.168.1.1", full, "full tunnel, deny_private", []string{"--deny-private", "--default", "allow"}, "private", true, false},
-	}
-	// Packets a run sends when the address is refused right after the
-	// lookup: the handshake, the lookup and its answer. Measured per name
-	// on the narrow config, where no case dials.
-	baseline := map[string]int64{}
-	for i, c := range cases {
-		mode := "trace"
-		if c.policy != nil {
-			mode = "guard"
+	labEach(t, func(t *testing.T, v labVia) {
+		s, r, e, narrow := labPeer(t)
+		full := writeFile(t, e.dir, "full.conf", s.FullConfigVia(r))
+		host := newServer(t) // 127.0.0.1, where loopback.tunnel.test points
+		never := "can't be reached through a tunnel"
+		cases := []struct {
+			name, ip, conf, label string
+			policy                []string
+			want                  string // in the connection's error or denial
+			denied, carried       bool
+		}{
+			{"loopback.tunnel.test", "127.0.0.1", narrow, "AllowedIPs 10.9.0.0/24", nil, never, false, false},
+			{"metadata.tunnel.test", "169.254.169.254", narrow, "AllowedIPs 10.9.0.0/24", nil, never, false, false},
+			{"lan.tunnel.test", "192.168.1.1", narrow, "AllowedIPs 10.9.0.0/24", nil, "outside the tunnel", false, false},
+			{"outside.tunnel.test", "1.1.1.1", narrow, "AllowedIPs 10.9.0.0/24", nil, "outside the tunnel", false, false},
+			{"loopback.tunnel.test", "127.0.0.1", full, "full tunnel", nil, never, false, false},
+			{"metadata.tunnel.test", "169.254.169.254", full, "full tunnel", nil, never, false, false},
+			{"lan.tunnel.test", "192.168.1.1", full, "full tunnel", nil, "", false, true},
+			{"metadata.tunnel.test", "169.254.169.254", full, "full tunnel, deny_private", []string{"--deny-private", "--default", "allow"}, "link-local", true, false},
+			{"loopback.tunnel.test", "127.0.0.1", full, "full tunnel, deny_private", []string{"--deny-private", "--default", "allow"}, "loopback", true, false},
+			{"lan.tunnel.test", "192.168.1.1", full, "full tunnel, deny_private", []string{"--deny-private", "--default", "allow"}, "private", true, false},
 		}
-		url := fmt.Sprintf("http://%s:%d/", c.name, host.port)
-		tr := filepath.Join(e.dir, fmt.Sprintf("dns%d.jsonl", i))
-		before := r.Forwarded()
-		args := append([]string{mode, "--wireguard", c.conf, "--out", tr}, c.policy...)
-		out, _ := e.run(append(args, "--", "python3", "-c", pyGet(url))...)
-		sent := r.Forwarded() - before
-		var why string
-		opened, denied := false, false
-		for _, ev := range readTrace(t, tr) {
-			f, _ := ev["fields"].(map[string]any)
-			switch ev["type"] {
-			case "connection.open":
-				opened = true
-			case "connection.error":
-				why, _ = f["error"].(string)
-			case "policy.deny":
-				denied = true
-				why, _ = f["reason"].(string)
+		// Packets a run sends when the address is refused right after the
+		// lookup: the handshake, the lookup and its answer. Measured per name
+		// on the narrow config, where no case dials.
+		baseline := map[string]int64{}
+		for i, c := range cases {
+			mode := "trace"
+			if c.policy != nil {
+				mode = "guard"
+			}
+			url := fmt.Sprintf("http://%s:%d/", c.name, host.port)
+			tr := filepath.Join(e.dir, fmt.Sprintf("dns%d.jsonl", i))
+			before := r.Forwarded()
+			args := v.args(t, e, c.conf, mode, append([]string{"--out", tr}, c.policy...)...)
+			out, _ := e.run(append(args, "--", "python3", "-c", pyGet(url))...)
+			sent := r.Forwarded() - before
+			var why string
+			opened, denied := false, false
+			for _, ev := range readTrace(t, tr) {
+				f, _ := ev["fields"].(map[string]any)
+				switch ev["type"] {
+				case "connection.open":
+					opened = true
+				case "connection.error":
+					why, _ = f["error"].(string)
+				case "policy.deny":
+					denied = true
+					why, _ = f["reason"].(string)
+				}
+			}
+			ok := strings.Contains(out, "FAILED "+url) && host.count() == 0 && !opened && denied == c.denied
+			var got string
+			switch {
+			case c.carried:
+				// Into the tunnel, where the test peer has nothing at that
+				// address: more than the lookup went out, nothing came here.
+				ok = ok && sent > baseline[c.name]
+				got = fmt.Sprintf("carried into the tunnel (%d packets), nothing reached on this machine", sent)
+			default:
+				ok = ok && strings.Contains(why, c.want)
+				if c.conf == narrow && c.policy == nil {
+					baseline[c.name] = sent
+				} else {
+					ok = ok && sent <= baseline[c.name]+1
+				}
+				got = fmt.Sprintf("refused: %q; %d packets on the tunnel, the handshake and lookup included", why, sent)
+			}
+			want := "refused with the reason; only the lookup goes out"
+			if c.carried {
+				want = "carried into the tunnel, as the address itself would be; nothing on this machine reached"
+			}
+			labRecord(t, v, fmt.Sprintf("the tunnel's DNS points %s at %s (%s)", c.name, c.ip, c.label), want, got, ok)
+			if !ok {
+				t.Errorf("%s (%s): opened %v, denied %v, why %q, sent %d (baseline %d), host saw %d\n%s", c.name, c.label, opened, denied, why, sent, baseline[c.name], host.count(), out)
 			}
 		}
-		ok := strings.Contains(out, "FAILED "+url) && host.count() == 0 && !opened && denied == c.denied
-		var got string
-		switch {
-		case c.carried:
-			// Into the tunnel, where the test peer has nothing at that
-			// address: more than the lookup went out, nothing came here.
-			ok = ok && sent > baseline[c.name]
-			got = fmt.Sprintf("carried into the tunnel (%d packets), nothing reached on this machine", sent)
-		default:
-			ok = ok && strings.Contains(why, c.want)
-			if c.conf == narrow && c.policy == nil {
-				baseline[c.name] = sent
-			} else {
-				ok = ok && sent <= baseline[c.name]+1
-			}
-			got = fmt.Sprintf("refused: %q; %d packets on the tunnel, the handshake and lookup included", why, sent)
-		}
-		want := "refused with the reason; only the lookup goes out"
-		if c.carried {
-			want = "carried into the tunnel, as the address itself would be; nothing on this machine reached"
-		}
-		labRecord(t, fmt.Sprintf("the tunnel's DNS points %s at %s (%s)", c.name, c.ip, c.label), want, got, ok)
-		if !ok {
-			t.Errorf("%s (%s): opened %v, denied %v, why %q, sent %d (baseline %d), host saw %d\n%s", c.name, c.label, opened, denied, why, sent, baseline[c.name], host.count(), out)
-		}
-	}
+	})
 }
 
 // A slow path, 300 ms each way: it works, only slower.
 func TestLabSlowPath(t *testing.T) {
-	_, r, e, conf := labPeer(t)
-	r.Delay(300 * time.Millisecond)
-	out, code := e.run("run", "--wireguard", conf, "--", "python3", "-c", pyGet("http://web.tunnel.test/"))
-	ok := code == 0 && strings.Contains(out, "GOT http://web.tunnel.test/")
-	labRecord(t, "every packet is delayed 300 ms each way", "it works, only slower", fmt.Sprintf("exit %d, the page arrived: %v", code, strings.Contains(out, "GOT ")), ok)
-	if !ok {
-		t.Fatalf("slow path: exit %d\n%s", code, out)
-	}
+	labEach(t, func(t *testing.T, v labVia) {
+		_, r, e, conf := labPeer(t)
+		r.Delay(300 * time.Millisecond)
+		out, code := e.run(v.args(t, e, conf, "run", "--", "python3", "-c", pyGet("http://web.tunnel.test/"))...)
+		ok := code == 0 && strings.Contains(out, "GOT http://web.tunnel.test/")
+		labRecord(t, v, "every packet is delayed 300 ms each way", "it works, only slower", fmt.Sprintf("exit %d, the page arrived: %v", code, strings.Contains(out, "GOT ")), ok)
+		if !ok {
+			t.Fatalf("slow path: exit %d\n%s", code, out)
+		}
+	})
 }
 
 // The peer goes silent in the middle of a download. The program's read
 // times out, vpnw ends with it, and the connection is closed in the
 // record with the bytes that did arrive.
 func TestLabSilentMidTransfer(t *testing.T) {
-	_, r, e, conf := labPeer(t)
-	r.Delay(2 * time.Millisecond) // slow enough to catch the transfer midway
-	tr := filepath.Join(e.dir, "run.jsonl")
-	prog := `import urllib.request as u, sys
+	labEach(t, func(t *testing.T, v labVia) {
+		_, r, e, conf := labPeer(t)
+		r.Delay(2 * time.Millisecond) // slow enough to catch the transfer midway
+		tr := filepath.Join(e.dir, "run.jsonl")
+		prog := `import urllib.request as u, sys
 r = u.urlopen('http://web.tunnel.test/big', timeout=4)
 got = 0
 try:
@@ -468,26 +524,27 @@ try:
 except Exception as e:
     sys.stdout.write('STALLED %d %s\n' % (got, type(e).__name__))
 `
-	p := e.start("run", "--wireguard", conf, "--out", tr, "--", "python3", "-c", prog)
-	p.waitFor(t, "HALF", 1, 30*time.Second)
-	r.Silence(true)
-	code := p.wait(t, 30*time.Second)
-	out := p.output()
-	var down float64
-	closed := false
-	for _, ev := range readTrace(t, tr) {
-		if ev["type"] == "connection.close" {
-			closed = true
-			f, _ := ev["fields"].(map[string]any)
-			down, _ = f["bytes_down"].(float64)
+		p := e.start(v.args(t, e, conf, "run", "--out", tr, "--", "python3", "-c", prog)...)
+		p.waitFor(t, "HALF", 1, 30*time.Second)
+		r.Silence(true)
+		code := p.wait(t, 30*time.Second)
+		out := p.output()
+		var down float64
+		closed := false
+		for _, ev := range readTrace(t, tr) {
+			if ev["type"] == "connection.close" {
+				closed = true
+				f, _ := ev["fields"].(map[string]any)
+				down, _ = f["bytes_down"].(float64)
+			}
 		}
-	}
-	open := unsettled(t, tr)
-	ok := code == 0 && strings.Contains(out, "STALLED") && closed && down >= 1<<20 && len(open) == 0
-	labRecord(t, "the peer goes silent in the middle of a download", "the program's read times out, vpnw ends with it, the record closes the connection with the bytes that arrived",
-		fmt.Sprintf("program stalled: %v; closed in the record: %v, with %.1f MB down", strings.Contains(out, "STALLED"), closed, down/(1<<20)), ok)
-	if !ok {
-		b, _ := os.ReadFile(tr)
-		t.Fatalf("exit %d, %v bytes down recorded, no outcome: %v\n%s\n%s", code, down, open, out, b)
-	}
+		open := unsettled(t, tr)
+		ok := code == 0 && strings.Contains(out, "STALLED") && closed && down >= 1<<20 && len(open) == 0
+		labRecord(t, v, "the peer goes silent in the middle of a download", "the program's read times out, vpnw ends with it, the record closes the connection with the bytes that arrived",
+			fmt.Sprintf("program stalled: %v; closed in the record: %v, with %.1f MB down", strings.Contains(out, "STALLED"), closed, down/(1<<20)), ok)
+		if !ok {
+			b, _ := os.ReadFile(tr)
+			t.Fatalf("exit %d, %v bytes down recorded, no outcome: %v\n%s\n%s", code, down, open, out, b)
+		}
+	})
 }

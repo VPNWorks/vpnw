@@ -33,6 +33,9 @@ type Conn struct {
 	Switched func(from, to, reason string, ms int64)
 	// Exit is set by the path: the exit that answered, as host:port.
 	Exit string
+	// Tunnel is set by a path whose configs come from a tunnel plugin: the
+	// name of the config whose tunnel carried the connection.
+	Tunnel string
 }
 
 type connKey struct{}

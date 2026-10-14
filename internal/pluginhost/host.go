@@ -70,6 +70,7 @@ const (
 	EventBudget  = 5 * time.Second
 	FinishBudget = 60 * time.Second
 	DecideBudget = 250 * time.Millisecond
+	TunnelBudget = 5 * time.Second
 )
 
 // Package is a plugin ready to load: its manifest and its module.
@@ -111,6 +112,11 @@ type Options struct {
 	// this command opened one; FileName is its path, passed to the plugin.
 	File     File
 	FileName string
+	// Folder is the plugin's folder, if it has the folder.read permission
+	// and this command opened one; FolderName is its path, passed to the
+	// plugin.
+	Folder     Folder
+	FolderName string
 	// DecideBudget and EventBudget override the time budgets for one Guard
 	// decision and one event; zero is the default.
 	DecideBudget time.Duration
@@ -222,8 +228,89 @@ func (h *Host) hostModule(ctx context.Context, rt wazero.Runtime) error {
 		}
 		return 0
 	}).Export("file_sync")
+	b.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, p, capacity uint32) uint32 {
+		in := h.instance(m)
+		if in == nil || !in.pkg.Manifest.Has(PermFolder) {
+			return hostFailed
+		}
+		return in.folderList(m, p, capacity)
+	}).Export("folder_list")
+	b.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, np, nn, p, capacity uint32) uint32 {
+		in := h.instance(m)
+		if in == nil || !in.pkg.Manifest.Has(PermFolder) {
+			return hostFailed
+		}
+		return in.folderRead(m, np, nn, p, capacity)
+	}).Export("folder_read")
 	_, err := b.Instantiate(ctx)
 	return err
+}
+
+// hostFailed is what the folder host calls return when they fail; the
+// reason goes to the plugin's log.
+const hostFailed = 0xFFFFFFFF
+
+// folderList writes the listing of the plugin's folder, as JSON, into its
+// buffer at p if it fits in capacity, and returns its length either way.
+func (in *Instance) folderList(m api.Module, p, capacity uint32) uint32 {
+	if in.opt.Folder == nil {
+		in.folderErr(errors.New("no folder is open for this plugin in this command"))
+		return hostFailed
+	}
+	list, err := in.opt.Folder.List()
+	if err != nil {
+		in.folderErr(err)
+		return hostFailed
+	}
+	if list == nil {
+		list = []FolderEntry{}
+	}
+	b, err := json.Marshal(list)
+	if err != nil {
+		in.folderErr(err)
+		return hostFailed
+	}
+	return in.give(m, b, p, capacity)
+}
+
+// folderRead reads the file named at np into the plugin's buffer at p if
+// it fits in capacity, and returns its length either way.
+func (in *Instance) folderRead(m api.Module, np, nn, p, capacity uint32) uint32 {
+	if in.opt.Folder == nil {
+		in.folderErr(errors.New("no folder is open for this plugin in this command"))
+		return hostFailed
+	}
+	if nn > 1024 {
+		in.folderErr(errors.New("a file name of more than 1024 bytes"))
+		return hostFailed
+	}
+	name, ok := m.Memory().Read(np, nn)
+	if !ok {
+		in.folderErr(errors.New("gave a buffer outside its memory"))
+		return hostFailed
+	}
+	b, err := in.opt.Folder.Read(string(name))
+	if err != nil {
+		in.folderErr(err)
+		return hostFailed
+	}
+	return in.give(m, b, p, capacity)
+}
+
+// give copies b into the plugin's buffer when it fits, and returns its
+// length.
+func (in *Instance) give(m api.Module, b []byte, p, capacity uint32) uint32 {
+	if uint64(len(b)) <= uint64(capacity) && !m.Memory().Write(p, b) {
+		in.folderErr(errors.New("gave a buffer outside its memory"))
+		return hostFailed
+	}
+	return uint32(len(b))
+}
+
+func (in *Instance) folderErr(err error) {
+	if in.opt.Log != nil {
+		in.opt.Log(in.Name(), "folder: "+clean(err.Error(), 300))
+	}
 }
 
 var emitTypeRe = regexp.MustCompile(`^[a-z0-9_]{1,32}(\.[a-z0-9_]{1,32}){0,2}$`)
@@ -282,10 +369,12 @@ func (in *Instance) fileErr(err error) {
 // The host calls any plugin may import, and the ones that need a permission.
 var hostCalls = map[string]string{
 	"log": "", "error": "", "reason": "",
-	"write":      PermConsole,
-	"emit":       PermEmit,
-	"file_write": PermFile,
-	"file_sync":  PermFile,
+	"write":       PermConsole,
+	"emit":        PermEmit,
+	"file_write":  PermFile,
+	"file_sync":   PermFile,
+	"folder_list": PermFolder,
+	"folder_read": PermFolder,
 }
 
 // Exports every plugin has, and those each type needs.
@@ -295,39 +384,56 @@ var (
 		Observer: {"vpnw_on_event"},
 		Advisor:  {"vpnw_on_event", "vpnw_finish"},
 		Guard:    {"vpnw_on_decide"},
+		Tunnel:   {"vpnw_tunnel"},
 	}
 )
 
-// The signature of every export vpnw calls: parameters, then results, all
-// i32. A module whose export has another signature is refused, since vpnw
-// would read results that are not there.
-var exportSigs = map[string][2]int{
-	"_initialize":    {0, 0},
-	"vpnw_abi":       {0, 1},
-	"vpnw_alloc":     {1, 1},
-	"vpnw_init":      {2, 1},
-	"vpnw_on_event":  {2, 1},
-	"vpnw_on_decide": {2, 1},
-	"vpnw_finish":    {0, 1},
+// sig is an export's signature: its i32 parameters, and its one result,
+// if it has one, i32 unless wide (i64).
+type sig struct {
+	params, results int
+	wide            bool
 }
 
-func sigOK(f api.FunctionDefinition, want [2]int) bool {
+// The signature of every export vpnw calls. A module whose export has
+// another signature is refused, since vpnw would read results that are not
+// there.
+var exportSigs = map[string]sig{
+	"_initialize":    {0, 0, false},
+	"vpnw_abi":       {0, 1, false},
+	"vpnw_alloc":     {1, 1, false},
+	"vpnw_init":      {2, 1, false},
+	"vpnw_on_event":  {2, 1, false},
+	"vpnw_on_decide": {2, 1, false},
+	"vpnw_finish":    {0, 1, false},
+	"vpnw_tunnel":    {2, 1, true},
+}
+
+func sigOK(f api.FunctionDefinition, want sig) bool {
 	ps, rs := f.ParamTypes(), f.ResultTypes()
-	if len(ps) != want[0] || len(rs) != want[1] {
+	if len(ps) != want.params || len(rs) != want.results {
 		return false
 	}
-	for _, t := range append(append([]api.ValueType{}, ps...), rs...) {
+	for _, t := range ps {
 		if t != api.ValueTypeI32 {
+			return false
+		}
+	}
+	for _, t := range rs {
+		if want.wide && t != api.ValueTypeI64 || !want.wide && t != api.ValueTypeI32 {
 			return false
 		}
 	}
 	return true
 }
 
-func sigText(want [2]int) string {
-	p := strings.TrimSuffix(strings.Repeat("i32, ", want[0]), ", ")
-	if want[1] == 0 {
+func sigText(want sig) string {
+	p := strings.TrimSuffix(strings.Repeat("i32, ", want.params), ", ")
+	switch {
+	case want.results == 0:
 		return "(" + p + ")"
+	case want.wide:
+		return "(" + p + ") -> i64"
 	}
 	return "(" + p + ") -> i32"
 }
@@ -411,7 +517,7 @@ type Instance struct {
 	reason string
 	stderr *tail
 
-	alloc, initFn, event, decide, finish api.Function
+	alloc, initFn, event, decide, finish, tunnelFn api.Function
 
 	cm wazero.CompiledModule
 	// deadline is when the call running now must end, in Unix nanoseconds,
@@ -462,6 +568,9 @@ func (h *Host) Load(ctx context.Context, pkg *Package, opt Options) (*Instance, 
 	in.event = mod.ExportedFunction("vpnw_on_event")
 	in.decide = mod.ExportedFunction("vpnw_on_decide")
 	in.finish = mod.ExportedFunction("vpnw_finish")
+	if m.Type == Tunnel {
+		in.tunnelFn = mod.ExportedFunction("vpnw_tunnel")
+	}
 
 	in.turn <- struct{}{}
 	res, err := in.call(ctx, InitBudget, mod.ExportedFunction("vpnw_abi"))
@@ -473,9 +582,9 @@ func (h *Host) Load(ctx context.Context, pkg *Package, opt Options) (*Instance, 
 		cfg, _ := json.Marshal(map[string]any{
 			"plugin": m.Name, "command": opt.Command, "settings": nonNil(opt.Settings),
 			"color": opt.Color, "tz_offset": off, "tz_name": zone,
-			"run": opt.Run, "file": fileName(opt),
+			"run": opt.Run, "file": fileName(opt), "folder": folderPath(opt),
 		})
-		var code uint32
+		var code uint64
 		code, err = in.pass(ctx, InitBudget, in.initFn, cfg)
 		if err == nil && code != 0 {
 			err = in.pluginErr()
@@ -494,6 +603,13 @@ func fileName(opt Options) string {
 		return ""
 	}
 	return opt.FileName
+}
+
+func folderPath(opt Options) string {
+	if opt.Folder == nil {
+		return ""
+	}
+	return opt.FolderName
 }
 
 func nonNil(m map[string]string) map[string]string {
@@ -568,9 +684,10 @@ func (in *Instance) call(ctx context.Context, budget time.Duration, fn api.Funct
 	return res, nil
 }
 
-// pass copies data into the plugin and calls fn(ptr, len). A result of 1
-// means the plugin reported an error through the error host call.
-func (in *Instance) pass(ctx context.Context, budget time.Duration, fn api.Function, data []byte) (uint32, error) {
+// pass copies data into the plugin and calls fn(ptr, len), and returns its
+// result. For the i32 hooks, 1 means the plugin reported an error through
+// the error host call.
+func (in *Instance) pass(ctx context.Context, budget time.Duration, fn api.Function, data []byte) (uint64, error) {
 	res, err := in.call(ctx, budget, in.alloc, uint64(len(data)))
 	if err != nil {
 		return 0, err
@@ -584,7 +701,7 @@ func (in *Instance) pass(ctx context.Context, budget time.Duration, fn api.Funct
 	if err != nil {
 		return 0, err
 	}
-	return uint32(res[0]), nil
+	return res[0], nil
 }
 
 // explain turns a trap into one line: the panic message the plugin printed,

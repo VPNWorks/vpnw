@@ -457,7 +457,7 @@ func TestBuiltins(t *testing.T) {
 			t.Errorf("%s: %v", p.Manifest.Name, err)
 		}
 	}
-	if !names["trace"] || !names["learn"] || !names["ledger"] || !names["ledger-verify"] || len(names) != 4 {
+	if !names["trace"] || !names["learn"] || !names["ledger"] || !names["ledger-verify"] || !names["rotate"] || len(names) != 5 {
 		t.Errorf("built-ins: %v", names)
 	}
 

@@ -96,7 +96,10 @@ func (t *Text) Emit(e *events.Event) {
 	if t.Zone != nil {
 		ts = ts.In(t.Zone)
 	}
-	fmt.Fprintf(t.w, "%s %s  %s\n", t.c(bold, "vpnw"), t.c(dim, ts.Format("15:04:05.000")), line)
+	// An event can take more than one line, each printed as its own.
+	for _, l := range strings.Split(line, "\n") {
+		fmt.Fprintf(t.w, "%s %s  %s\n", t.c(bold, "vpnw"), t.c(dim, ts.Format("15:04:05.000")), l)
+	}
 }
 
 func target(e *events.Event) string {
@@ -129,6 +132,14 @@ func (t *Text) render(e *events.Event) string {
 				e.Str("exit"), e.Run, e.Str("listen"), n, noun, e.Str("cert_for"), e.Str("cert_until"))
 		}
 		parts := []string{e.Str("mode"), "run " + e.Run, "path " + e.Path}
+		tn, _ := e.Fields["tunnel"].(map[string]any)
+		if tn != nil {
+			x := fmt.Sprintf("tunnel %v from %v", tn["config"], tn["plugin"])
+			if k := number(tn["keep"]); k > 0 {
+				x += ", kept " + HumanDuration(k*1000)
+			}
+			parts = append(parts, x)
+		}
 		if b := e.Str("backend"); b != "" {
 			parts = append(parts, "backend "+b)
 		}
@@ -136,7 +147,15 @@ func (t *Text) render(e *events.Event) string {
 			parts = append(parts, fmt.Sprintf("policy %v (default %v, %v allow rules, %v deny rules, deny_private %v)",
 				pol["name"], pol["default"], pol["allow_rules"], pol["deny_rules"], pol["deny_private"]))
 		}
-		return strings.Join(parts, "  ")
+		line := strings.Join(parts, "  ")
+		// The configs the tunnel plugin handed over that weren't used.
+		skipped, _ := tn["skipped"].([]any)
+		for _, x := range skipped {
+			if m, ok := x.(map[string]any); ok {
+				line += fmt.Sprintf("\n%s  skipped %v: %v", t.c(bold, "tunnel"), m["config"], m["error"])
+			}
+		}
+		return line
 	case events.ProcessStart:
 		if !all {
 			return ""
@@ -206,8 +225,15 @@ func (t *Text) render(e *events.Event) string {
 			return fmt.Sprintf("%-4s   open  %s from %s  (%d ms)", id, where, src, e.Int("ms"))
 		}
 		via := e.Path
+		var how []string
+		if tn := e.Str("tunnel"); tn != "" {
+			how = append(how, tn)
+		}
 		if x := e.Str("exit"); x != "" {
-			via += " (exit " + x + ")"
+			how = append(how, "exit "+x)
+		}
+		if len(how) > 0 {
+			via += " (" + strings.Join(how, ", ") + ")"
 		}
 		return fmt.Sprintf("%-4s   open  %s via %s  (%d ms)", id, where, via, e.Int("ms"))
 	case events.ConnectionClose:
@@ -227,6 +253,34 @@ func (t *Text) render(e *events.Event) string {
 		}
 		return fmt.Sprintf("%-4s   %s  exit %s stopped answering after %s (%s); moving to %s", id, t.c(bold, "switch"),
 			e.Str("from"), HumanDuration(e.Int("ms")), e.Str("error"), e.Str("to"))
+	case events.TunnelSwitch:
+		if !dec {
+			return ""
+		}
+		up := fmt.Sprintf("%s up in %s", e.Str("to"), HumanDuration(e.Int("ms")))
+		if p := e.Str("peer"); p != "" {
+			up += " (peer " + p + ")"
+		}
+		if e.Str("why") == "failed" {
+			return fmt.Sprintf("%s  %s stopped answering (%s); moved to %s", t.c(bold, "tunnel"), e.Str("from"), e.Str("error"), up)
+		}
+		return fmt.Sprintf("%s  rotated from %s to %s", t.c(bold, "tunnel"), e.Str("from"), up)
+	case events.TunnelError:
+		if !dec {
+			return ""
+		}
+		if c := e.Str("config"); c != "" {
+			return fmt.Sprintf("%s  %s not used: %s", t.c(red, "tunnel"), c, e.Str("error"))
+		}
+		return fmt.Sprintf("%s  %s", t.c(red, "tunnel"), e.Str("error"))
+	case events.TunnelClose:
+		if !all {
+			return ""
+		}
+		if n := e.Int("cut"); n > 0 {
+			return fmt.Sprintf("%s  %s closed with %d connections still open: too many tunnels were winding down", t.c(bold, "tunnel"), e.Str("config"), n)
+		}
+		return fmt.Sprintf("%s  %s closed after its last connection", t.c(bold, "tunnel"), e.Str("config"))
 	case events.AuthDeny:
 		if !dec {
 			return ""
@@ -271,6 +325,22 @@ func (t *Text) render(e *events.Event) string {
 		return strings.TrimSpace(line + "  " + strings.Join(kv, " "))
 	}
 	return ""
+}
+
+// number reads a number from a nested field, as JSON or Go left it.
+func number(v any) int64 {
+	switch x := v.(type) {
+	case float64:
+		return int64(x)
+	case int64:
+		return x
+	case int:
+		return int64(x)
+	case interface{ Int64() (int64, error) }:
+		n, _ := x.Int64()
+		return n
+	}
+	return 0
 }
 
 func ruleLabel(e *events.Event) string {

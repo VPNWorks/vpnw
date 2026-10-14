@@ -1,0 +1,6 @@
+name = "folderer"
+version = "1.0.0"
+type = "observer"
+abi = 1
+description = "A test plugin that reads its folder"
+permissions = ["folder.read"]

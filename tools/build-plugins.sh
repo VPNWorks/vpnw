@@ -8,7 +8,7 @@ set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
 out="$root/plugins/builtin"
 # directory:name
-for p in trace:trace learn:learn ledger:ledger ledgerverify:ledger-verify; do
+for p in trace:trace learn:learn ledger:ledger ledgerverify:ledger-verify rotate:rotate; do
 	dir=${p%%:*} name=${p#*:}
 	GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -C "$root" -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w -buildid=" \
 		-o "$out/$name.wasm" "./plugins/$dir"

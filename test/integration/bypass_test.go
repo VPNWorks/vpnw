@@ -44,6 +44,7 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	labWrite()
 	exitWrite()
+	tunWrite()
 	os.RemoveAll(dir)
 	os.Exit(code)
 }

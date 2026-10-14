@@ -35,7 +35,8 @@ func TestManifest(t *testing.T) {
 		{"version = \"1.0.0\"\ntype = \"guard\"\nabi = 1\n", "name is missing"},
 		{"name = \"Geo\"\nversion = \"1.0.0\"\ntype = \"guard\"\nabi = 1\n", "lower case"},
 		{"name = \"g\"\nversion = \"one\"\ntype = \"guard\"\nabi = 1\n", "X.Y.Z"},
-		{"name = \"g\"\nversion = \"1.0.0\"\ntype = \"tunnel\"\nabi = 1\n", "tunnel plugins need a later vpnw"},
+		{"name = \"g\"\nversion = \"1.0.0\"\ntype = \"exit\"\nabi = 1\n", "exit plugins need a later vpnw"},
+		{"name = \"g\"\nversion = \"1.0.0\"\ntype = \"tunnel\"\nabi = 1\npermissions = [\"folder.write\"]\n", "unknown permission \"folder.write\""},
 		{"name = \"g\"\nversion = \"1.0.0\"\ntype = \"widget\"\nabi = 1\n", "unknown type"},
 		{"name = \"g\"\nversion = \"1.0.0\"\ntype = \"guard\"\nabi = 2\n", "ABI 2"},
 		{"name = \"g\"\nversion = \"1.0.0\"\ntype = \"guard\"\n", "abi is missing"},
@@ -142,7 +143,7 @@ func TestStore(t *testing.T) {
 		t.Errorf("signer %q", p.Signer)
 	}
 	list, errs := st.List()
-	if len(errs) > 0 || len(list) != 5 || list[4].Manifest.Name != "blocker" {
+	if len(errs) > 0 || len(list) != 6 || list[5].Manifest.Name != "blocker" {
 		t.Errorf("list: %d %v", len(list), errs)
 	}
 
@@ -171,7 +172,7 @@ func TestStore(t *testing.T) {
 	// What an install cut short leaves behind is not listed as a plugin.
 	os.MkdirAll(filepath.Join(st.Dir, "blocker.old"), 0o700)
 	os.MkdirAll(filepath.Join(st.Dir, ".install-123"), 0o700)
-	if list, errs := st.List(); len(errs) > 0 || len(list) != 5 {
+	if list, errs := st.List(); len(errs) > 0 || len(list) != 6 {
 		t.Errorf("leftovers listed: %d %v", len(list), errs)
 	}
 	if err := st.Remove("blocker"); err != nil {

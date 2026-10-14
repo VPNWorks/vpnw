@@ -35,6 +35,7 @@ import (
 	"github.com/VPNWorks/vpnw/internal/config"
 	"github.com/VPNWorks/vpnw/internal/events"
 	"github.com/VPNWorks/vpnw/internal/path"
+	"github.com/VPNWorks/vpnw/internal/pluginhost"
 	"github.com/VPNWorks/vpnw/internal/policy"
 	"github.com/VPNWorks/vpnw/internal/process"
 	"github.com/VPNWorks/vpnw/internal/version"
@@ -68,10 +69,13 @@ Options for run, trace and guard:
   --wireguard FILE    go through a WireGuard tunnel, from a wg-quick config file
                       (what VPN providers and wg hand out). vpnw runs the
                       tunnel itself: no root, no network interface
+  --tunnel NAME       go through WireGuard tunnels whose configs come from
+                      tunnel plugin NAME, such as the built-in rotate, which
+                      rotates through the .conf files in a folder
   --ca FILE           certificates to trust for a proxy over TLS (private CA)
   --token-file FILE   read the token for a proxy over TLS from FILE
   --dns MODE          where names are resolved: local or remote for --proxy,
-                      tunnel or local for --wireguard
+                      tunnel or local for --wireguard and --tunnel
   --allow RULE        allow a host, *.domain, address or CIDR (repeatable)
   --deny RULE         deny one (repeatable)
   --deny-private      deny loopback, private and link-local addresses
@@ -94,6 +98,8 @@ Options for run, trace and guard:
   --plugin-file NAME=PATH  the file vpnw opens for plugin NAME, if it asks
                       for one (file.write); it must not exist yet. The default
                       is ~/.local/state/vpnw/NAME/RUN.NAME
+  --plugin-folder NAME=PATH  the folder plugin NAME reads, if it asks for one
+                      (folder.read). The default is ~/.config/vpnw/NAME
 
 Exit codes: the program's own, or 120 denied, 121 usage or
 configuration, 122 enforcement unavailable, 123 path unavailable,
@@ -145,10 +151,10 @@ func (m *multi) Set(s string) error { *m = append(*m, s); return nil }
 
 type runOpts struct {
 	policyFile, configFile, via, dns, def, out, backend, wg          string
-	caFile, tokenFile                                                string
+	caFile, tokenFile, tunnel                                        string
 	direct, denyPrivate, jsonOut, verbose, quiet, noSave, noDenyExit bool
 	allowUnix                                                        bool
-	allow, deny, proxy, plugins, sets, pluginFiles                   multi
+	allow, deny, proxy, plugins, sets, pluginFiles, pluginFolders    multi
 }
 
 func fail(stderr io.Writer, code int, format string, a ...any) int {
@@ -166,6 +172,7 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	fs.BoolVar(&o.direct, "direct", false, "")
 	fs.Var(&o.proxy, "proxy", "")
 	fs.StringVar(&o.wg, "wireguard", "", "")
+	fs.StringVar(&o.tunnel, "tunnel", "", "")
 	fs.StringVar(&o.caFile, "ca", "", "")
 	fs.StringVar(&o.tokenFile, "token-file", "", "")
 	fs.StringVar(&o.dns, "dns", "", "")
@@ -186,6 +193,7 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	fs.Var(&o.plugins, "plugin", "")
 	fs.Var(&o.sets, "set", "")
 	fs.Var(&o.pluginFiles, "plugin-file", "")
+	fs.Var(&o.pluginFolders, "plugin-folder", "")
 	if err := fs.Parse(args); err != nil {
 		return fail(stderr, process.ExitConfig, "%v; see vpnw help", err)
 	}
@@ -252,21 +260,52 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	if err != nil {
 		return fail(stderr, process.ExitConfig, "%v", err)
 	}
+	pfiles, err := parsePluginFiles(o.pluginFiles)
+	if err != nil {
+		return fail(stderr, process.ExitConfig, "%v", err)
+	}
+	pfolders, err := parsePluginFolders(o.pluginFolders)
+	if err != nil {
+		return fail(stderr, process.ExitConfig, "%v", err)
+	}
+
+	// The run's record, and its plugins: a tunnel plugin is part of the
+	// path, so they come first.
+	runID := newRunID()
+	bus := events.NewBus(runID, nil)
+	pr := &pluginRun{mode: mode, bus: bus, stderr: stderr, settings: settings, verbose: o.verbose, files: pfiles, folders: pfolders}
+	defer pr.close()
 
 	// Path.
 	var p path.Path
+	var tp *path.Tunnels
 	chosen := 0
-	for _, b := range []bool{o.direct, len(o.proxy) > 0, o.via != "", o.wg != ""} {
+	for _, b := range []bool{o.direct, len(o.proxy) > 0, o.via != "", o.wg != "", o.tunnel != ""} {
 		if b {
 			chosen++
 		}
 	}
 	if chosen > 1 {
-		return fail(stderr, process.ExitConfig, "choose one of --direct, --proxy, --wireguard and --via")
+		return fail(stderr, process.ExitConfig, "choose one of --direct, --proxy, --wireguard, --tunnel and --via")
 	}
 	switch {
 	case o.direct:
 		p = &path.Direct{}
+	case o.tunnel != "":
+		if o.dns != "" && o.dns != "tunnel" && o.dns != "local" {
+			return fail(stderr, process.ExitConfig, "--dns with --tunnel is tunnel or local")
+		}
+		for _, name := range o.plugins {
+			if name == o.tunnel {
+				return fail(stderr, process.ExitConfig, "%s is a tunnel plugin and already the path, with --tunnel %s", name, name)
+			}
+		}
+		src, err := pr.tunnelSource(o.tunnel)
+		if err != nil {
+			return fail(stderr, process.ExitConfig, "%v", err)
+		}
+		tp = &path.Tunnels{Name: o.tunnel, Source: src, DNS: o.dns}
+		p = tp
 	case o.wg != "":
 		var c *path.WGConf
 		if c, err = path.LoadWGConf(o.wg); err == nil {
@@ -301,8 +340,8 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	if err != nil {
 		return fail(stderr, process.ExitConfig, "%v", err)
 	}
-	if o.dns != "" && len(o.proxy) == 0 && o.wg == "" {
-		return fail(stderr, process.ExitConfig, "--dns applies to --proxy and --wireguard only; set dns in the path's table")
+	if o.dns != "" && len(o.proxy) == 0 && o.wg == "" && o.tunnel == "" {
+		return fail(stderr, process.ExitConfig, "--dns applies to --proxy, --wireguard and --tunnel only; set dns in the path's table")
 	}
 	// A path that runs something of its own (a WireGuard tunnel) is taken
 	// down when the run ends.
@@ -338,9 +377,15 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 		fmt.Fprintln(stderr, "vpnw: env backend: programs that ignore proxy settings are neither routed nor traced")
 	}
 
-	// Path health: never fall back to direct if the chosen path is down.
+	// Path health: never fall back to direct if the chosen path is down. A
+	// tunnel plugin's configs are tried one after the other, each with up
+	// to 12 seconds for its handshake.
 	{
-		ctx, cancel := contextTimeout(20 * time.Second)
+		limit := 20 * time.Second
+		if tp != nil {
+			limit = 3 * time.Minute
+		}
+		ctx, cancel := contextTimeout(limit)
 		err := p.Health(ctx)
 		cancel()
 		if err != nil {
@@ -349,8 +394,6 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	}
 
 	// Events.
-	runID := newRunID()
-	bus := events.NewBus(runID, nil)
 	var closers []func() error
 	level := "decisions"
 	switch {
@@ -363,12 +406,6 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	}
 
 	// Plugins: the console (the built-in Trace plugin) and any --plugin.
-	pfiles, err := parsePluginFiles(o.pluginFiles)
-	if err != nil {
-		return fail(stderr, process.ExitConfig, "%v", err)
-	}
-	pr := &pluginRun{mode: mode, bus: bus, stderr: stderr, settings: settings, verbose: o.verbose, files: pfiles}
-	defer pr.close()
 	if level != "" {
 		if o.jsonOut {
 			bus.Add(events.NewJSONL(stderr))
@@ -457,7 +494,17 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	if be.Enforced() {
 		start["unix_sockets"] = map[bool]string{true: "allowed", false: "blocked"}[o.allowUnix]
 	}
+	if tp != nil {
+		start["tunnel"] = tp.Started()
+	}
 	bus.Emit(events.RunStart, 0, p.ID(), 0, start)
+	if tp != nil {
+		// From now on the tunnel plugin is asked again when the config in
+		// use is due or its tunnel stops answering, and what happens is
+		// recorded.
+		pr.tunnel.OnFail(pr.failed(pluginhost.Tunnel))
+		tp.Start(func(typ string, f map[string]any) { bus.Emit(typ, 0, p.ID(), 0, f) })
+	}
 
 	spec := process.Spec{Argv: argv, Env: os.Environ(), Stdin: stdin, Stdout: stdout, Stderr: stderr, RunID: runID, PathID: p.ID(), AllowUnix: o.allowUnix}
 	if f, ok := stdin.(*os.File); ok && f == os.Stdin {
@@ -498,6 +545,10 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	res, werr := be.Wait()
 	signal.Stop(sigs)
 	close(sigs)
+	if tp != nil {
+		// The program is done: no more rotation.
+		tp.Stop()
+	}
 	ef := map[string]any{"code": res.Code, "ms": res.Ended.Sub(res.Started).Milliseconds()}
 	if res.Signal != "" {
 		ef["signal"] = res.Signal

@@ -19,9 +19,10 @@ const (
 	Observer = "observer"
 	Advisor  = "advisor"
 	Guard    = "guard"
+	Tunnel   = "tunnel"
 )
 
-var reservedTypes = map[string]bool{"tunnel": true, "exit": true, "identity": true}
+var reservedTypes = map[string]bool{"exit": true, "identity": true}
 
 // Permissions a manifest can ask for. Logging, reporting an error and giving
 // a reason for a refusal are always allowed.
@@ -29,12 +30,14 @@ const (
 	PermConsole = "console"     // write to vpnw's standard output and error
 	PermEmit    = "events.emit" // add events to the run's record
 	PermFile    = "file.write"  // append to the one file vpnw opens for it
+	PermFolder  = "folder.read" // read the files in the one folder vpnw opens for it
 )
 
 var knownPerms = map[string]string{
 	PermConsole: "write to vpnw's standard output and error",
 	PermEmit:    "add its own events to the run's record",
 	PermFile:    "append to one file that vpnw opens for it",
+	PermFolder:  "read the files in one folder that vpnw opens for it",
 }
 
 // What an Advisor is handed: events (the default) or the lines of its
@@ -127,11 +130,11 @@ func ParseManifest(src string) (*Manifest, error) {
 		return nil, err
 	}
 	switch {
-	case m.Type == Observer || m.Type == Advisor || m.Type == Guard:
+	case m.Type == Observer || m.Type == Advisor || m.Type == Guard || m.Type == Tunnel:
 	case reservedTypes[m.Type]:
-		return nil, fmt.Errorf("plugin.toml: %s plugins need a later vpnw; this one runs observer, advisor and guard plugins", m.Type)
+		return nil, fmt.Errorf("plugin.toml: %s plugins need a later vpnw; this one runs observer, advisor, guard and tunnel plugins", m.Type)
 	default:
-		return nil, fmt.Errorf("plugin.toml: unknown type %q (observer, advisor or guard)", m.Type)
+		return nil, fmt.Errorf("plugin.toml: unknown type %q (observer, advisor, guard or tunnel)", m.Type)
 	}
 	if m.Description, err = str("description", false); err != nil {
 		return nil, err
@@ -185,4 +188,4 @@ func ParseManifest(src string) (*Manifest, error) {
 	return m, nil
 }
 
-func permNames() []string { return []string{PermConsole, PermEmit, PermFile} }
+func permNames() []string { return []string{PermConsole, PermEmit, PermFile, PermFolder} }

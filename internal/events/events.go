@@ -47,11 +47,25 @@ const (
 	// (fields: peer, proto, reason, and host or ip and port when the request
 	// named them). The token itself is never recorded.
 	AuthDeny = "auth.deny"
+	// TunnelSwitch: on a path whose WireGuard configs come from a tunnel
+	// plugin, new connections moved to another config's tunnel (fields:
+	// from, to, why "due" or "failed", error when the one left had failed,
+	// ms to bring the new one up, peer).
+	TunnelSwitch = "tunnel.switch"
+	// TunnelError: a config the tunnel plugin handed over was refused or
+	// didn't come up (fields: config, error), or the plugin had none to give
+	// (error only).
+	TunnelError = "tunnel.error"
+	// TunnelClose: a tunnel that was rotated out closed after its last
+	// connection (fields: config, and cut when connections still open were
+	// closed with it).
+	TunnelClose = "tunnel.close"
 )
 
 // Types lists every event type in schema version 1.
 var Types = []string{RunStart, ProcessStart, DNSQuery, DNSResult, ConnectionAttempt,
-	PolicyAllow, PolicyDeny, PathSwitch, ConnectionOpen, ConnectionClose, ConnectionError, PluginError, AuthDeny, ProcessExit, RunEnd}
+	PolicyAllow, PolicyDeny, PathSwitch, ConnectionOpen, ConnectionClose, ConnectionError, PluginError, AuthDeny,
+	TunnelSwitch, TunnelError, TunnelClose, ProcessExit, RunEnd}
 
 // Events whose type starts with "plugin.<name>." were added by that plugin.
 

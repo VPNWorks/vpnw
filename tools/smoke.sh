@@ -4,8 +4,9 @@
 #
 # smoke.sh DIR: checks the vpnw binary in DIR before it goes public. It must
 # report its version, list its built-in plugins, start the plugin host, run
-# the Learn plugin end to end on a small trace, handle WireGuard configs, and
-# serve as an exit to a client of its own. On Linux it also traces
+# the Learn plugin end to end on a small trace, handle WireGuard configs,
+# have the rotate plugin try a folder of them, and serve as an exit to a
+# client of its own. On Linux it also traces
 # and guards a real program in the sealed backend when the machine allows
 # it. The release workflow runs it on Linux and macOS.
 set -eu
@@ -25,11 +26,11 @@ case "$out" in
 esac
 
 list=$("$bin/vpnw" plugin list) || fail "vpnw plugin list failed"
-for p in trace learn ledger ledger-verify; do
+for p in trace learn ledger ledger-verify rotate; do
   echo "$list" | grep -q "^$p .*built-in" || fail "built-in plugin $p is missing:
 $list"
 done
-echo "plugins: trace, learn, ledger and ledger-verify built in"
+echo "plugins: trace, learn, ledger, ledger-verify and rotate built in"
 
 doctor=$("$bin/vpnw" doctor) || true
 echo "$doctor" | grep -q "plugins          ok" || fail "the plugin host did not start:
@@ -81,6 +82,19 @@ code=0
 "$bin/vpnw" run --backend env --wireguard wg.conf -- true > wg.log 2>&1 || code=$?
 [ "$code" = 121 ] || fail "a WireGuard config with a shell hook gave exit $code"
 echo "wireguard: refused a hook, stopped on a dead tunnel"
+
+# Rotate: a folder with that config, refused for its hook, and the dead one;
+# neither comes up, so the program never starts, and vpnw says why for each.
+mkdir configs
+cp wg.conf configs/1-hook.conf
+sed '/PostUp/d' wg.conf > configs/2-dead.conf
+code=0
+"$bin/vpnw" run --backend env --tunnel rotate --plugin-folder rotate=configs -- touch ran > rotate.log 2>&1 || code=$?
+[ "$code" = 123 ] || fail "rotate with no working config gave exit $code: $(cat rotate.log)"
+[ ! -e ran ] || fail "the program ran with no working config"
+grep -q "1-hook.conf: line .*shell hook" rotate.log && grep -q "2-dead.conf: no WireGuard handshake" rotate.log ||
+  fail "rotate did not say why: $(cat rotate.log)"
+echo "rotate: tried a folder of configs, refused a hook, stopped on a dead tunnel"
 
 # Exit: a certificate from a private CA, a token, a file that checks out,
 # and a client that passes the exit's health check with that token.

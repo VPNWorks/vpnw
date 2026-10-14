@@ -31,6 +31,22 @@ func hostFileWrite(p unsafe.Pointer, n uint32) uint32
 //go:wasmimport vpnw file_sync
 func hostFileSync() uint32
 
+//go:wasmimport vpnw folder_list
+func hostFolderList(p unsafe.Pointer, capacity uint32) uint32
+
+//go:wasmimport vpnw folder_read
+func hostFolderRead(np unsafe.Pointer, nn uint32, p unsafe.Pointer, capacity uint32) uint32
+
+func folderList(buf []byte) uint32 { return hostFolderList(ptr(buf), uint32(len(buf))) }
+
+func folderRead(name string, buf []byte) uint32 {
+	nb := []byte(name)
+	if len(nb) == 0 {
+		return folderFailed
+	}
+	return hostFolderRead(ptr(nb), uint32(len(nb)), ptr(buf), uint32(len(buf)))
+}
+
 func fileWrite(b []byte) uint32 {
 	for len(b) > 0 {
 		n := min(len(b), 1<<20)
@@ -140,4 +156,31 @@ func exportFinish() uint32 {
 		return fail(err)
 	}
 	return 0
+}
+
+// handed keeps the last offer alive until vpnw has read it, after
+// vpnw_tunnel returns and before the next call.
+var handed []byte
+
+// vpnw_tunnel returns 0 when the plugin has no config (the reason, if any,
+// comes through the reason host call first), all ones when it failed (the
+// error through the error host call), and otherwise where the offer is in
+// memory: its address in the high 32 bits, its length in the low.
+//
+//go:wasmexport vpnw_tunnel
+func exportTunnel(p unsafe.Pointer, n uint32) uint64 {
+	offer, none, why, err := doTunnel(take(p, n))
+	switch {
+	case err != nil:
+		fail(err)
+		return ^uint64(0)
+	case none:
+		if why != "" {
+			b := []byte(why)
+			hostReason(ptr(b), uint32(len(b)))
+		}
+		return 0
+	}
+	handed = offer
+	return uint64(uintptr(ptr(handed)))<<32 | uint64(len(handed))
 }

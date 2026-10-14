@@ -30,15 +30,16 @@ The core does four things and nothing else:
 - **Carry**: allowed connections go down the chosen path.
 - **Record**: every decision becomes an event. Events record hosts, addresses, ports, byte counts and decisions, never payloads, URL paths, headers or passwords.
 
-Plugins do the rest. They're WebAssembly modules that run in a sandbox inside vpnw with no files, no network and no environment, and they reach vpnw only through the calls their manifest asks for. Three kinds run today:
+Plugins do the rest. They're WebAssembly modules that run in a sandbox inside vpnw with no files, no network and no environment, and they reach vpnw only through the calls their manifest asks for. Four kinds run today:
 
 | Type | What it does | Built in |
 |---|---|---|
 | **Observer** | Watches a run's events as they happen | `trace`: the console output of run, trace and guard. `ledger`: seals the run's record |
 | **Advisor** | Reads recorded traces or files and writes advice | `learn`: turns a trace into a draft policy. `ledger-verify`: checks a sealed record |
 | **Guard** | Can refuse a connection the policy allowed | none yet |
+| **Tunnel** | Hands vpnw WireGuard configs, and says when to move to the next | `rotate`: rotates through the configs in a folder |
 
-Tunnel and Identity plugins come in later versions.
+Exit and Identity plugins are reserved for later versions.
 
 ## A record nobody can quietly edit
 
@@ -66,6 +67,17 @@ vpnw runs the tunnel itself, inside its own process: the WireGuard protocol from
 A lying DNS answer from the tunnel can't send a program to loopback or link-local addresses, cloud metadata among them: those are refused through any tunnel, a full tunnel included.
 
 WireGuard is a built-in path, like the proxy paths, not a plugin: it carries every byte, and plugins never carry traffic. It's a registered trademark of Jason A. Donenfeld; VPN Works isn't affiliated with the WireGuard project.
+
+## Rotating through WireGuard configs
+
+A tunnel plugin hands vpnw the configs and says when to move on; vpnw still runs every tunnel itself. The built-in `rotate` takes the `.conf` files in a folder, `~/.config/vpnw/rotate` or one you name:
+
+```
+vpnw guard --tunnel rotate --set rotate.every=10m --policy scraper.toml -- ./scraper
+vpnw run --tunnel rotate --plugin-folder rotate=configs/sweden --set rotate.order=random -- ./crawler
+```
+
+vpnw moves to the next config when the one in use has been kept as long as the plugin asked, and when its tunnel stops answering: data went out and nothing, not even a WireGuard keepalive, came back for 20 seconds. The next tunnel is up before anything moves to it. New connections go through it, and connections already open finish on the tunnel they started on, which closes after its last one, so a download isn't cut by a rotation. Each config is checked as a `--wireguard` file is; one that is refused (a shell hook, an OpenVPN file, no DNS server) or whose tunnel doesn't come up is skipped, and the record says why. If no config comes up at the start, the program never starts, and if nothing else comes up later, the tunnel in use stays: vpnw never falls back to connecting directly. A tunnel plugin reads its folder through the `folder.read` permission, which any plugin can ask for: the files directly in one folder that vpnw opens for it, and nothing outside it.
 
 ## Exits with fixed addresses
 
@@ -165,11 +177,13 @@ The rules plugins live by:
 - A Guard that fails refuses the connection it was asked about and every one after it. Guards fail closed.
 - An Observer that falls behind loses events (counted and reported) rather than slowing the program.
 
+- A Tunnel plugin hands over configs and nothing else. vpnw checks each before using it; one that fails stops the rotation, and the tunnel in use carries on.
+
 Writing a plugin in Go takes the SDK and one build command; [docs/plugins.md](docs/plugins.md) walks through it and documents the plugin interface for other languages.
 
 ## How it was tested
 
-Every number here comes from `tools/record-results.sh`, which writes [test/results](test/results). The main promise is that a sealed program can't get out except through vpnw, so the integration tests try every way out they know from inside the sandbox ([bypass matrix](test/results/bypass-matrix.md)), and the plugin tests aim at the plugin promises: a plugin that panics, spins forever, writes without permission, falls behind, or fails while guarding. Costs per plugin call are in [plugins.txt](test/results/plugins.txt). WireGuard paths are tested against a real WireGuard peer running in the tests, with a web and a DNS server inside its tunnel; their speed is in [wireguard.txt](test/results/wireguard.txt). Lab, the fault kit in the tests, breaks that tunnel on purpose (a silent peer, lost handshakes, an impostor peer, a slow path, a DNS server that lies) and checks that the program hears about it, nothing goes around the tunnel, every connection has an outcome in the record, and vpnw never hangs: [lab.md](test/results/lab.md). Exit's tests run the real `vpnw exit serve` with the real vpnw as its client: fixed addresses, a client that skips its own policy, one policy file at both ends, an exit killed partway through, and clients with the wrong token or CA ([exit.md](test/results/exit.md)).
+Every number here comes from `tools/record-results.sh`, which writes [test/results](test/results). The main promise is that a sealed program can't get out except through vpnw, so the integration tests try every way out they know from inside the sandbox ([bypass matrix](test/results/bypass-matrix.md)), and the plugin tests aim at the plugin promises: a plugin that panics, spins forever, writes without permission, falls behind, or fails while guarding. Costs per plugin call are in [plugins.txt](test/results/plugins.txt). WireGuard paths are tested against a real WireGuard peer running in the tests, with a web and a DNS server inside its tunnel; their speed is in [wireguard.txt](test/results/wireguard.txt). Lab, the fault kit in the tests, breaks that tunnel on purpose (a silent peer, lost handshakes, an impostor peer, a slow path, a DNS server that lies) and checks that the program hears about it, nothing goes around the tunnel, every connection has an outcome in the record, and vpnw never hangs: [lab.md](test/results/lab.md). Exit's tests run the real `vpnw exit serve` with the real vpnw as its client: fixed addresses, a client that skips its own policy, one policy file at both ends, an exit killed partway through, and clients with the wrong token or CA ([exit.md](test/results/exit.md)). Tunnel plugins are tested with the real vpnw and the built-in rotate against several real WireGuard peers: rotation while the program keeps asking, a download that spans a rotation, a peer that goes silent, bad configs, and a plugin that crashes ([tunnel.md](test/results/tunnel.md)); every Lab case runs through rotate too.
 
 ## Build from source
 
