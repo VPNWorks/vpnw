@@ -24,16 +24,32 @@ whole procedure and the checks to run afterwards.
 
 Read this first in a new session, and update it at the end of every release.
 
-- **Released:** 0.6.0 (October 13, 2026): Lab, the fault kit in the tests
-  (internal/path/wgtest/relay.go, test/integration/lab_test.go; results in
-  test/results/lab.md, 18 of 18), and its four fixes: loopback, link-local
-  and multicast refused through any tunnel; pending lookups and dials
-  recorded as cut off at the end of a run; open connections closed in the
-  record at the end; `QuietAfterClose` (2 minutes) in the broker. 0.5.0
-  added Ledger and the `file.write` permission; 0.4.1 ran the IPv6 escape
+- **Released:** 0.7.0 (October 14, 2026): Exit, `vpnw exit
+  serve|check|token|cert`, in the core (cmd/vpnw/exit.go; internal/exit for
+  the file, tokens, CA and the exit path; internal/broker/exit.go for the
+  front end). Every request at an exit goes through the same `open` and
+  `decide` as a run's, with the client's own policy and path. Results in
+  test/results/exit.md (21 of 21) and TestSameDecisionAtBothEnds (513 of
+  513). 0.6.0 added Lab, the fault kit in the tests, and its four fixes;
+  0.5.0 Ledger and the `file.write` permission; 0.4.1 ran the IPv6 escape
   tests in CI; 0.4.0 added WireGuard paths; 0.3.0 rebuilt VPN Works as a
   core with plugins.
-- **Next:** 0.7.0, Exit. Waiting for the owner's go-ahead.
+- **Next:** 0.8.0, Tunnel plugins. Waiting for the owner's go-ahead.
+- **Exit, what to keep in mind:** tokens are kept as SHA-256 hashes; the
+  exit's own machine is refused unless the client has `allow_exit_host`,
+  and link-local, multicast and cloud metadata always are (`path.Refusal`,
+  rule `exit`); a refusal of a name doesn't tell the client what the name
+  resolved to. Limits before login and per client are variables at the top
+  of internal/broker/exit.go. Known and documented: the file is read at
+  start, so a new client means a restart; over SOCKS5 a refusal carries no
+  reason. The `exit` plugin type stays reserved: Observers and Guards run
+  at an exit, and a Guard's request carries `Client`. The integration tests
+  use sources 127.0.0.2 and up, which only Linux has; off Linux the
+  in-process test uses a pool.
+- **Speed figures vary with this machine:** 0.7.0 was recorded on a slow
+  day (WireGuard 60 MB/s; the v0.6.0 tag measured about 56 MB/s that day,
+  against 99 before). Compare speeds only within one recording; the site's
+  Platform page says the machine was slower.
 - **Lab, for later tunnels:** a new path or tunnel plugin gets the same
   cases through `labPeer`. Every case records a row with `labRecord(t, …)`
   built from measured values; `labGuard` gives a test that stops early a
@@ -73,7 +89,7 @@ release on your own, even when the last one went well.
 | 0.4.1 | Fixes: the two IPv6 escape tests run inside the test sandbox, so they no longer depend on the machine having IPv6 (16 of 16 ways out tested); small cleanups left from the reviews | released |
 | 0.5.0 | Ledger | released |
 | 0.6.0 | Lab | released |
-| 0.7.0 | Exit | waiting |
+| 0.7.0 | Exit | released |
 | 0.8.0 | Tunnel plugins | waiting |
 
 **0.5.0, Ledger.**
