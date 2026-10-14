@@ -7,10 +7,10 @@ them, and give first-party plugins no back door the plugin interface doesn't
 offer everyone.
 
 - After changing anything under plugins/ (trace, learn, ledger, ledgerverify,
-  sdk), run `sh tools/build-plugins.sh` and commit plugins/builtin/*.wasm.
-  CI rebuilds them anyway, but `go build` from a clean checkout embeds the
-  committed ones. They stay uncompressed on purpose: unpacking one cost
-  every run about 40 ms.
+  rotate, sdk), run `sh tools/build-plugins.sh` and commit
+  plugins/builtin/*.wasm. CI rebuilds them anyway, but `go build` from a
+  clean checkout embeds the committed ones. They stay uncompressed on
+  purpose: unpacking one cost every run about 40 ms.
 - Built-in plugin manifests carry the release version; raise them with
   internal/version/version.go (a test checks).
 - Figures quoted on vpnw.com or in the README come from
@@ -24,17 +24,42 @@ whole procedure and the checks to run afterwards.
 
 Read this first in a new session, and update it at the end of every release.
 
-- **Released:** 0.7.0 (October 14, 2026): Exit, `vpnw exit
-  serve|check|token|cert`, in the core (cmd/vpnw/exit.go; internal/exit for
-  the file, tokens, CA and the exit path; internal/broker/exit.go for the
-  front end). Every request at an exit goes through the same `open` and
-  `decide` as a run's, with the client's own policy and path. Results in
-  test/results/exit.md (21 of 21) and TestSameDecisionAtBothEnds (513 of
-  513). 0.6.0 added Lab, the fault kit in the tests, and its four fixes;
-  0.5.0 Ledger and the `file.write` permission; 0.4.1 ran the IPv6 escape
-  tests in CI; 0.4.0 added WireGuard paths; 0.3.0 rebuilt VPN Works as a
-  core with plugins.
-- **Next:** 0.8.0, Tunnel plugins. Waiting for the owner's go-ahead.
+- **Released:** 0.8.0 (October 14, 2026): Tunnel plugins. The `tunnel`
+  plugin type is open (internal/path/tunnels.go for the path,
+  internal/pluginhost/tunnel.go and folder.go for the plugin side,
+  plugins/rotate for the built-in), with the new `folder.read` permission.
+  Results in test/results/tunnel.md (9 of 9), and Lab runs every case
+  through `--wireguard` and `--tunnel rotate` (36 of 36). 0.7.0 added Exit
+  (`vpnw exit`, in the core), 0.6.0 Lab, 0.5.0 Ledger and `file.write`,
+  0.4.1 the IPv6 escape tests in CI, 0.4.0 WireGuard paths, 0.3.0 the core
+  with plugins.
+- **Next:** the approved program is complete. Waiting for the owner to say
+  what comes next; nothing from "Later" starts without the owner.
+- **Tunnel plugins, what to keep in mind:**
+  - Liveness counts only what WireGuard accepted: rx_bytes from IpcGet,
+    polled each second (`Silent`), with the socket's arrival time as the
+    timestamp; `begin` resets it when Health completes. Rotated-out tunnels
+    are watched too, and one that went silent is never moved back to.
+  - One key and peer, one tunnel: a config handed over again while its
+    tunnel winds down gets that tunnel back (same name and text, not failed
+    or silent); one sharing key and peer with the tunnel in use is refused;
+    a new tunnel cuts rotated-out ones that share them (`why` "replaced").
+    ListenPort clashes are refused; at most 16 peers per plugin config; at
+    most 4 tunnels wind down.
+  - What the plugin is told of a failed tunnel (`toPlugin`) leaves out
+    resolved addresses and resolver errors; config errors never quote a
+    line beyond a key's name or an address-like value. Trust model, in the
+    docs: a Tunnel plugin chooses where traffic goes.
+  - Known and documented: `--tunnel` only on the command line (not in
+    `[paths]`, not at an exit); an idle rotated-out tunnel whose peer died
+    is moved back to and fails over after 20 s.
+- **The netstack copy:** internal/path/netstack is wireguard-go's
+  tun/netstack at the pinned version, with one change: Close never closes
+  the channel packets are sent on (the original panicked vpnw when a tunnel
+  closed under traffic). When raising wireguard-go, copy the new file and
+  apply the change again; TestCloseWhileSending panics on the original.
+  record-results counts it apart from the core and leaves it out of
+  coverage.
 - **Exit, what to keep in mind:** tokens are kept as SHA-256 hashes; the
   exit's own machine is refused unless the client has `allow_exit_host`,
   and link-local, multicast and cloud metadata always are (`path.Refusal`,
@@ -46,14 +71,16 @@ Read this first in a new session, and update it at the end of every release.
   at an exit, and a Guard's request carries `Client`. The integration tests
   use sources 127.0.0.2 and up, which only Linux has; off Linux the
   in-process test uses a pool.
-- **Speed figures vary with this machine:** 0.7.0 was recorded on a slow
-  day (WireGuard 60 MB/s; the v0.6.0 tag measured about 56 MB/s that day,
-  against 99 before). Compare speeds only within one recording; the site's
-  Platform page says the machine was slower.
+- **Speed figures vary with this machine:** 0.8.0 recorded 54 MB/s through
+  WireGuard; side by side the same evening, HEAD and v0.7.0 both measured
+  55 to 64 MB/s (0.7.0 recorded 60, 0.6.0 99 on a faster day). Compare
+  speeds only within one recording; the site's Platform page says so.
+  record-results.sh takes about fifty minutes.
 - **Lab, for later tunnels:** a new path or tunnel plugin gets the same
-  cases through `labPeer`. Every case records a row with `labRecord(t, …)`
-  built from measured values; `labGuard` gives a test that stops early a
-  FAILED row. The hostile-route fault is covered as a reroute (impostor);
+  cases through `labPeer` and `labVias` (each case runs once per way to
+  the tunnel, `--wireguard` and `--tunnel rotate` today). Every case
+  records a row with `labRecord(t, v, …)` built from measured values;
+  `labGuard` gives a test that stops early a FAILED row. The hostile-route fault is covered as a reroute (impostor);
   a pushed route can't move a sealed program, since the tunnel doesn't use
   the host's routing table.
 - **Ledger's limits, known and documented:** no signed checkpoints (a
@@ -61,9 +88,10 @@ Read this first in a new session, and update it at the end of every release.
   roadmap). A ledger written again from scratch is caught only by the
   checkpoint copies in the trace or the printed last hash, kept elsewhere.
   The watched program runs as the user and could rewrite both files.
-- **Binary size:** the built-in plugins are embedded uncompressed (about
-  26 MB in all). Shipping them gzipped saved 11 MB but cost every run about
-  40 ms to unpack Trace, so it was reverted.
+- **Binary size:** the five built-in plugins are embedded uncompressed
+  (about 19 MB of WebAssembly; the binary is 31 MB). Shipping them gzipped
+  saved 11 MB but cost every run about 40 ms to unpack Trace, so it was
+  reverted.
 - **How the IPv6 rows are recorded:** the machine used so far has no IPv6 in
   its kernel. CI runs the matrix on its Linux runner with
   `VPNW_REQUIRE_SEAL=1` and `VPNW_REQUIRE_IPV6=1` and leaves the table as a
@@ -90,7 +118,7 @@ release on your own, even when the last one went well.
 | 0.5.0 | Ledger | released |
 | 0.6.0 | Lab | released |
 | 0.7.0 | Exit | released |
-| 0.8.0 | Tunnel plugins | waiting |
+| 0.8.0 | Tunnel plugins | released |
 
 **0.5.0, Ledger.**
 - Plugin interface: a new permission that lets a plugin write to one file
