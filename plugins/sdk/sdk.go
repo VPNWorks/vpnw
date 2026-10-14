@@ -93,13 +93,17 @@ type Request struct {
 	IP    string `json:"ip,omitempty"`   // the address asked for, when there was no name
 	Port  int    `json:"port"`
 	Proto string `json:"proto"` // "http-connect", "http" or "socks5"
+	// Client is the exit's client the connection came from, when the Guard
+	// runs at an exit (vpnw exit serve); "" in a run.
+	Client string `json:"client,omitempty"`
 }
 
 // Config is what vpnw tells a plugin when it starts.
 type Config struct {
 	// Plugin is this plugin's name from its manifest.
 	Plugin string `json:"plugin"`
-	// Command is the vpnw command running: "run", "trace", "guard" or "advise".
+	// Command is the vpnw command running: "run", "trace", "guard",
+	// "advise", or "exit" at an exit (vpnw exit serve).
 	Command string `json:"command"`
 	// Settings are the plugin's own settings, given with --set NAME.KEY=VALUE.
 	Settings map[string]string `json:"settings"`
@@ -108,7 +112,8 @@ type Config struct {
 	// TZOffset and TZName are the local time zone (a plugin has none).
 	TZOffset int    `json:"tz_offset"`
 	TZName   string `json:"tz_name"`
-	// Run is the run's identifier in run, trace and guard; "" in advise.
+	// Run is the run's identifier in run, trace, guard and exit; "" in
+	// advise.
 	Run string `json:"run"`
 	// File is the path of the file vpnw opened for this plugin, if its
 	// manifest asks for "file.write" and the command opened one; "" if not.

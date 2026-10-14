@@ -47,6 +47,11 @@ type Stats struct {
 	Failed      int64 `json:"failed"`
 	BytesUp     int64 `json:"bytes_up"`
 	BytesDown   int64 `json:"bytes_down"`
+	// At an exit: logins refused, health checks answered, and connections
+	// that never finished TLS.
+	AuthDenied   int64 `json:"auth_denied,omitempty"`
+	HealthChecks int64 `json:"health_checks,omitempty"`
+	TLSFailed    int64 `json:"tls_failed,omitempty"`
 }
 
 // Guard is a further check on a connection the policy allowed, such as a
@@ -66,6 +71,8 @@ type GuardRequest struct {
 	IP    string `json:"ip,omitempty"`
 	Port  int    `json:"port"`
 	Proto string `json:"proto"`
+	// Client is the exit's client the connection came from, at an exit.
+	Client string `json:"client,omitempty"`
 }
 
 // Broker decides and carries connections for one run.
@@ -81,6 +88,11 @@ type Broker struct {
 	// Token, if set, must be presented as proxy credentials (user "vpnw").
 	Token       string
 	DialTimeout time.Duration
+	// Exit, if set, makes the broker the front of an exit (vpnw exit): it
+	// takes HTTP CONNECT and SOCKS5 from many clients, each known by a token,
+	// and decides and sends each request with that client's policy and path.
+	// Policy, Path and Token are then not used. See exit.go.
+	Exit *Exit
 
 	pid                                          atomic.Int64
 	seq                                          atomic.Uint64
@@ -95,6 +107,7 @@ type Broker struct {
 	stop                                         context.CancelFunc
 	connections, opened, allowed, denied, failed atomic.Int64
 	bytesUp, bytesDown                           atomic.Int64
+	authDenied, healthChecks, tlsFailed          atomic.Int64
 }
 
 // baseCtx is the context every connection's lookups and dials run under;
@@ -118,8 +131,10 @@ func (b *Broker) now() time.Time {
 	return time.Now()
 }
 
-func (b *Broker) emit(typ string, conn uint64, f map[string]any) {
-	b.Bus.Emit(typ, int(b.pid.Load()), b.Path.ID(), conn, f)
+// emitPath emits an event of a connection that went by the path pathID; at
+// an exit, each client has a path of its own.
+func (b *Broker) emitPath(pathID, typ string, conn uint64, f map[string]any) {
+	b.Bus.Emit(typ, int(b.pid.Load()), pathID, conn, f)
 }
 
 func (b *Broker) runID() string {
@@ -134,6 +149,7 @@ func (b *Broker) Stats() Stats {
 	return Stats{
 		Connections: b.connections.Load(), Opened: b.opened.Load(), Allowed: b.allowed.Load(), Denied: b.denied.Load(),
 		Failed: b.failed.Load(), BytesUp: b.bytesUp.Load(), BytesDown: b.bytesDown.Load(),
+		AuthDenied: b.authDenied.Load(), HealthChecks: b.healthChecks.Load(), TLSFailed: b.tlsFailed.Load(),
 	}
 }
 
@@ -235,6 +251,10 @@ func (b *Broker) Shutdown(grace time.Duration) {
 // otherwise HTTP.
 func (b *Broker) Handle(c net.Conn) {
 	defer c.Close()
+	if b.Exit != nil {
+		b.exitHandle(c)
+		return
+	}
 	c.SetReadDeadline(time.Now().Add(HandshakeTime))
 	br := bufio.NewReaderSize(c, 16<<10)
 	first, err := br.Peek(1)
@@ -259,14 +279,39 @@ type outcome struct {
 	start  time.Time
 	denied *policy.Decision
 	err    error
-	socks  byte // SOCKS5 reply code on failure
+	socks  byte   // SOCKS5 reply code on failure
+	path   string // the ID of the path it went by, for its later events
 }
 
-// open decides and dials one destination, emitting events for each step.
-func (b *Broker) open(rawHost string, port int, proto string) outcome {
+// origin is who asked for a connection. The zero origin is the broker's own
+// program; at an exit it is a client, with the run and connection IDs it
+// sent, if any, and the address it came from.
+type origin struct {
+	client *Client
+	run    string
+	conn   uint64
+	peer   string
+}
+
+// open decides and dials one destination, emitting events for each step:
+// with the broker's own policy and path, or, at an exit, with the client's.
+func (b *Broker) open(from origin, rawHost string, port int, proto string) outcome {
+	pol, p := b.Policy, b.Path
+	if from.client != nil {
+		pol, p = from.client.Policy, from.client.Path
+	}
+	o := b.decide(from, pol, p, rawHost, port, proto)
+	o.path = p.ID()
+	return o
+}
+
+// decide is open's work, with the policy and path chosen.
+func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost string, port int, proto string) outcome {
 	id := b.seq.Add(1)
 	start := b.now()
 	b.connections.Add(1)
+	pathID := p.ID()
+	emit := func(typ string, f map[string]any) { b.emitPath(pathID, typ, id, f) }
 	host, ip, nerr := policy.NormalizeHost(rawHost)
 	f := map[string]any{"port": port, "proto": proto}
 	switch {
@@ -277,25 +322,26 @@ func (b *Broker) open(rawHost string, port int, proto string) outcome {
 	default:
 		f["ip"] = ip.String()
 	}
-	b.emit(events.ConnectionAttempt, id, f)
+	from.fields(f)
+	emit(events.ConnectionAttempt, f)
 	if nerr != nil {
 		reason := strings.TrimPrefix(nerr.Error(), policy.ErrInvalid.Error()+": ")
-		if b.Policy != nil {
+		if pol != nil {
 			d := policy.Decision{Allow: false, Rule: "invalid", Reason: reason}
 			b.denied.Add(1)
-			b.emit(events.PolicyDeny, id, map[string]any{"rule": d.Rule, "reason": d.Reason})
+			emit(events.PolicyDeny, map[string]any{"rule": d.Rule, "reason": d.Reason})
 			return outcome{id: id, start: start, denied: &d, socks: 0x02}
 		}
 		b.failed.Add(1)
-		b.emit(events.ConnectionError, id, map[string]any{"error": reason})
+		emit(events.ConnectionError, map[string]any{"error": reason})
 		return outcome{id: id, start: start, err: errors.New(reason), socks: 0x04}
 	}
 	if port < 1 || port > 65535 {
 		b.failed.Add(1)
-		b.emit(events.ConnectionError, id, map[string]any{"error": "port out of range"})
+		emit(events.ConnectionError, map[string]any{"error": "port out of range"})
 		return outcome{id: id, start: start, err: errors.New("port out of range"), socks: 0x01}
 	}
-	t := policy.Target{Host: host, IP: ip, Port: port, RemoteDNS: b.Path.RemoteDNS()}
+	t := policy.Target{Host: host, IP: ip, Port: port, RemoteDNS: p.RemoteDNS()}
 	timeout := b.DialTimeout
 	if timeout == 0 {
 		timeout = path.DialTimeout
@@ -305,13 +351,13 @@ func (b *Broker) open(rawHost string, port int, proto string) outcome {
 	// The path sends the run and connection IDs to an exit, and says which
 	// exit answered and when a list of exits moved on.
 	ci := &path.Conn{Run: b.runID(), ID: id, Switched: func(from, to, reason string, ms int64) {
-		b.emit(events.PathSwitch, id, map[string]any{"from": from, "to": to, "error": reason, "ms": ms})
+		emit(events.PathSwitch, map[string]any{"from": from, "to": to, "error": reason, "ms": ms})
 	}}
 	ctx = path.WithConn(ctx, ci)
 
 	var addrs []net.IP
 	resolve := func() error {
-		b.emit(events.DNSQuery, id, map[string]any{"host": host})
+		emit(events.DNSQuery, map[string]any{"host": host})
 		t0 := b.now()
 		ips, err := b.Resolver.LookupIP(ctx, host)
 		if err == nil && len(ips) == 0 {
@@ -319,14 +365,14 @@ func (b *Broker) open(rawHost string, port int, proto string) outcome {
 		}
 		if err != nil {
 			msg := dnsErr(err)
-			b.emit(events.DNSResult, id, map[string]any{"host": host, "error": msg})
+			emit(events.DNSResult, map[string]any{"host": host, "error": msg})
 			return errors.New("dns: " + msg)
 		}
 		list := make([]string, len(ips))
 		for i, a := range ips {
 			list[i] = a.String()
 		}
-		b.emit(events.DNSResult, id, map[string]any{"host": host, "ips": list, "ms": b.now().Sub(t0).Milliseconds()})
+		emit(events.DNSResult, map[string]any{"host": host, "ips": list, "ms": b.now().Sub(t0).Milliseconds()})
 		addrs = ips
 		return nil
 	}
@@ -341,19 +387,19 @@ func (b *Broker) open(rawHost string, port int, proto string) outcome {
 		if ci.Exit != "" {
 			ef["exit"] = ci.Exit
 		}
-		b.emit(events.ConnectionError, id, ef)
+		emit(events.ConnectionError, ef)
 		return outcome{id: id, start: start, err: err, socks: code}
 	}
 
-	if b.Policy != nil {
+	if pol != nil {
 		var d policy.Decision
-		if b.Policy.NeedsAddresses(t) {
+		if pol.NeedsAddresses(t) {
 			if err := resolve(); err != nil {
 				return fail(err, 0x04)
 			}
-			d = b.Policy.Decide(t, addrs)
+			d = pol.Decide(t, addrs)
 		} else {
-			d = b.Policy.Decide(t, nil)
+			d = pol.Decide(t, nil)
 		}
 		df := map[string]any{"rule": d.Rule, "reason": d.Reason}
 		if d.Text != "" {
@@ -361,15 +407,18 @@ func (b *Broker) open(rawHost string, port int, proto string) outcome {
 		}
 		if !d.Allow {
 			b.denied.Add(1)
-			b.emit(events.PolicyDeny, id, df)
+			emit(events.PolicyDeny, df)
 			return outcome{id: id, start: start, denied: &d, socks: 0x02}
 		}
-		b.emit(events.PolicyAllow, id, df)
+		emit(events.PolicyAllow, df)
 	}
 	if len(b.Guards) > 0 {
-		req := GuardRequest{Run: b.runID(), Conn: id, PID: int(b.pid.Load()), Path: b.Path.ID(), Host: host, Port: port, Proto: proto}
+		req := GuardRequest{Run: b.runID(), Conn: id, PID: int(b.pid.Load()), Path: pathID, Host: host, Port: port, Proto: proto}
 		if host == "" {
 			req.IP = ip.String()
+		}
+		if from.client != nil {
+			req.Client = from.client.Name
 		}
 		for _, g := range b.Guards {
 			deny, reason, err := g.Check(ctx, req)
@@ -383,7 +432,7 @@ func (b *Broker) open(rawHost string, port int, proto string) outcome {
 			}
 			d := policy.Decision{Allow: false, Rule: "plugin:" + g.Name(), Reason: reason}
 			b.denied.Add(1)
-			b.emit(events.PolicyDeny, id, map[string]any{"rule": d.Rule, "reason": d.Reason})
+			emit(events.PolicyDeny, map[string]any{"rule": d.Rule, "reason": d.Reason})
 			return outcome{id: id, start: start, denied: &d, socks: 0x02}
 		}
 	}
@@ -406,7 +455,7 @@ func (b *Broker) open(rawHost string, port int, proto string) outcome {
 	t0 := b.now()
 	var lastErr error
 	for _, cand := range cands {
-		conn, err := b.Path.Dial(ctx, host, cand, port)
+		conn, err := p.Dial(ctx, host, cand, port)
 		if err != nil {
 			lastErr = err
 			continue
@@ -421,8 +470,14 @@ func (b *Broker) open(rawHost string, port int, proto string) outcome {
 		if ci.Exit != "" {
 			of["exit"] = ci.Exit
 		}
+		if from.client != nil {
+			// At an exit: the address the connection really left from.
+			if ta, ok := conn.LocalAddr().(*net.TCPAddr); ok {
+				of["source"] = ta.IP.String()
+			}
+		}
 		b.opened.Add(1)
-		b.emit(events.ConnectionOpen, id, of)
+		emit(events.ConnectionOpen, of)
 		return outcome{conn: conn, id: id, start: start}
 	}
 	code := byte(0x05)
@@ -562,7 +617,7 @@ func (b *Broker) finish(o outcome, client net.Conn, fromClient io.Reader, extraU
 	down += extraDown
 	b.bytesUp.Add(up)
 	b.bytesDown.Add(down)
-	b.emit(events.ConnectionClose, o.id, map[string]any{"bytes_up": up, "bytes_down": down, "ms": b.now().Sub(o.start).Milliseconds()})
+	b.emitPath(o.path, events.ConnectionClose, o.id, map[string]any{"bytes_up": up, "bytes_down": down, "ms": b.now().Sub(o.start).Milliseconds()})
 }
 
 func closeWrite(c net.Conn) {
@@ -712,13 +767,13 @@ func (b *Broker) http(c net.Conn, br *bufio.Reader) {
 			httpReply(c, "400 Bad Request", "", "vpnw: "+err.Error()+"\n")
 			return
 		}
-		o := b.open(host, port, "http-connect")
+		o := b.open(origin{}, host, port, "http-connect")
 		if !b.replyFailure(c, o, host, port) {
 			return
 		}
 		if _, err := io.WriteString(c, "HTTP/1.1 200 Connection established\r\n\r\n"); err != nil {
 			o.conn.Close()
-			b.emit(events.ConnectionClose, o.id, map[string]any{"bytes_up": 0, "bytes_down": 0, "ms": b.now().Sub(o.start).Milliseconds()})
+			b.emitPath(o.path, events.ConnectionClose, o.id, map[string]any{"bytes_up": 0, "bytes_down": 0, "ms": b.now().Sub(o.start).Milliseconds()})
 			return
 		}
 		b.finish(o, c, br, 0, 0, nil)
@@ -742,7 +797,7 @@ func (b *Broker) http(c net.Conn, br *bufio.Reader) {
 		}
 		port = n
 	}
-	o := b.open(host, port, "http")
+	o := b.open(origin{}, host, port, "http")
 	if !b.replyFailure(c, o, host, port) {
 		return
 	}
@@ -763,7 +818,7 @@ func (b *Broker) http(c net.Conn, br *bufio.Reader) {
 	n, err := io.WriteString(o.conn, sb.String())
 	if err != nil {
 		o.conn.Close()
-		b.emit(events.ConnectionClose, o.id, map[string]any{"bytes_up": n, "bytes_down": 0, "ms": b.now().Sub(o.start).Milliseconds()})
+		b.emitPath(o.path, events.ConnectionClose, o.id, map[string]any{"bytes_up": n, "bytes_down": 0, "ms": b.now().Sub(o.start).Milliseconds()})
 		return
 	}
 	b.finish(o, c, br, int64(n), 0, rewriteResponse)
@@ -891,64 +946,33 @@ func (b *Broker) socks(c net.Conn, br *bufio.Reader) {
 		}
 		c.Write([]byte{0x01, 0x00})
 	}
-	var req [4]byte
-	if _, err := io.ReadFull(br, req[:]); err != nil {
+	cmd, host, port, ok := socksRequest(c, br)
+	if !ok {
 		return
 	}
-	if req[0] != 0x05 {
+	if cmd != 0x01 {
+		b.unsupported(origin{}, c, host, port, cmd)
 		return
 	}
-	var host string
-	switch req[3] {
-	case 0x01:
-		var a [4]byte
-		if _, err := io.ReadFull(br, a[:]); err != nil {
-			return
-		}
-		host = net.IP(a[:]).String()
-	case 0x04:
-		var a [16]byte
-		if _, err := io.ReadFull(br, a[:]); err != nil {
-			return
-		}
-		host = net.IP(a[:]).String()
-	case 0x03:
-		var l [1]byte
-		if _, err := io.ReadFull(br, l[:]); err != nil {
-			return
-		}
-		name := make([]byte, l[0])
-		if _, err := io.ReadFull(br, name); err != nil {
-			return
-		}
-		host = string(name)
-	default:
-		socksReply(c, 0x08)
-		return
-	}
-	var pb [2]byte
-	if _, err := io.ReadFull(br, pb[:]); err != nil {
-		return
-	}
-	port := int(pb[0])<<8 | int(pb[1])
-	if req[1] != 0x01 {
-		b.unsupported(c, host, port, req[1])
-		return
-	}
-	o := b.open(host, port, "socks5")
+	o := b.open(origin{}, host, port, "socks5")
 	if o.conn == nil {
 		socksReply(c, o.socks)
 		return
 	}
 	if err := socksReply(c, 0x00); err != nil {
 		o.conn.Close()
+		b.emitPath(o.path, events.ConnectionClose, o.id, map[string]any{"bytes_up": 0, "bytes_down": 0, "ms": b.now().Sub(o.start).Milliseconds()})
 		return
 	}
 	b.finish(o, c, br, 0, 0, nil)
 }
 
 // unsupported refuses SOCKS5 BIND and UDP ASSOCIATE, with an event saying so.
-func (b *Broker) unsupported(c net.Conn, host string, port int, cmd byte) {
+func (b *Broker) unsupported(from origin, c net.Conn, host string, port int, cmd byte) {
+	pol, p := b.Policy, b.Path
+	if from.client != nil {
+		pol, p = from.client.Policy, from.client.Path
+	}
 	id := b.seq.Add(1)
 	b.connections.Add(1)
 	proto := "socks5-bind"
@@ -962,14 +986,15 @@ func (b *Broker) unsupported(c net.Conn, host string, port int, cmd byte) {
 	} else {
 		f["host"] = sanitize(host)
 	}
-	b.emit(events.ConnectionAttempt, id, f)
+	from.fields(f)
+	b.emitPath(p.ID(), events.ConnectionAttempt, id, f)
 	msg := what + " is not supported by vpnw yet"
-	if b.Policy != nil {
+	if pol != nil {
 		b.denied.Add(1)
-		b.emit(events.PolicyDeny, id, map[string]any{"rule": "unsupported", "reason": msg})
+		b.emitPath(p.ID(), events.PolicyDeny, id, map[string]any{"rule": "unsupported", "reason": msg})
 	} else {
 		b.failed.Add(1)
-		b.emit(events.ConnectionError, id, map[string]any{"error": msg})
+		b.emitPath(p.ID(), events.ConnectionError, id, map[string]any{"error": msg})
 	}
 	socksReply(c, 0x07)
 }
@@ -977,4 +1002,49 @@ func (b *Broker) unsupported(c net.Conn, host string, port int, cmd byte) {
 func socksReply(c net.Conn, code byte) error {
 	_, err := c.Write([]byte{0x05, code, 0x00, 0x01, 0, 0, 0, 0, 0, 0})
 	return err
+}
+
+// socksRequest reads a SOCKS5 request, after the login: the command, and the
+// host and port. ok is false when the client went away or sent something
+// other than SOCKS5, or used an address type it was told is not supported.
+func socksRequest(c net.Conn, br *bufio.Reader) (cmd byte, host string, port int, ok bool) {
+	var req [4]byte
+	if _, err := io.ReadFull(br, req[:]); err != nil {
+		return 0, "", 0, false
+	}
+	if req[0] != 0x05 {
+		return 0, "", 0, false
+	}
+	switch req[3] {
+	case 0x01:
+		var a [4]byte
+		if _, err := io.ReadFull(br, a[:]); err != nil {
+			return 0, "", 0, false
+		}
+		host = net.IP(a[:]).String()
+	case 0x04:
+		var a [16]byte
+		if _, err := io.ReadFull(br, a[:]); err != nil {
+			return 0, "", 0, false
+		}
+		host = net.IP(a[:]).String()
+	case 0x03:
+		var l [1]byte
+		if _, err := io.ReadFull(br, l[:]); err != nil {
+			return 0, "", 0, false
+		}
+		name := make([]byte, l[0])
+		if _, err := io.ReadFull(br, name); err != nil {
+			return 0, "", 0, false
+		}
+		host = string(name)
+	default:
+		socksReply(c, 0x08)
+		return 0, "", 0, false
+	}
+	var pb [2]byte
+	if _, err := io.ReadFull(br, pb[:]); err != nil {
+		return 0, "", 0, false
+	}
+	return req[1], host, int(pb[0])<<8 | int(pb[1]), true
 }

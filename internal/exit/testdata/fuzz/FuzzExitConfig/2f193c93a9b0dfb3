@@ -1,0 +1,2 @@
+go test fuzz v1
+string("version=1\nlisten=\":0\"\ncert=\"\"\nkey=\"\"\n[clients.0]\ntoken_sha256=\"0000000000000000000000000000000000000000000000000000000000000000\"\nsource=\"10.0.0.0\"\ndefault=\"allow\"")

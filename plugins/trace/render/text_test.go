@@ -95,3 +95,37 @@ func TestEveryType(t *testing.T) {
 		t.Errorf("quiet prints the summary only:\n%s", quiet.String())
 	}
 }
+
+// At an exit, every line of a connection names the client, an open says
+// where it left from, and a request without a valid token is a decision.
+func TestTextExitServer(t *testing.T) {
+	var all, dec bytes.Buffer
+	b := events.NewBus("x-1", nil)
+	b.Add(NewText(&all, All))
+	b.Add(NewText(&dec, Decisions))
+	b.Emit(events.RunStart, 0, "", 0, map[string]any{"mode": "exit", "exit": "exit-de", "listen": "198.51.100.2:8443", "clients": 2, "cert_for": "198.51.100.2", "cert_until": "2028-10-14"})
+	b.Emit(events.ConnectionAttempt, 0, "direct", 1, map[string]any{"host": "api.partner.test", "port": 443, "proto": "http-connect", "client": "agent-1", "client_run": "r-3f9a1c", "client_conn": uint64(17), "source": "198.51.100.10", "peer": "192.0.2.7:51234"})
+	b.Emit(events.ConnectionOpen, 0, "direct", 1, map[string]any{"ip": "51.15.0.10", "host": "api.partner.test", "ms": 3, "source": "198.51.100.10"})
+	b.Emit(events.ConnectionAttempt, 0, "direct", 2, map[string]any{"ip": "169.254.169.254", "port": 80, "proto": "socks5", "client": "agent-1"})
+	b.Emit(events.PolicyDeny, 0, "direct", 2, map[string]any{"rule": "deny_private", "reason": "169.254.169.254: link-local address"})
+	b.Emit(events.AuthDeny, 0, "", 0, map[string]any{"peer": "203.0.113.9:40000", "proto": "http-connect", "reason": "the token is not known here", "host": "api.partner.test", "port": 443})
+	b.Emit(events.RunEnd, 0, "", 0, map[string]any{"connections": 2, "opened": 1, "denied": 1, "failed": 0, "bytes_up": 10, "bytes_down": 20, "auth_denied": 1})
+	for _, want := range []string{
+		"exit exit-de  run x-1  listening on 198.51.100.2:8443  2 clients  certificate for 198.51.100.2 until 2028-10-14",
+		"#2     DENY   agent-1 → 169.254.169.254:80  169.254.169.254: link-local address",
+		"REFUSED  203.0.113.9:40000  http-connect  the token is not known here  (asked for api.partner.test:443)",
+		"summary  2 connections: 1 opened, 1 denied, 0 failed  sent 10 B  received 20 B  1 request without a valid token",
+	} {
+		if !strings.Contains(dec.String(), want) {
+			t.Errorf("decisions lack %q:\n%s", want, dec.String())
+		}
+	}
+	for _, want := range []string{
+		"#1   agent-1 → api.partner.test:443  http-connect  its run r-3f9a1c #17",
+		"#1     open  51.15.0.10 from 198.51.100.10  (3 ms)",
+	} {
+		if !strings.Contains(all.String(), want) {
+			t.Errorf("all lacks %q:\n%s", want, all.String())
+		}
+	}
+}

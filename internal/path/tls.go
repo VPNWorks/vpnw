@@ -312,7 +312,7 @@ func Build(name string, urls []string, o Options) (Path, error) {
 	token := ""
 	if o.TokenFile != "" {
 		var err error
-		if token, err = readToken(inDir(o.Dir, o.TokenFile)); err != nil {
+		if token, err = ReadToken(inDir(o.Dir, o.TokenFile)); err != nil {
 			return nil, err
 		}
 	}
@@ -379,7 +379,9 @@ func fileErr(err error) string {
 // readToken reads a token file: one token of 1 to 255 printable characters,
 // with surrounding spaces and newlines removed. Errors never show its
 // contents.
-func readToken(name string) (string, error) {
+// ReadToken reads a token file: one token, the way vpnw exit token writes
+// it, with nothing around it but a newline.
+func ReadToken(name string) (string, error) {
 	b, err := os.ReadFile(name)
 	if err != nil {
 		return "", fmt.Errorf("token file %s: %s", name, fileErr(err))

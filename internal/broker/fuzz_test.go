@@ -6,8 +6,11 @@ package broker
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -95,3 +98,116 @@ func (c *fakeConn) RemoteAddr() net.Addr             { return &net.TCPAddr{} }
 func (c *fakeConn) SetDeadline(time.Time) error      { return nil }
 func (c *fakeConn) SetReadDeadline(time.Time) error  { return nil }
 func (c *fakeConn) SetWriteDeadline(time.Time) error { return nil }
+
+// clientPath never touches the network: it records every dial, with the
+// client it belongs to, and fails.
+type clientPath struct {
+	client string
+	dials  chan string
+}
+
+func (clientPath) ID() string       { return "fuzz" }
+func (clientPath) Kind() string     { return "direct" }
+func (clientPath) RemoteDNS() bool  { return false }
+func (clientPath) Describe() string { return "fuzz" }
+func (p clientPath) Dial(_ context.Context, host string, ip net.IP, port int) (net.Conn, error) {
+	p.dials <- p.client + " " + host + "|" + ip.String()
+	return nil, errors.New("fuzz path does not dial")
+}
+func (clientPath) Health(context.Context) error { return nil }
+
+// FuzzExitFront feeds arbitrary bytes to an exit, from the first byte, as
+// anyone on the internet could. Whatever arrives, the exit must not crash
+// or hang, and every dial it makes must be for the client whose token came
+// with the request, to a destination that client's policy allows: client a
+// may reach only a.test, and client b only b.test.
+func FuzzExitFront(f *testing.F) {
+	auth := func(tok string) string {
+		return "Proxy-Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("vpnw:"+tok)) + "\r\n"
+	}
+	for _, s := range []string{
+		"CONNECT a.test:443 HTTP/1.1\r\n" + auth("tok-a") + "VPNW-Run: r-1\r\nVPNW-Conn: 2\r\n\r\n",
+		"CONNECT b.test:443 HTTP/1.1\r\n" + auth("tok-a") + "\r\n",
+		"CONNECT b.test:443 HTTP/1.1\r\n" + auth("tok-b") + "\r\n",
+		"CONNECT 10.0.0.1:443 HTTP/1.1\r\n" + auth("tok-b") + "\r\n",
+		"CONNECT a.test:443 HTTP/1.1\r\n" + auth("tok-a") + auth("tok-b") + "\r\n",
+		"GET /health HTTP/1.1\r\n" + auth("tok-b") + "\r\n",
+		"GET http://a.test/ HTTP/1.1\r\n" + auth("tok-a") + "\r\n",
+		"\x05\x01\x02\x01\x07r-1/2/x\x05tok-a\x05\x01\x00\x03\x06a.test\x01\xbb",
+		"\x05\x01\x02\x01\x04vpnw\x05tok-b\x05\x01\x00\x03\x06a.test\x01\xbb",
+		"\x05\x01\x02\x01\x04vpnw\x05tok-b\x05\x01\x00\x01\x0a\x00\x00\x01\x01\xbb",
+		"\x05\x01\x02\x01\x04vpnw\x05tok-a\x05\x02\x00\x03\x06a.test\x01\xbb",
+		"\x05\x01\x00\x05\x01\x00\x03\x06a.test\x01\xbb",
+	} {
+		f.Add([]byte(s))
+	}
+	pa, err := policy.New(&config.PolicySpec{Default: "deny", DenyPrivate: true, Allow: []string{"a.test"}}, "a")
+	if err != nil {
+		f.Fatal(err)
+	}
+	pb, err := policy.New(&config.PolicySpec{Default: "deny", Allow: []string{"b.test", "10.0.0.2"}}, "b")
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Fuzz(func(t *testing.T, input []byte) {
+		dials := make(chan string, 8)
+		clients := exitTokens{
+			"tok-a": {Name: "a", Policy: pa, Path: clientPath{client: "a", dials: dials}},
+			"tok-b": {Name: "b", Policy: pb, Path: clientPath{client: "b", dials: dials}},
+		}
+		b := &Broker{
+			Exit:     &Exit{Name: "fuzz", Clients: clients},
+			Resolver: &fakeDNS{m: map[string][]net.IP{"a.test": {net.ParseIP("93.184.215.14")}, "b.test": {net.ParseIP("93.184.215.15")}, "evil.test": {net.ParseIP("10.0.0.1")}}},
+			Bus:      events.NewBus("x-fuzz", nil),
+		}
+		c := &fakeConn{r: bytes.NewReader(input)}
+		done := make(chan struct{})
+		go func() {
+			b.Handle(c)
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("the exit hung on this input")
+		}
+		close(dials)
+		for d := range dials {
+			if d != "a a.test|93.184.215.14" && d != "b b.test|93.184.215.15" && d != "b |10.0.0.2" {
+				t.Fatalf("dialed %q, which that client's policy does not allow", d)
+			}
+		}
+	})
+}
+
+type exitTokens map[string]*Client
+
+func (m exitTokens) Login(tok string) *Client { return m[tok] }
+
+// FuzzExitIDs: the run and connection IDs a client sends are read strictly,
+// and whatever is accepted is a valid run ID and connection ID that write
+// back to the same user name.
+func FuzzExitIDs(f *testing.F) {
+	for _, s := range []string{"vpnw", "r-3f9a1c/17", "a/0", "a/01", "/1", "a/1/2", "r/18446744073709551615", "r/18446744073709551616"} {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, user string) {
+		run, conn, err := idsFromUser(user)
+		if err != nil {
+			return
+		}
+		if run == "" {
+			if conn != 0 || strings.Contains(user, "/") {
+				t.Fatalf("%q: no run but conn %d", user, conn)
+			}
+			return
+		}
+		if parseRun(run) != nil || conn == 0 || fmt.Sprintf("%s/%d", run, conn) != user {
+			t.Fatalf("%q read as %q/%d", user, run, conn)
+		}
+		hr, hc, err := idsFromHeaders(run, fmt.Sprint(conn))
+		if err != nil || hr != run || hc != conn {
+			t.Fatalf("%q: headers read %q/%d %v", user, hr, hc, err)
+		}
+	})
+}

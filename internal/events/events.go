@@ -43,11 +43,15 @@ const (
 	// PluginError: a plugin failed and was stopped for the rest of the run
 	// (fields: plugin, type, error).
 	PluginError = "plugin.error"
+	// AuthDeny: an exit refused a request that came without a valid token
+	// (fields: peer, proto, reason, and host or ip and port when the request
+	// named them). The token itself is never recorded.
+	AuthDeny = "auth.deny"
 )
 
 // Types lists every event type in schema version 1.
 var Types = []string{RunStart, ProcessStart, DNSQuery, DNSResult, ConnectionAttempt,
-	PolicyAllow, PolicyDeny, PathSwitch, ConnectionOpen, ConnectionClose, ConnectionError, PluginError, ProcessExit, RunEnd}
+	PolicyAllow, PolicyDeny, PathSwitch, ConnectionOpen, ConnectionClose, ConnectionError, PluginError, AuthDeny, ProcessExit, RunEnd}
 
 // Events whose type starts with "plugin.<name>." were added by that plugin.
 

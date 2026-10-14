@@ -8,9 +8,9 @@ This page shows how to write one in Go with the SDK, then documents the interfac
 
 | Type | vpnw calls | Runs with |
 |---|---|---|
-| `observer` | `OnEvent` for every event of a run, as it happens, then `Finish` | `vpnw run/trace/guard --plugin NAME` |
+| `observer` | `OnEvent` for every event of a run, as it happens, then `Finish` | `vpnw run/trace/guard --plugin NAME`, and at an exit, `vpnw exit serve --plugin NAME` |
 | `advisor` | `OnEvent` for every event of the traces it's given (or `OnLine` for every line of its files, with `input = "lines"`), then `Finish`, where it writes its advice | `vpnw advise NAME --from FILE` |
-| `guard` | `OnDecide` for every connection the policy allowed | `vpnw run/trace/guard --plugin NAME` |
+| `guard` | `OnDecide` for every connection the policy allowed | `vpnw run/trace/guard --plugin NAME`, and at an exit, `vpnw exit serve --plugin NAME` |
 
 `Init` comes first for every type. `tunnel`, `exit` and `identity` are reserved for later versions of vpnw; a manifest with one of them is refused with that message. A Tunnel plugin will manage tunnels (fetch and rotate a provider's WireGuard configs, say) and hand them to the core; the tunnel itself, like every byte of traffic, stays in the core.
 
@@ -97,7 +97,7 @@ Unknown keys and tables are errors, never silently skipped.
 
 ### file.write
 
-vpnw creates the file new when the plugin starts in `run`, `trace` or `guard`, readable by the user alone, at `--plugin-file NAME=PATH` or by default `~/.local/state/vpnw/NAME/RUN.NAME`. It never opens one that exists, so a plugin can only add to a file of its own: it can't read it, move in it, or reach any other. `Config.File` is the path. Writes go straight to the file, so what was written survives vpnw being killed. One write takes at most 1 MiB (the SDK splits bigger ones) and the file grows to at most 1 GiB; a write past either fails, the plugin gets an error, and vpnw's plugin log (`-v`) says why. In `vpnw advise` no file is opened, and writes fail.
+vpnw creates the file new when the plugin starts in `run`, `trace`, `guard` or `exit serve`, readable by the user alone, at `--plugin-file NAME=PATH` or by default `~/.local/state/vpnw/NAME/RUN.NAME`. It never opens one that exists, so a plugin can only add to a file of its own: it can't read it, move in it, or reach any other. `Config.File` is the path. Writes go straight to the file, so what was written survives vpnw being killed. One write takes at most 1 MiB (the SDK splits bigger ones) and the file grows to at most 1 GiB; a write past either fails, the plugin gets an error, and vpnw's plugin log (`-v`) says why. In `vpnw advise` no file is opened, and writes fail.
 
 Logging (`sdk.Log`, shown with `--verbose`), reporting an error, and giving the reason for a refusal need no permission.
 
@@ -105,7 +105,7 @@ Logging (`sdk.Log`, shown with `--verbose`), reporting an error, and giving the 
 
 Settings are strings, given on the command line:
 
-- `--set NAME.KEY=VALUE` for plugins in `run`, `trace` and `guard`, as in `--set trace.level=all`
+- `--set NAME.KEY=VALUE` for plugins in `run`, `trace`, `guard` and `exit serve`, as in `--set trace.level=all`
 - `--set KEY=VALUE` for `vpnw advise NAME`
 
 A plugin reads them from `Config.Settings` in `Init` and returns an error for one it doesn't accept; vpnw stops with that message. The one exception is the console: if the built-in Trace plugin refuses its settings, vpnw prints the run's events as JSON instead and carries on. A `--set` for a plugin that isn't part of the run is an error.
@@ -182,7 +182,7 @@ All of them take and return `i32`; vpnw refuses a module whose exports have othe
 {"plugin":"no-domain","command":"guard","settings":{"domain":"tracker.example"},"color":false,"tz_offset":10800,"tz_name":"IDT","run":"r-3f9a1c","file":""}
 ```
 
-`run` is the run's identifier (empty in `advise`); `file` is the path of the plugin's file, or empty.
+`command` is `run`, `trace`, `guard`, `advise`, or `exit` at an exit. `run` is the run's identifier (empty in `advise`; at an exit, the identifier of the exit's record, as `x-4b1e07`); `file` is the path of the plugin's file, or empty.
 
 ### Lines (`input = "lines"`)
 
@@ -195,6 +195,8 @@ An Advisor with `input = "lines"` gets, through `vpnw_on_event`, one JSON object
 ```
 
 `host` is empty when the program asked for an address, which is then in `ip`. `proto` is `http-connect`, `http` or `socks5`. The policy has already allowed the connection; a Guard can only refuse it.
+
+At an exit, the request also has `client`, the exit's client the connection came from, and the policy that allowed it is that client's: `{"run":"x-4b1e07","conn":3,"path":"direct","host":"api.partner.example","port":443,"proto":"http-connect","client":"agent-1"}`. A Guard at an exit refuses for every client unless it reads `client`.
 
 ## Signatures
 

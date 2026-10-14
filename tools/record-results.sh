@@ -102,7 +102,8 @@ say "fuzzing ($FUZZTIME per target)"
 for target in internal/config:FuzzParse internal/policy:FuzzParseRule internal/policy:FuzzDecide internal/broker:FuzzHandle \
               internal/path:FuzzFromURL internal/path:FuzzExitAnswer internal/path:FuzzParseWGConf \
               internal/pluginhost:FuzzParseManifest internal/pluginhost:FuzzVerify \
-              plugins/ledger/chain:FuzzParse plugins/ledger/chain:FuzzVerify; do
+              plugins/ledger/chain:FuzzParse plugins/ledger/chain:FuzzVerify \
+              internal/broker:FuzzExitFront internal/broker:FuzzExitIDs internal/exit:FuzzExitConfig; do
   pkg=./${target%%:*}; fn=${target##*:}
   log=$(go test -run '^$' -fuzz "^$fn\$" -fuzztime "$FUZZTIME" "$pkg" 2>&1 || true)
   execs=$(printf '%s\n' "$log" | grep -o 'execs: [0-9]*' | tail -1 | tr -dc 0-9)
@@ -124,7 +125,9 @@ label = {"BenchmarkGuardDecide": "a Guard decision (test guard, policy already p
          "BenchmarkLoadWarm": "starting the Trace plugin, compiled code from the cache",
          "BenchmarkLedgerEvent": "one event sealed by the Ledger plugin",
          "BenchmarkWireGuardConnect": "opening a TCP connection through a WireGuard tunnel",
-         "BenchmarkWireGuardThroughput": "data through a WireGuard tunnel"}
+         "BenchmarkWireGuardThroughput": "data through a WireGuard tunnel",
+         "BenchmarkExitConnect": "opening a connection through an exit, TLS, token and decision included",
+         "BenchmarkExitThroughput": "data through an exit"}
 for k, v in runs.items():
     v.sort(); m = v[len(v)//2]
     if mbs[k]:
@@ -135,9 +138,10 @@ for k, v in runs.items():
 ' | tee "$3"
 }
 
-say "plugin and WireGuard costs"
+say "plugin, WireGuard and exit costs"
 bench ./internal/pluginhost . "$OUT/plugins.txt"
 bench ./internal/path WireGuard "$OUT/wireguard.txt"
+bench ./internal/exit Exit "$OUT/exit-costs.txt"
 
 say "ledger tamper matrix"
 VPNW_LEDGER_MATRIX_OUT="$PWD/$OUT/ledger-tamper.md" go test -count=1 -run 'TestTamperMatrix' ./plugins/ledger/chain/ >/dev/null
@@ -155,6 +159,20 @@ else
   cat "$OUT/lab.md"
   echo "$(grep -c '| passed |' "$OUT/lab.md") of $(grep -cE '\| (passed|FAILED) \|' "$OUT/lab.md") faults handled$([ "$lab" -ne 0 ] && echo "; go test FAILED (exit $lab)")" | tee -a "$OUT/lab.md"
 fi
+
+say "Exit: the server end of a path"
+rm -f "$OUT/exit.md"
+ex=0
+VPNW_EXIT_OUT="$PWD/$OUT/exit.md" go test -count=1 -run 'TestExit(FixedAddresses|TamperedClient|AgreesWithClient|Failover|RefusesBadClients|ServeChecks|Plugins)$' -v ./test/integration/ >"$OUT/exit.log" 2>&1 || ex=$?
+grep -E '^(---|ok|FAIL)' "$OUT/exit.log" | tee "$OUT/exit.txt"; rm -f "$OUT/exit.log"
+if [ ! -s "$OUT/exit.md" ] || ! grep -qE '\| (passed|FAILED) \|' "$OUT/exit.md"; then
+  echo "Exit's tests didn't run: they need a sealed run (Linux with user namespaces)" | tee "$OUT/exit.md"
+else
+  cat "$OUT/exit.md"
+  echo "$(grep -c '| passed |' "$OUT/exit.md") of $(grep -cE '\| (passed|FAILED) \|' "$OUT/exit.md") checks passed$([ "$ex" -ne 0 ] && echo "; go test FAILED (exit $ex)")" | tee -a "$OUT/exit.md"
+fi
+same=$(go test -count=1 -run 'TestSameDecisionAtBothEnds$' -v ./internal/broker/ 2>&1 | grep -o '[0-9]* requests decided the same way at both ends' || echo "the comparison of the two ends FAILED")
+echo "$same, by the run's broker and by an exit (TestSameDecisionAtBothEnds)" | tee -a "$OUT/exit.md"
 
 say "bypass matrix"
 rm -f "$OUT/bypass-matrix.md" "$OUT/bypass-matrix-ci.md"

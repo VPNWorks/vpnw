@@ -10,6 +10,7 @@
 | `vpnw learn [--from last\|FILE]... [--name NAME] [--ports] [--wildcards] [-o FILE]` | turns traces into a draft policy, with the built-in Learn plugin |
 | `vpnw advise PLUGIN [--from last\|FILE]... [--set KEY=VALUE]... [-o FILE]` | runs an advisor plugin on traces |
 | `vpnw verify LEDGER [TRACE]... [--head HASH]` | checks a ledger the Ledger plugin wrote, with the built-in ledger-verify plugin. With no trace given it also reads `last`. Exit 0: intact. Exit 1: changed, or cut short |
+| `vpnw exit serve\|check\|token\|cert` | runs an exit, the server end of a path, and makes what it needs; see [Exit](#exit) |
 | `vpnw plugin list\|info\|add\|remove\|keygen\|sign\|trust\|keys` | manages plugins; `vpnw plugin help` lists them |
 | `vpnw doctor` | checks what this machine supports |
 | `vpnw version` | |
@@ -135,16 +136,17 @@ One JSON object per line, schema version 1. Every event has `v`, `ts`, `type` an
 |---|---|
 | `run.start` | `mode`, `backend`, `enforced`, `version`, `path_kind`, `path`, `remote_dns`, `policy`, `plugins`, `unix_sockets` |
 | `process.start` | `cmd`, `args` |
-| `connection.attempt` | `host` or `ip`, `port`, `proto` |
+| `connection.attempt` | `host` or `ip`, `port`, `proto`; at an exit also `client`, `source`, `peer`, `client_run`, `client_conn` |
 | `dns.query` | `host` |
 | `dns.result` | `host`, `ips` and `ms`, or `error` |
 | `policy.allow` | `rule`, `text`, `reason` |
 | `policy.deny` | `rule`, `reason`, `text`; a guard plugin's rule is `plugin:NAME` |
 | `path.switch` | `from`, `to`, `error`, `ms` |
-| `connection.open` | `ip` or `host`, `exit`, `ms` |
+| `connection.open` | `ip` or `host`, `exit`, `ms`; at an exit, `source` |
 | `connection.close` | `bytes_up`, `bytes_down`, `ms` |
 | `connection.error` | `error`, `exit` |
 | `plugin.error` | `plugin`, `type`, `error` |
+| `auth.deny` | at an exit: `peer`, `proto`, `reason`, and `host` or `ip` and `port` when the request named them |
 | `process.exit` | `code`, `signal`, `ms` |
 | `run.end` | `connections`, `opened`, `allowed`, `denied`, `failed`, `bytes_up`, `bytes_down`, `code` |
 | `plugin.NAME.TYPE` | whatever plugin NAME emitted |
@@ -192,6 +194,93 @@ h = SHA-256(h' || 0x03 || N as 8 bytes || K as 8 bytes)        the end: N entrie
 `lost` entries mark events that never reached Ledger because it fell behind the run. They are part of the chain and reported, and don't make a ledger changed.
 
 What a ledger can't show alone: anyone who can write the file and knows the format can write a new one from scratch. That includes the program being watched, while it runs: vpnw limits the network, not files, and the program runs as your user. Keep the last hash Ledger prints, or the trace with its checkpoint copies, somewhere neither the program nor the person holding the ledger can change.
+
+## Exit
+
+An exit is the server end of a path: `vpnw exit serve`, on a machine with fixed addresses. Clients reach it over TLS through vpnw's proxy paths (`https://` or `socks5+tls://`), each with a token of its own. The exit decides every request again with that client's own policy, by the same code that decides a run's connections, before it connects anywhere. Then the connection leaves from the client's fixed address. So a partner can let a client in by its address, and a client that skipped its own policy, or someone with its token, gets nothing that policy refuses.
+
+```
+vpnw exit cert --host 198.51.100.2 --name exit-de      # a private CA, and the exit's certificate
+vpnw exit token --out agent-1.token                     # a client's token, and its hash
+vpnw exit check --config exit-de.toml                   # what each client may do
+vpnw exit serve --config exit-de.toml --out exit.jsonl
+```
+
+On the client's machine, with `ca.pem` and the token file copied over:
+
+```
+vpnw guard --proxy https://198.51.100.2:8443 --ca ca.pem --token-file agent-1.token --policy agent-1.toml -- ./my-agent
+```
+
+Give `--proxy` twice, or `urls` in the file, for a list of exits: when the one in use stops answering, connections move to the next.
+
+| Command | What it does |
+|---|---|
+| `vpnw exit serve --config FILE` | takes clients' requests over TLS until SIGINT or SIGTERM. Takes `--out`, `--json`, `-v`, `-q`, `--plugin`, `--set` and `--plugin-file` as a run does. The console prints refusals and errors; `-v` every step |
+| `vpnw exit check --config FILE` | reads the file, its policy files, certificate and key, and says what each client may do and whether its addresses are on this machine |
+| `vpnw exit token [--out FILE]` | makes a token, 32 random bytes as 43 characters, and prints the `token_sha256` line for the exit's file. With `--out` the token goes to FILE, created new and readable by you alone, instead of the screen |
+| `vpnw exit token --from FILE` | prints the `token_sha256` of a token kept in FILE |
+| `vpnw exit cert --host HOST... [--name NAME] [--dir DIR]` | makes NAME.crt and NAME.key (default `exit`), valid for 2 years, for each address or name given with `--host`, signed by the private CA in DIR (`ca.pem` and `ca.key`). With no CA there, it makes one, valid for 10 years. Clients trust `ca.pem` with `--ca`; one CA can sign several exits. Never overwrites a file |
+
+Exit codes: 0, or 121 for a usage or configuration error, with the file and line; 122 when it's not possible on this machine (the listening address, or a source address the machine doesn't have); 124 for any other failure.
+
+### The exit's file
+
+The same strict TOML subset as vpnw's other files.
+
+```toml
+version = 1
+name    = "exit-de"              # on its record; the default is the file's name
+listen  = "198.51.100.2:8443"
+cert    = "exit-de.crt"          # relative to this file
+key     = "exit-de.key"
+
+[clients.agent-1]
+token_sha256 = "1045911b…"       # vpnw exit token prints it
+source       = "198.51.100.10"   # an address of its own
+policy       = "agent-1.toml"    # the client's own policy file: its [policy] table
+
+[clients.ci]
+token_sha256 = "576873c3…"
+pool         = "shared"          # addresses it shares with other clients
+default      = "deny"            # or the policy written here, as in [policy]
+deny_private = true
+allow        = ["registry.partner.example"]
+
+[pools.shared]
+addresses = ["198.51.100.20", "198.51.100.21"]
+```
+
+- Every client needs `token_sha256`, a `source` or a `pool`, and a policy: a policy file, or the keys `default`, `deny_private`, `allow` and `deny` in its table, not both.
+- An address belongs to one client, or to one pool. A client of a pool always leaves from the same address of it, picked from the client's name.
+- Every source address has to be on the exit's machine, or `serve` refuses to start (exit code 122).
+- Names are looked up at the exit, so `deny_private` sees where a name really points. Give clients of an exit the default, names resolved at the exit (`dns = "remote"`): the exit needs the names to check name rules.
+- `check` and `serve` warn about a client with default allow and no `deny_private`: it can reach private addresses, the exit machine's own services among them.
+
+### On the wire
+
+| | HTTP CONNECT, inside TLS | SOCKS5, inside TLS |
+|---|---|---|
+| token | `Proxy-Authorization: Basic`, the token as the password | the password of the user-and-password login |
+| the client's run and connection IDs | `VPNW-Run: r-3f9a1c` and `VPNW-Conn: 17` | the user name, `r-3f9a1c/17` |
+| refused by the policy | 403, with `VPNW-Rule` and `VPNW-Reason` | reply 2 |
+| wrong token | 407 | login refused |
+| health check | `GET /health` with the token: 200 and the exit's name, or 407 | a login, then nothing |
+
+vpnw sends the IDs with every request. A request that gives the token or an ID header twice is refused, so the exit never chooses between two. A client without vpnw can send no IDs at all; its connections are decided and recorded like any other. The exit takes nothing but CONNECT, the health check and SOCKS5 CONNECT; SOCKS5 BIND and UDP are refused with a record of it.
+
+### The exit's record
+
+Events of schema version 1, the same types as a run's. Each connection's first event, `connection.attempt`, also has `client`, `source` (the address it leaves from), `peer` (where the request came from), and `client_run` and `client_conn`, the client's own run and connection IDs. So the exit's record lines up with the client's, whose `connection.open` names the exit that carried it. `connection.open` has `source`, the address the connection really left from. `auth.deny` records a request without a valid token, never the token itself. `run.start` has `mode` = `exit`, `exit`, `listen`, `clients`, `cert_for` and `cert_until`; `run.end` adds `auth_denied`, `health_checks` and `tls_failed` to a run's totals.
+
+Plugins run at an exit as they do in a run. Observers see its record (`--plugin ledger` seals it), and Guard plugins are asked about every connection a client's policy allowed, with the client's name in the request.
+
+### What an exit doesn't do yet
+
+- It reads its file when it starts. To change its clients, restart it.
+- A client's policy file at the exit is the exit's own copy. When the client's policy changes, copy it to the exit too.
+- A client can't ask for a particular address of its pool.
+- Over SOCKS5 a refusal carries no reason. Over HTTP CONNECT it does, and vpnw shows it.
 
 ## Where things are kept
 

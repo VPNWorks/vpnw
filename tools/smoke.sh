@@ -4,7 +4,8 @@
 #
 # smoke.sh DIR: checks the vpnw binary in DIR before it goes public. It must
 # report its version, list its built-in plugins, start the plugin host, run
-# the Learn plugin end to end on a small trace, and handle WireGuard configs. On Linux it also traces
+# the Learn plugin end to end on a small trace, handle WireGuard configs, and
+# serve as an exit to a client of its own. On Linux it also traces
 # and guards a real program in the sealed backend when the machine allows
 # it. The release workflow runs it on Linux and macOS.
 set -eu
@@ -80,6 +81,40 @@ code=0
 "$bin/vpnw" run --backend env --wireguard wg.conf -- true > wg.log 2>&1 || code=$?
 [ "$code" = 121 ] || fail "a WireGuard config with a shell hook gave exit $code"
 echo "wireguard: refused a hook, stopped on a dead tunnel"
+
+# Exit: a certificate from a private CA, a token, a file that checks out,
+# and a client that passes the exit's health check with that token.
+"$bin/vpnw" exit cert --host 127.0.0.1 --name exit > cert.log 2>&1 || fail "vpnw exit cert failed: $(cat cert.log)"
+"$bin/vpnw" exit token --out client.token > token.log 2>&1 || fail "vpnw exit token failed: $(cat token.log)"
+hash=$(sed -n 's/^token_sha256 = //p' token.log)
+cat > exit.toml <<EXIT
+version = 1
+listen = "127.0.0.1:0"
+cert = "exit.crt"
+key = "exit.key"
+
+[clients.smoke]
+token_sha256 = $hash
+source = "127.0.0.1"
+default = "deny"
+allow = ["example.invalid"]
+EXIT
+"$bin/vpnw" exit check --config exit.toml > check.log 2>&1 || fail "vpnw exit check failed: $(cat check.log)"
+grep -q "smoke: source 127.0.0.1" check.log || fail "vpnw exit check said: $(cat check.log)"
+"$bin/vpnw" exit serve --config exit.toml --out exit.jsonl -q > serve.log 2>&1 &
+serve=$!
+port=""
+for i in $(seq 1 100); do
+  port=$(sed -n 's/.*"listen":"127\.0\.0\.1:\([0-9]*\)".*/\1/p' exit.jsonl 2>/dev/null | head -1)
+  [ -n "$port" ] && break
+  sleep 0.2
+done
+[ -n "$port" ] || { kill "$serve" 2>/dev/null; fail "vpnw exit serve did not start: $(cat serve.log)"; }
+code=0
+"$bin/vpnw" run --backend env -q --proxy "https://127.0.0.1:$port" --ca ca.pem --token-file client.token -- true > client.log 2>&1 || code=$?
+kill "$serve"; wait "$serve" 2>/dev/null || true
+[ "$code" = 0 ] || fail "a client of the exit gave exit $code: $(cat client.log)"
+echo "exit: made a CA, a certificate and a token, served a client"
 
 # A real program, where the sealed backend works here.
 if [ "$(uname -s)" = Linux ] && "$bin/vpnw" doctor > /dev/null 2>&1; then

@@ -77,6 +77,10 @@ func (t *Text) Emit(e *events.Event) {
 	defer t.mu.Unlock()
 	if e.Type == events.ConnectionAttempt {
 		t.hosts[e.Conn] = target(e)
+		if c := e.Str("client"); c != "" {
+			// At an exit, every line of a connection names the client.
+			t.hosts[e.Conn] = c + " → " + target(e)
+		}
 	}
 	line := t.render(e)
 	if line == "" {
@@ -108,6 +112,15 @@ func (t *Text) render(e *events.Event) string {
 	case events.RunStart:
 		if !dec {
 			return ""
+		}
+		if e.Str("mode") == "exit" {
+			n := e.Int("clients")
+			noun := "clients"
+			if n == 1 {
+				noun = "client"
+			}
+			return fmt.Sprintf("exit %s  run %s  listening on %s  %d %s  certificate for %s until %s",
+				e.Str("exit"), e.Run, e.Str("listen"), n, noun, e.Str("cert_for"), e.Str("cert_until"))
 		}
 		parts := []string{e.Str("mode"), "run " + e.Run, "path " + e.Path}
 		if b := e.Str("backend"); b != "" {
@@ -157,6 +170,13 @@ func (t *Text) render(e *events.Event) string {
 		if !all {
 			return ""
 		}
+		if c := e.Str("client"); c != "" {
+			line := fmt.Sprintf("%-4s %s → %s  %s", id, c, target(e), t.c(dim, e.Str("proto")))
+			if r := e.Str("client_run"); r != "" {
+				line += t.c(dim, fmt.Sprintf("  its run %s #%d", r, e.Int("client_conn")))
+			}
+			return line
+		}
 		return fmt.Sprintf("%-4s → %s  %s", id, target(e), t.c(dim, e.Str("proto")))
 	case events.PolicyAllow:
 		if !all && !(dec && t.ShowAllows) {
@@ -175,6 +195,9 @@ func (t *Text) render(e *events.Event) string {
 		where := e.Str("ip")
 		if where == "" {
 			where = "exit resolves " + e.Str("host")
+		}
+		if src := e.Str("source"); src != "" {
+			return fmt.Sprintf("%-4s   open  %s from %s  (%d ms)", id, where, src, e.Int("ms"))
 		}
 		via := e.Path
 		if x := e.Str("exit"); x != "" {
@@ -198,6 +221,15 @@ func (t *Text) render(e *events.Event) string {
 		}
 		return fmt.Sprintf("%-4s   %s  exit %s stopped answering after %s (%s); moving to %s", id, t.c(bold, "switch"),
 			e.Str("from"), HumanDuration(e.Int("ms")), e.Str("error"), e.Str("to"))
+	case events.AuthDeny:
+		if !dec {
+			return ""
+		}
+		line := fmt.Sprintf("%s  %s  %s  %s", t.c(red+bold, "REFUSED"), e.Str("peer"), e.Str("proto"), e.Str("reason"))
+		if e.Str("host") != "" || e.Str("ip") != "" {
+			line += "  (asked for " + target(e) + ")"
+		}
+		return line
 	case events.PluginError:
 		if !dec {
 			return ""
@@ -209,9 +241,17 @@ func (t *Text) render(e *events.Event) string {
 		if n == 1 {
 			noun = "connection"
 		}
-		return fmt.Sprintf("summary  %d %s: %d opened, %d denied, %d failed  sent %s  received %s",
+		line := fmt.Sprintf("summary  %d %s: %d opened, %d denied, %d failed  sent %s  received %s",
 			n, noun, e.Int("opened"), e.Int("denied"), e.Int("failed"),
 			events.HumanBytes(e.Int("bytes_up")), events.HumanBytes(e.Int("bytes_down")))
+		if a := e.Int("auth_denied"); a > 0 {
+			noun := "requests"
+			if a == 1 {
+				noun = "request"
+			}
+			line += fmt.Sprintf("  %d %s without a valid token", a, noun)
+		}
+		return line
 	}
 	if strings.HasPrefix(e.Type, "plugin.") && all {
 		var kv []string

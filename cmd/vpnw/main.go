@@ -10,6 +10,7 @@
 //	vpnw learn [options]                        turn a trace into a policy
 //	vpnw advise PLUGIN [options]                run an advisor plugin on traces
 //	vpnw verify LEDGER [TRACE]... [--head HASH] check a ledger
+//	vpnw exit serve|check|token|cert            run an exit, the server end
 //	vpnw plugin list|info|add|remove|...        manage plugins
 //	vpnw doctor                                 check what this machine supports
 package main
@@ -49,6 +50,8 @@ Usage:
   vpnw learn [options]                        turn a trace into a policy
   vpnw advise PLUGIN [options]                run an advisor plugin on traces
   vpnw verify LEDGER [TRACE]... [--head HASH] check a ledger the Ledger plugin wrote
+  vpnw exit COMMAND                           run an exit, the server end of a path,
+                                              with fixed addresses; see vpnw exit help
   vpnw plugin COMMAND                         list, inspect, add and remove plugins
   vpnw doctor                                 check what this machine supports
   vpnw version
@@ -118,6 +121,8 @@ func realMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return adviseCmd(args[1:], stdout, stderr)
 	case "verify":
 		return verifyCmd(args[1:], stdout, stderr)
+	case "exit":
+		return exitCmd(args[1:], stdout, stderr)
 	case "plugin", "plugins":
 		return pluginCmd(args[1:], stdout, stderr)
 	case "doctor":

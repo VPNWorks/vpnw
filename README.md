@@ -38,7 +38,7 @@ Plugins do the rest. They're WebAssembly modules that run in a sandbox inside vp
 | **Advisor** | Reads recorded traces or files and writes advice | `learn`: turns a trace into a draft policy. `ledger-verify`: checks a sealed record |
 | **Guard** | Can refuse a connection the policy allowed | none yet |
 
-Tunnel, Exit and Identity plugins come in later versions.
+Tunnel and Identity plugins come in later versions.
 
 ## A record nobody can quietly edit
 
@@ -66,6 +66,22 @@ vpnw runs the tunnel itself, inside its own process: the WireGuard protocol from
 A lying DNS answer from the tunnel can't send a program to loopback or link-local addresses, cloud metadata among them: those are refused through any tunnel, a full tunnel included.
 
 WireGuard is a built-in path, like the proxy paths, not a plugin: it carries every byte, and plugins never carry traffic. It's a registered trademark of Jason A. Donenfeld; VPN Works isn't affiliated with the WireGuard project.
+
+## Exits with fixed addresses
+
+Partners and internal systems often let traffic in by address. `vpnw exit` is the server end of a path: run it on a machine with fixed addresses, and each client leaves from an address of its own, or from a pool it shares.
+
+```
+vpnw exit cert --host 198.51.100.2 --name exit-de     # a private CA and the exit's certificate
+vpnw exit token --out agent-1.token                   # a token for one client
+vpnw exit serve --config exit-de.toml
+```
+
+```
+vpnw guard --proxy https://198.51.100.2:8443 --ca ca.pem --token-file agent-1.token --policy agent-1.toml -- ./my-agent
+```
+
+Clients reach the exit over TLS, each with a token of its own. The exit decides every request again with the client's own policy file, by the same code the client used, before it connects anywhere. A client that skips its own check, or someone holding its token, gets nothing that policy refuses. Names are looked up at the exit, where `deny_private` sees where they really point. The exit's record names the client and its run and connection IDs, so it lines up with the client's own record. Plugins run at the exit as they do in a run, so Ledger can seal its record and a Guard plugin gets a say. The file format and the wire conventions are in [the reference](docs/reference.md#exit).
 
 ## Install
 
@@ -153,7 +169,7 @@ Writing a plugin in Go takes the SDK and one build command; [docs/plugins.md](do
 
 ## How it was tested
 
-Every number here comes from `tools/record-results.sh`, which writes [test/results](test/results). The main promise is that a sealed program can't get out except through vpnw, so the integration tests try every way out they know from inside the sandbox ([bypass matrix](test/results/bypass-matrix.md)), and the plugin tests aim at the plugin promises: a plugin that panics, spins forever, writes without permission, falls behind, or fails while guarding. Costs per plugin call are in [plugins.txt](test/results/plugins.txt). WireGuard paths are tested against a real WireGuard peer running in the tests, with a web and a DNS server inside its tunnel; their speed is in [wireguard.txt](test/results/wireguard.txt). Lab, the fault kit in the tests, breaks that tunnel on purpose (a silent peer, lost handshakes, an impostor peer, a slow path, a DNS server that lies) and checks that the program hears about it, nothing goes around the tunnel, every connection has an outcome in the record, and vpnw never hangs: [lab.md](test/results/lab.md).
+Every number here comes from `tools/record-results.sh`, which writes [test/results](test/results). The main promise is that a sealed program can't get out except through vpnw, so the integration tests try every way out they know from inside the sandbox ([bypass matrix](test/results/bypass-matrix.md)), and the plugin tests aim at the plugin promises: a plugin that panics, spins forever, writes without permission, falls behind, or fails while guarding. Costs per plugin call are in [plugins.txt](test/results/plugins.txt). WireGuard paths are tested against a real WireGuard peer running in the tests, with a web and a DNS server inside its tunnel; their speed is in [wireguard.txt](test/results/wireguard.txt). Lab, the fault kit in the tests, breaks that tunnel on purpose (a silent peer, lost handshakes, an impostor peer, a slow path, a DNS server that lies) and checks that the program hears about it, nothing goes around the tunnel, every connection has an outcome in the record, and vpnw never hangs: [lab.md](test/results/lab.md). Exit's tests run the real `vpnw exit serve` with the real vpnw as its client: fixed addresses, a client that skips its own policy, one policy file at both ends, an exit killed partway through, and clients with the wrong token or CA ([exit.md](test/results/exit.md)).
 
 ## Build from source
 
