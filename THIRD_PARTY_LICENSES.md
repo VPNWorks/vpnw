@@ -14,6 +14,11 @@ contain the Go standard library and runtime as well.
 
 The Apache License 2.0 is the same text as this project's LICENSE file.
 
+internal/path/netstack is a copy of wireguard-go's tun/netstack, under the
+MIT license below, with one change: closing the device no longer closes the
+channel packets are sent on, so a packet sent as a tunnel closes is dropped
+instead of crashing vpnw. Its package comment says more.
+
 ## wazero
 
 github.com/tetratelabs/wazero v1.10.1, under the Apache License 2.0 (the same

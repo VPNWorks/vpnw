@@ -374,8 +374,8 @@ func (t *Tunnels) bringUp(ctx context.Context, q TunnelQuery, cur *tunnel) (tn *
 // again finds the tunnel of the config handed over among those rotated out,
 // to move back to while it is still up and answering: its connections
 // carry on, where a second tunnel with the same key would take the peer
-// from it. A tunnel rotated out because it stopped answering is not taken
-// back; a new one is brought up in its place.
+// from it. A tunnel that stopped answering, before it was rotated out or
+// since, is not taken back; a new one is brought up in its place.
 func (t *Tunnels) again(off *TunnelOffer) *tunnel {
 	t.mu.Lock()
 	var d *tunnel
@@ -527,6 +527,7 @@ func (t *Tunnels) loop() {
 		case <-tick.C:
 		}
 		t.closeDrained()
+		t.watchDraining()
 		t.mu.Lock()
 		cur, due, gone := t.cur, t.due, t.gone
 		t.mu.Unlock()
@@ -574,7 +575,7 @@ func (t *Tunnels) move(reason string, cur *tunnel, why string) {
 		again := tn.again
 		tn.again = false
 		t.mu.Unlock()
-		f := map[string]any{"from": cur.name, "to": tn.name, "why": reason, "ms": tn.upMS, "peer": tn.wg.Endpoint()}
+		f := map[string]any{"from": cur.name, "to": tn.name, "why": reason, "ms": tn.upMS, "peer": events.Clean(tn.wg.Endpoint(), 300)}
 		if again {
 			f["ms"], f["again"] = int64(0), true
 		}
@@ -612,6 +613,21 @@ func (t *Tunnels) move(reason string, cur *tunnel, why string) {
 		t.dueAfter(cur.keep)
 		t.mu.Unlock()
 		cur.wg.quietAgain()
+	}
+}
+
+// watchDraining watches the rotated-out tunnels as the one in use is
+// watched, and marks one that stopped answering: it is not moved back to.
+func (t *Tunnels) watchDraining() {
+	t.mu.Lock()
+	old := append([]*tunnel{}, t.old...)
+	t.mu.Unlock()
+	for _, o := range old {
+		if o.wg.Silent(TunnelSilence) {
+			t.mu.Lock()
+			o.failed = true
+			t.mu.Unlock()
+		}
 	}
 }
 

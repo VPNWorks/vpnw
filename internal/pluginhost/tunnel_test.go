@@ -308,8 +308,13 @@ func TestParseOffer(t *testing.T) {
 	if o, err := pluginhost.ParseOffer([]byte(`{"name":"a","config":"x"}`)); err != nil || o.Keep != 0 {
 		t.Errorf("no keep: %+v %v", o, err)
 	}
-	if o, err := pluginhost.ParseOffer([]byte(`{"name":"a","config":"x","keep":99999999999}`)); err != nil || o.Keep != pluginhost.MaxKeep {
-		t.Errorf("a keep past 30 days: %+v %v", o, err)
+	for keep, want := range map[string]time.Duration{
+		"99999999999": pluginhost.MaxKeep, "18446744073709551615": pluginhost.MaxKeep, "1e300": pluginhost.MaxKeep,
+		"6e2": 10 * time.Minute, "600.0": 10 * time.Minute, "0": 0, "2592000": pluginhost.MaxKeep, "2591999": pluginhost.MaxKeep - time.Second,
+	} {
+		if o, err := pluginhost.ParseOffer([]byte(`{"name":"a","config":"x","keep":` + keep + `}`)); err != nil || o.Keep != want {
+			t.Errorf("keep %s: %+v %v", keep, o, err)
+		}
 	}
 	for src, want := range map[string]string{
 		`{"name":"a","config":"x","extra":1}`:    "unknown field",

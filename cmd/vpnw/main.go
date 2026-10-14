@@ -204,11 +204,14 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	if len(argv) == 0 {
 		return fail(stderr, process.ExitConfig, "%s needs a command after --, as in: vpnw %s -- curl https://example.com", mode, mode)
 	}
-	// A path flag given empty (an unset shell variable, say) would leave the
-	// run on the default path without a word.
+	// A path, config or policy flag given empty (an unset shell variable,
+	// say) would leave the run on the default path, or with no policy,
+	// without a word.
 	given := map[string]bool{}
 	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
 	for _, f := range []struct{ name, val, want string }{
+		{"config", o.configFile, "a config file"},
+		{"policy", o.policyFile, "a policy file"},
 		{"via", o.via, "a path from --config, or direct"},
 		{"wireguard", o.wg, "a wg-quick file"},
 		{"tunnel", o.tunnel, "a tunnel plugin, such as rotate"},

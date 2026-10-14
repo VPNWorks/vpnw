@@ -300,7 +300,12 @@ func splitEndpoint(v string) (string, int, error) {
 	if err != nil || port < 1 || port > 65535 || host == "" {
 		return "", 0, fmt.Errorf("needs a host and a port, such as vpn.example.com:51820")
 	}
-	if _, err := netip.ParseAddr(host); err != nil {
+	if a, err := netip.ParseAddr(host); err == nil {
+		// A zone names a network interface, and nothing else.
+		if z := a.Zone(); z != "" && (len(z) > 15 || !hostName(z) || strings.Contains(z, ".")) {
+			return "", 0, fmt.Errorf("an IPv6 zone is a network interface's name, such as eth0")
+		}
+	} else {
 		if ipv6 {
 			return "", 0, fmt.Errorf("an IPv6 endpoint is written [address]:port")
 		}

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -71,11 +72,16 @@ func ParseOffer(b []byte) (*Offer, error) {
 	}
 	o := &Offer{Name: *w.Name, Text: *w.Config}
 	if w.Keep != nil {
-		n, err := w.Keep.Int64()
-		if err != nil || n < 0 {
+		// Whole seconds, however the number is written (600, 6e2, 600.0);
+		// any number of them past MaxKeep is MaxKeep.
+		f, err := w.Keep.Float64()
+		if err != nil || f < 0 || f != math.Trunc(f) {
 			return nil, errors.New("keep must be whole seconds, 0 or more")
 		}
-		o.Keep = time.Duration(min(n, int64(MaxKeep/time.Second))) * time.Second
+		o.Keep = MaxKeep
+		if f < float64(MaxKeep/time.Second) {
+			o.Keep = time.Duration(f) * time.Second
+		}
 	}
 	return o, nil
 }

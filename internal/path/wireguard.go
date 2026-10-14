@@ -19,7 +19,8 @@ import (
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
-	"golang.zx2c4.com/wireguard/tun/netstack"
+
+	"github.com/VPNWorks/vpnw/internal/path/netstack"
 )
 
 // WireGuard is a path through a WireGuard tunnel that vpnw runs itself, in
@@ -190,11 +191,12 @@ func (l *liveness) begin(rx uint64) {
 
 // confirm takes rx, the bytes WireGuard has accepted from the peers so far.
 // If that grew since the last time, what arrived came from a peer: the
-// last packet that arrived counts as heard.
+// last packet that arrived counts as heard. (A device that has closed
+// reports nothing, which isn't growth.)
 func (l *liveness) confirm(rx uint64) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if rx == l.rx {
+	if rx <= l.rx {
 		return
 	}
 	l.rx = rx

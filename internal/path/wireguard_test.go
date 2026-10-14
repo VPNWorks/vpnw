@@ -55,6 +55,9 @@ PersistentKeepalive = 25
 	// keepalive written Off.
 	real := strings.Replace(good, "MTU = 1380\n", "MTU = 1380\nTable = off\nSaveConfig = true\nFwMark = 0x1234\n", 1)
 	real = strings.Replace(real, "vpn.example.com:51820", "[2001:db8::1]:51820", 1)
+	if c, err := path.ParseWGConf(strings.Replace(good, "vpn.example.com:51820", "[fe80::1%eth0]:51820", 1)); err != nil || c.Peers[0].Endpoint != "[fe80::1%eth0]:51820" {
+		t.Errorf("a link-local endpoint with its interface: %v", err)
+	}
 	real = strings.Replace(real, "PersistentKeepalive = 25", "PersistentKeepalive = Off", 1)
 	if c, err := path.ParseWGConf(real); err != nil || c.Peers[0].Endpoint != "[2001:db8::1]:51820" {
 		t.Errorf("real-world file: %v", err)
@@ -77,6 +80,7 @@ PersistentKeepalive = 25
 		{"[Interface]\n" + key + "[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = 2001:db8::1:51820\nAllowedIPs = 10.0.0.0/8\n", "an IPv6 endpoint is written [address]:port"},
 		{"[Interface]\n" + key + "[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = vpn example.com:51820\nAllowedIPs = 10.0.0.0/8\n", "the host is neither an address nor a name"},
 		{"[Interface]\n" + key + "Address = 10.0.0.300/32\n" + peer, `line 4: Address "10.0.0.300/32" is not an address`},
+		{"[Interface]\n" + key + "[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = [2001:db8::1%\rvpnw\x07]:51820\nAllowedIPs = 10.0.0.0/8\n", "an IPv6 zone is a network interface's name"},
 	} {
 		if _, err := path.ParseWGConf(tc.src); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("got %v, want %q\n%s", err, tc.want, tc.src)

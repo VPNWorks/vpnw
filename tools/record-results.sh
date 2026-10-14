@@ -50,8 +50,11 @@ say "sizes"
 
 say "source lines"
 {
-  count() { find "$@" -name '*.go' ! -name '*_test.go' ! -path '*/testdata/*' | xargs cat | wc -l; }
-  echo "core: $(count cmd internal) lines of Go (tests not counted)"
+  # internal/path/netstack is wireguard-go's, copied with one change: not
+  # counted as the core's own.
+  count() { find "$@" -name '*.go' ! -name '*_test.go' ! -path '*/testdata/*' ! -path 'internal/path/netstack/*' | xargs cat | wc -l; }
+  echo "core: $(count cmd internal) lines of Go (tests not counted, nor the copy of wireguard-go's netstack)"
+  echo "copied: internal/path/netstack, $(cat internal/path/netstack/tun.go | wc -l) lines of wireguard-go's tun/netstack, with one change"
   echo "plugins and SDK: $(count plugins) lines of Go"
   echo "tests: $(find . -name '*_test.go' -o -path '*/testdata/plugins/*.go' | xargs cat | wc -l) lines of Go, test plugins included"
   for d in cmd/vpnw internal/* plugins/sdk plugins/trace plugins/learn plugins/ledger plugins/ledgerverify plugins/rotate; do
@@ -86,7 +89,9 @@ go test -count=1 -race -timeout 30m ./... 2>&1 | tee "$OUT/race.txt" | tail -16
 say "coverage (unit tests plus the real binary under the integration tests)"
 COV=$(mktemp -d)
 mkdir -p "$COV/unit" "$COV/it"
-PKGS=$(go list ./cmd/... ./internal/... ./plugins/... | tr '\n' ',' | sed 's/,$//')
+# The copy of wireguard-go's netstack is measured as wireguard-go was
+# before it: not as vpnw's own code.
+PKGS=$(go list ./cmd/... ./internal/... ./plugins/... | grep -v /internal/path/netstack | tr '\n' ',' | sed 's/,$//')
 go test -count=1 -cover -coverpkg="$PKGS" ./internal/... ./plugins/... -args -test.gocoverdir="$COV/unit" >/dev/null
 GOCOVERDIR="$COV/it" go test -count=1 ./test/integration/ >/dev/null
 {

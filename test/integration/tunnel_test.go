@@ -500,6 +500,8 @@ func TestTunnelOptions(t *testing.T) {
 		{[]string{"run", "--tunnel", "", "--", "true"}, "--tunnel was given an empty value"},
 		{[]string{"run", "--wireguard", "", "--", "true"}, "--wireguard was given an empty value"},
 		{[]string{"run", "--via", "", "--", "true"}, "--via was given an empty value"},
+		{[]string{"run", "--config", "", "--", "true"}, "--config was given an empty value"},
+		{[]string{"trace", "--policy", "", "--", "true"}, "--policy was given an empty value"},
 	} {
 		out, code := e.run(c.args...)
 		if code != 121 || !strings.Contains(out, c.want) {

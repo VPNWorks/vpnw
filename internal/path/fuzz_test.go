@@ -146,6 +146,7 @@ func FuzzParseWGConf(f *testing.F) {
 	f.Add("[Interface]\nPostUp = rm -rf /\n")
 	f.Add("[Interface]\nPrivateKey: yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\n")
 	f.Add("[Interface]\n\x1b[2K\rvpnw FAKE\x1b[8m = 1\n")
+	f.Add("[Interface]\nPrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=\nAddress = 10.0.0.2/32\n[Peer]\nPublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=\nEndpoint = [fe80::1%eth0]:51820\nAllowedIPs = 0.0.0.0/0\n")
 	f.Fuzz(func(t *testing.T, src string) {
 		c, err := ParseWGConf(src)
 		if err != nil {
@@ -169,6 +170,13 @@ func FuzzParseWGConf(f *testing.F) {
 		for _, p := range c.Peers {
 			if p.Endpoint == "" || len(p.AllowedIPs) == 0 {
 				t.Fatalf("accepted an incomplete peer at %q", p.Endpoint)
+			}
+			// An endpoint is shown in the record and on the console: an
+			// address, a name and a port, nothing else.
+			for _, r := range p.Endpoint {
+				if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune(".-_:[]%", r)) {
+					t.Fatalf("accepted the endpoint %q", p.Endpoint)
+				}
 			}
 		}
 		if strings.Contains(strings.ToLower(src), "postup") && strings.Contains(src, "=") {

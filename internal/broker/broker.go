@@ -423,7 +423,7 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		b.failed.Add(1)
 		ef := map[string]any{"error": err.Error()}
 		if ci.Exit != "" {
-			ef["exit"] = ci.Exit
+			ef["exit"] = events.Clean(ci.Exit, 300)
 		}
 		if ci.Tunnel != "" {
 			ef["tunnel"] = ci.Tunnel
@@ -526,7 +526,7 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 			of["host"] = host
 		}
 		if ci.Exit != "" {
-			of["exit"] = ci.Exit
+			of["exit"] = events.Clean(ci.Exit, 300)
 		}
 		if ci.Tunnel != "" {
 			of["tunnel"] = ci.Tunnel

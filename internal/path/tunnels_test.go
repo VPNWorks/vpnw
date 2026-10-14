@@ -372,6 +372,44 @@ func TestTunnelsRotateBackToDraining(t *testing.T) {
 	}
 }
 
+// Rotated-out tunnels are watched as the one in use is: one whose peer
+// stops answering while it still carries connections is not moved back to,
+// and a new tunnel is tried in its place.
+func TestTunnelsNotBackToSilent(t *testing.T) {
+	shorten(t, &path.TunnelSilence, 2*time.Second)
+	shorten(t, &path.HandshakeTimeout, time.Second)
+	a, b := named(t, "A"), named(t, "B")
+	relay, err := wgtest.NewRelay(a.Port)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer relay.Close()
+	src := &source{list: []path.TunnelOffer{{Name: "a.conf", Text: a.ConfigVia(relay)}, {Name: "b.conf", Text: b.ClientConfig()}}}
+	p := up(t, src)
+	rec := &recorder{}
+	p.Start(rec.emit)
+	ka := openKeepAlive(t, p)
+	p.MoveNow("due") // to b; a still carries ka
+	if body, err := ka.get(); err != nil || !strings.Contains(body, "from peer A") {
+		t.Fatalf("through a, rotated out: %q, %v", body, err)
+	}
+	relay.Silence(true)
+	if _, err := ka.get(); err == nil {
+		t.Fatal("an answer through a silent peer")
+	}
+	time.Sleep(1500 * time.Millisecond) // the loop looks once a second
+	p.MoveNow("due")                    // a.conf again
+	if p.Current() != "b.conf" || len(rec.of(events.TunnelSwitch)) != 1 {
+		t.Errorf("in use %s; switches %v", p.Current(), rec.of(events.TunnelSwitch))
+	}
+	if got := src.reasons(); got != "start, due, due, failed a.conf" {
+		t.Errorf("asked: %s", got)
+	}
+	if te := rec.of(events.TunnelError); len(te) != 1 || !strings.Contains(fmt.Sprint(te[0].Fields["error"]), "no WireGuard handshake") {
+		t.Errorf("errors: %v", te)
+	}
+}
+
 // Two configs with the same key and peer can't both be up. One handed over
 // while the other is in use is refused; one that comes up while the other
 // is rotated out takes its place, and the old tunnel is closed with its
@@ -488,12 +526,13 @@ func TestTunnelsConfigErrors(t *testing.T) {
 	if e := fmt.Sprint(sk[3].(map[string]any)["error"]); !strings.Contains(e, fmt.Sprintf("it has %d peers", path.MaxTunnelPeers+1)) {
 		t.Errorf("peers.conf: %s", e)
 	}
-	// The record says where the handshakes went; the plugin is told the
+	// The record says where the handshakes went, localhost looked up
+	// (127.0.0.1, or ::1 where that comes first); the plugin is told the
 	// endpoint as its config has it.
-	if e := fmt.Sprint(sk[4].(map[string]any)["error"]); !strings.Contains(e, "no WireGuard handshake from 127.0.0.1:") {
+	if e := fmt.Sprint(sk[4].(map[string]any)["error"]); !strings.Contains(e, "no WireGuard handshake from 127.0.0.1:") && !strings.Contains(e, "no WireGuard handshake from [::1]:") {
 		t.Errorf("recorded: %s", e)
 	}
-	if !strings.HasPrefix(told[4], "no WireGuard handshake from localhost:") || strings.Contains(told[4], "127.0.0.1") {
+	if !strings.HasPrefix(told[4], "no WireGuard handshake from localhost:") || strings.Contains(told[4], "127.0.0.1") || strings.Contains(told[4], "::1") {
 		t.Errorf("told: %s", told[4])
 	}
 	if got := path.ToPlugin("failed", &path.LookupError{Endpoint: "x.example:51820", Err: errors.New("lookup x.example on 192.0.2.53:53: no such host")}); got != "cannot look up the name in endpoint x.example:51820" {
