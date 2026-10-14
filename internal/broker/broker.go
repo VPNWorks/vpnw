@@ -308,8 +308,9 @@ type outcome struct {
 	start  time.Time
 	denied *policy.Decision
 	err    error
-	socks  byte   // SOCKS5 reply code on failure
-	path   string // the ID of the path it went by, for its later events
+	socks  byte     // SOCKS5 reply code on failure
+	path   string   // the ID of the path it went by, for its later events
+	addrs  []string // on failure: the addresses the name was looked up to
 }
 
 // origin is who asked for a connection. The zero origin is the broker's own
@@ -412,6 +413,7 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		addrs = ips
 		return nil
 	}
+	var failExtra map[string]any
 	fail := func(err error, code byte) outcome {
 		// A lookup or dial cut off by the end of the run says so; any
 		// other failure keeps its own reason, even if it raced the end.
@@ -423,8 +425,15 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		if ci.Exit != "" {
 			ef["exit"] = ci.Exit
 		}
+		for k, v := range failExtra {
+			ef[k] = v
+		}
 		emit(events.ConnectionError, ef)
-		return outcome{id: id, start: start, err: err, socks: code}
+		o := outcome{id: id, start: start, err: err, socks: code}
+		for _, a := range addrs {
+			o.addrs = append(o.addrs, a.String())
+		}
+		return o
 	}
 
 	if pol != nil {
@@ -491,6 +500,7 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 	t0 := b.now()
 	var lastErr error
 	var refused *path.Refusal
+	var refusedAll []string // each address the path refused, with why
 	for _, cand := range cands {
 		conn, err := p.Dial(ctx, host, cand, port)
 		if err != nil {
@@ -499,6 +509,7 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 				if refused == nil {
 					refused = rf
 				}
+				refusedAll = append(refusedAll, rf.Rule+": "+rf.Reason)
 				continue
 			}
 			lastErr = err
@@ -520,6 +531,9 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 				of["source"] = ta.IP.String()
 			}
 		}
+		if len(refusedAll) > 0 {
+			of["refused"] = refusedAll
+		}
 		b.opened.Add(1)
 		emit(events.ConnectionOpen, of)
 		return outcome{conn: conn, id: id, start: start}
@@ -534,6 +548,11 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 	code := byte(0x05)
 	if lastErr != nil && strings.Contains(lastErr.Error(), "unreachable") {
 		code = 0x03
+	}
+	if len(refusedAll) > 0 {
+		// The failure's record says which addresses the path refused
+		// before the others failed to connect.
+		failExtra = map[string]any{"refused": refusedAll}
 	}
 	return fail(errors.New(dialErr(lastErr)), code)
 }

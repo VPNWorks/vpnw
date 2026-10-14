@@ -142,9 +142,9 @@ One JSON object per line, schema version 1. Every event has `v`, `ts`, `type` an
 | `policy.allow` | `rule`, `text`, `reason` |
 | `policy.deny` | `rule`, `reason`, `text`; a guard plugin's rule is `plugin:NAME` |
 | `path.switch` | `from`, `to`, `error`, `ms` |
-| `connection.open` | `ip` or `host`, `exit`, `ms`; at an exit, `source` |
+| `connection.open` | `ip` or `host`, `exit`, `ms`; at an exit, `source`, and `refused` when the path refused some of the name's addresses |
 | `connection.close` | `bytes_up`, `bytes_down`, `ms` |
-| `connection.error` | `error`, `exit` |
+| `connection.error` | `error`, `exit`, and `refused` as for `connection.open` |
 | `plugin.error` | `plugin`, `type`, `error` |
 | `auth.deny` | at an exit: `peer`, `proto`, `reason`, and `host` or `ip` and `port` when the request named them |
 | `process.exit` | `code`, `signal`, `ms` |
@@ -255,7 +255,7 @@ addresses = ["198.51.100.20", "198.51.100.21"]
 - Every client needs `token_sha256`, a `source` or a `pool`, and a policy: a policy file, or the keys `default`, `deny_private`, `allow` and `deny` in its table, not both.
 - An address belongs to one client, or to one pool. A client of a pool always leaves from the same address of it, picked from the client's name.
 - A source is one address of the machine: not a wildcard such as `0.0.0.0`, and not a broadcast, multicast or link-local address. Every source has to be on the exit's machine, or `serve` refuses to start (exit code 122). The exit checks that each connection really left from the client's address.
-- Whatever a client's policy says, the exit never connects to its own machine, unless the client's table has `allow_exit_host = true`: its loopback addresses, the addresses it had when it started, and any address it routes to itself now. For every client it refuses link-local, multicast and unspecified addresses, and the cloud metadata addresses outside link-local that it knows (`fd00:ec2::254`, `100.100.100.200`), so a cloud's metadata service at 169.254.169.254 is out of reach from an exit. Such a refusal is recorded as `policy.deny` with the rule `exit`, after the client's own policy allowed the connection.
+- Whatever a client's policy says, the exit never connects to its own machine, unless the client's table has `allow_exit_host = true`: its loopback addresses, the addresses it had when it started, and any address it can bind to or routes to itself now (if it can't tell, it doesn't connect). For every client it refuses link-local, multicast and unspecified addresses, and the cloud metadata addresses outside link-local that it knows (`fd00:ec2::254`, `100.100.100.200`), so a cloud's metadata service at 169.254.169.254 is out of reach from an exit. Such a refusal is recorded as `policy.deny` with the rule `exit`, after the client's own policy allowed the connection.
 - Names are looked up at the exit, so `deny_private` sees where a name really points. Give clients of an exit the default, names resolved at the exit (`dns = "remote"`): the exit needs the names to check name rules.
 - `check` and `serve` warn about a client with default allow and no `deny_private`, an allow rule that takes in private addresses, and `allow_exit_host`.
 
@@ -271,7 +271,7 @@ addresses = ["198.51.100.20", "198.51.100.21"]
 
 vpnw sends the IDs with every request. A request that gives the token or an ID header twice is refused, so the exit never chooses between two. When a client asks for a name, a refusal that comes from an address the exit looked up is told to the client by its rule only, so a token can't be used to read the exit's DNS answers; the exit's record has the whole reason.
 
-Before a client shows its token, it holds little. A connection gets 10 seconds for TLS and its request together. One address can have at most 32 such connections waiting (an IPv6 address counts with its /64), and all addresses together 1,024; when all 1,024 are taken, the oldest waiting connection of the address holding the most is closed to make room. A wrong token is answered after a second. Behind a TCP load balancer every client comes from the balancer's address, so they share its 32. Once logged in, a client can have 1,024 connections open at the exit; one more is answered 429, or with SOCKS5 reply 1. A client without vpnw can send no IDs at all; its connections are decided and recorded like any other. The exit takes nothing but CONNECT, the health check and SOCKS5 CONNECT; SOCKS5 BIND and UDP are refused with a record of it.
+Before a client shows its token, it holds little. A connection gets 10 seconds for TLS and its request together. One address can have at most 32 such connections waiting (an IPv6 address counts with its /64), and all addresses together 1,024; when all 1,024 are taken, the oldest waiting connection of the address holding the most is closed to make room. A wrong token is answered after a second. Behind a TCP load balancer, or a NAT, clients share one address, so they share its 32, and under a flood theirs are the first closed. Once logged in, a client can have 1,024 connections open at the exit; one more is answered 429, or over SOCKS5 its login is refused. A client without vpnw can send no IDs at all; its connections are decided and recorded like any other. The exit takes nothing but CONNECT, the health check and SOCKS5 CONNECT; SOCKS5 BIND and UDP are refused with a record of it.
 
 ### The exit's record
 

@@ -19,10 +19,13 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
+	"os"
 	"strings"
+	"syscall"
 
 	"github.com/VPNWorks/vpnw/internal/broker"
 	"github.com/VPNWorks/vpnw/internal/path"
@@ -72,9 +75,10 @@ func (c *Config) BrokerClients() *Clients {
 		own[a] = true
 	}
 	out := &Clients{}
+	anyBind := nonlocalBind()
 	for _, cl := range c.Clients {
 		a := cl.Address()
-		p := &exitPath{Direct: path.Direct{Dialer: net.Dialer{LocalAddr: &net.TCPAddr{IP: a.AsSlice()}}}, client: cl.Name, src: a, host: cl.ExitHost, own: own}
+		p := &exitPath{Direct: path.Direct{Dialer: net.Dialer{LocalAddr: &net.TCPAddr{IP: a.AsSlice()}}}, client: cl.Name, src: a, host: cl.ExitHost, own: own, anyBind: anyBind}
 		out.hashes = append(out.hashes, cl.Hash)
 		out.list = append(out.list, &broker.Client{Name: cl.Name, Policy: cl.Policy, Path: p, Source: a.String()})
 	}
@@ -91,10 +95,11 @@ func (c *Config) BrokerClients() *Clients {
 // address.
 type exitPath struct {
 	path.Direct
-	client string
-	src    netip.Addr
-	host   bool
-	own    map[netip.Addr]bool
+	client  string
+	src     netip.Addr
+	host    bool
+	own     map[netip.Addr]bool
+	anyBind bool // the machine lets a program bind to any address
 }
 
 var broadcast = netip.AddrFrom4([4]byte{255, 255, 255, 255})
@@ -106,21 +111,48 @@ var metadata = map[netip.Addr]bool{
 	netip.MustParseAddr("100.100.100.200"): true,
 }
 
+// nonlocalBind reports whether this machine lets a program bind to an
+// address it doesn't have (Linux's ip_nonlocal_bind), which would make
+// every address look like its own to the bind test below.
+func nonlocalBind() bool {
+	for _, f := range []string{"/proc/sys/net/ipv4/ip_nonlocal_bind", "/proc/sys/net/ipv6/ip_nonlocal_bind"} {
+		if b, err := os.ReadFile(f); err == nil && strings.TrimSpace(string(b)) != "0" {
+			return true
+		}
+	}
+	return false
+}
+
 // local reports whether a is an address of this machine: one it had when
-// the exit started, or one the machine routes to itself now. A connected
-// UDP socket sends nothing; for a local destination the system picks the
-// destination itself as the source.
-func (p *exitPath) local(a netip.Addr) bool {
+// the exit started, one it can bind to now (a local route for a whole range
+// included), or one it routes to itself (a connected UDP socket sends
+// nothing, and for a local destination the system picks the destination
+// itself as the source). An error it can't read as "not here" fails closed:
+// the connection is not made.
+func (p *exitPath) local(a netip.Addr) (bool, error) {
 	if a.IsLoopback() || p.own[a] {
-		return true
+		return true, nil
+	}
+	if !p.anyBind {
+		l, err := net.Listen("tcp", netip.AddrPortFrom(a, 0).String())
+		if err == nil {
+			l.Close()
+			return true, nil
+		}
+		if !errors.Is(err, syscall.EADDRNOTAVAIL) && !errors.Is(err, syscall.EAFNOSUPPORT) {
+			return false, err
+		}
 	}
 	c, err := net.DialUDP("udp", nil, net.UDPAddrFromAddrPort(netip.AddrPortFrom(a, 9)))
 	if err != nil {
-		return false
+		if errors.Is(err, syscall.ENETUNREACH) || errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.EAFNOSUPPORT) {
+			return false, nil
+		}
+		return false, err
 	}
 	defer c.Close()
 	la, ok := netip.AddrFromSlice(c.LocalAddr().(*net.UDPAddr).IP)
-	return ok && la.Unmap() == a
+	return ok && la.Unmap() == a, nil
 }
 
 func (p *exitPath) Dial(ctx context.Context, host string, ip net.IP, port int) (net.Conn, error) {
@@ -132,8 +164,15 @@ func (p *exitPath) Dial(ctx context.Context, host string, ip net.IP, port int) (
 	switch {
 	case a.IsUnspecified() || a.IsMulticast() || a.IsLinkLocalUnicast() || a == broadcast || metadata[a]:
 		return nil, &path.Refusal{Rule: "exit", Reason: fmt.Sprintf("%s is never reached from an exit: it's a link-local, multicast, unspecified or cloud metadata address", a)}
-	case !p.host && p.local(a):
-		return nil, &path.Refusal{Rule: "exit", Reason: fmt.Sprintf("%s is the exit's own machine, which client %s may not reach (allow_exit_host)", a, p.client)}
+	}
+	if !p.host {
+		mine, err := p.local(a)
+		if err != nil {
+			return nil, fmt.Errorf("can't tell whether %s is the exit's own machine: %v", a, err)
+		}
+		if mine {
+			return nil, &path.Refusal{Rule: "exit", Reason: fmt.Sprintf("%s is the exit's own machine, which client %s may not reach (allow_exit_host)", a, p.client)}
+		}
 	}
 	c, err := p.Direct.Dial(ctx, host, ip, port)
 	if err != nil {

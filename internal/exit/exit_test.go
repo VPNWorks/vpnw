@@ -5,6 +5,7 @@ package exit
 
 import (
 	"errors"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -256,5 +257,38 @@ func TestCheckSources(t *testing.T) {
 	c, _ = ParseConfig(src("192.0.2.99"), "f.toml", nil)
 	if err := c.CheckSources(); err == nil || err.Error() != "source address 192.0.2.99 is not on this machine" {
 		t.Errorf("192.0.2.99: %v", err)
+	}
+}
+
+// The exit knows its own machine without a list made at start: by binding
+// to an address, or by asking where the system routes it.
+func TestLocal(t *testing.T) {
+	p := &exitPath{own: map[netip.Addr]bool{}}
+	for _, a := range []string{"127.0.0.1", "127.9.9.9", "::1"} {
+		if mine, err := p.local(netip.MustParseAddr(a)); !mine || err != nil {
+			t.Errorf("%s: %v %v", a, mine, err)
+		}
+	}
+	if mine, err := p.local(netip.MustParseAddr("192.0.2.99")); mine || err != nil {
+		t.Errorf("192.0.2.99: %v %v", mine, err)
+	}
+	if mine, err := p.local(netip.MustParseAddr("2001:db8::99")); mine || err != nil {
+		t.Errorf("2001:db8::99: %v %v", mine, err)
+	}
+	addrs, _ := net.InterfaceAddrs()
+	for _, x := range addrs {
+		n, ok := x.(*net.IPNet)
+		if !ok || n.IP.IsLoopback() || n.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		a, _ := netip.AddrFromSlice(n.IP)
+		if mine, err := p.local(a.Unmap()); !mine || err != nil {
+			t.Errorf("this machine's %s: %v %v", a, mine, err)
+		}
+		p.anyBind = true // the route test alone
+		if mine, err := p.local(a.Unmap()); !mine || err != nil {
+			t.Errorf("this machine's %s, by its route: %v %v", a, mine, err)
+		}
+		p.anyBind = false
 	}
 }

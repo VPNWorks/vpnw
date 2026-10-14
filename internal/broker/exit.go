@@ -262,10 +262,14 @@ func (b *Broker) forget(w *waiter) {
 	}
 }
 
-func (b *Broker) doneWaiting(w *waiter) {
+// doneWaiting lets a waiting connection's slot go. It reports whether the
+// connection still had it: one closed to make room for another has not.
+func (b *Broker) doneWaiting(w *waiter) bool {
 	b.mu.Lock()
+	defer b.mu.Unlock()
+	had := !w.gone
 	b.forget(w)
-	b.mu.Unlock()
+	return had
 }
 
 // clientIn counts a connection of a client that has logged in, if it has
@@ -307,14 +311,26 @@ func (b *Broker) exitHandle(c net.Conn) {
 	if w == nil {
 		return
 	}
-	release := func() { b.doneWaiting(w) }
-	defer release()
-	// Once a client has shown its token, it gets the time a run's program
-	// gets, and no more limit on writing than one has.
-	loggedIn := func() {
-		release()
+	defer b.doneWaiting(w)
+	// Once a client has shown its token, its connection counts against the
+	// client's share, MaxConnsPerClient, instead of the waiting ones', and
+	// it gets the time a run's program gets. loggedIn reports false, and the
+	// caller stops, when the connection was closed to make room before it
+	// got this far, or when the client has its share open already.
+	var counted string
+	defer func() {
+		if counted != "" {
+			b.clientOut(counted)
+		}
+	}()
+	loggedIn := func(name string) bool {
+		if !b.doneWaiting(w) || !b.clientIn(name) {
+			return false
+		}
+		counted = name
 		c.SetWriteDeadline(time.Time{})
 		c.SetReadDeadline(time.Now().Add(HandshakeTime))
+		return true
 	}
 	c.SetDeadline(time.Now().Add(ExitHandshakeTime))
 	if tc, ok := c.(*tls.Conn); ok {
@@ -429,7 +445,7 @@ func toClient(d *policy.Decision, host string) string {
 	return d.Reason
 }
 
-func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string, loggedIn func()) {
+func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string, loggedIn func(string) bool) {
 	h, err := readHead(br)
 	if err != nil {
 		if errors.Is(err, errHeadTooLarge) {
@@ -466,7 +482,10 @@ func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string, loggedIn fu
 		httpReply(c, "407 Proxy Authentication Required", "Proxy-Authenticate: Basic realm=\"vpnw exit\"\r\n", "vpnw exit: "+why+"\n")
 		return
 	}
-	loggedIn()
+	if !loggedIn(cl.Name) {
+		httpReply(c, "429 Too Many Requests", "", fmt.Sprintf("vpnw exit: client %s has %d connections open here already\n", cl.Name, MaxConnsPerClient))
+		return
+	}
 	if health {
 		b.healthChecks.Add(1)
 		httpReply(c, "200 OK", "", b.Exit.Name+"\n")
@@ -477,11 +496,6 @@ func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string, loggedIn fu
 		httpReply(c, "400 Bad Request", "", "vpnw exit: "+err.Error()+"\n")
 		return
 	}
-	if !b.clientIn(cl.Name) {
-		httpReply(c, "429 Too Many Requests", "", fmt.Sprintf("vpnw exit: client %s has %d connections open here already\n", cl.Name, MaxConnsPerClient))
-		return
-	}
-	defer b.clientOut(cl.Name)
 	o := b.open(origin{client: cl, run: run, conn: conn, peer: peer}, host, port, proto)
 	target := net.JoinHostPort(host, strconv.Itoa(port))
 	switch {
@@ -491,7 +505,12 @@ func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string, loggedIn fu
 			fmt.Sprintf("vpnw exit: blocked %s (%s: %s)\n", target, o.denied.Rule, headerSafe(why)))
 		return
 	case o.err != nil:
-		why := fmt.Sprintf("cannot reach %s: %v", target, o.err)
+		// The addresses the exit looked up stay at the exit.
+		msg := o.err.Error()
+		for _, x := range o.addrs {
+			msg = strings.ReplaceAll(msg, x, "an address of "+host)
+		}
+		why := fmt.Sprintf("cannot reach %s: %s", target, msg)
 		httpReply(c, "502 Bad Gateway", "VPNW-Reason: "+headerSafe(why)+"\r\n", "vpnw exit: "+why+"\n")
 		return
 	}
@@ -503,7 +522,7 @@ func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string, loggedIn fu
 	b.finish(o, c, br, 0, 0, nil)
 }
 
-func (b *Broker) exitSOCKS(c net.Conn, br *bufio.Reader, peer string, loggedIn func()) {
+func (b *Broker) exitSOCKS(c net.Conn, br *bufio.Reader, peer string, loggedIn func(string) bool) {
 	var hdr [2]byte
 	if _, err := io.ReadFull(br, hdr[:]); err != nil {
 		return
@@ -558,7 +577,11 @@ func (b *Broker) exitSOCKS(c net.Conn, br *bufio.Reader, peer string, loggedIn f
 		c.Write([]byte{0x01, 0x01})
 		return
 	}
-	loggedIn()
+	if !loggedIn(cl.Name) {
+		// SOCKS5 has no word for busy: the login is refused.
+		c.Write([]byte{0x01, 0x01})
+		return
+	}
 	c.Write([]byte{0x01, 0x00})
 	cmd, host, port, ok := socksRequest(c, br)
 	if !ok {
@@ -569,11 +592,6 @@ func (b *Broker) exitSOCKS(c net.Conn, br *bufio.Reader, peer string, loggedIn f
 		b.unsupported(from, c, host, port, cmd)
 		return
 	}
-	if !b.clientIn(cl.Name) {
-		socksReply(c, 0x01)
-		return
-	}
-	defer b.clientOut(cl.Name)
 	o := b.open(from, host, port, "socks5")
 	if o.conn == nil {
 		socksReply(c, o.socks)

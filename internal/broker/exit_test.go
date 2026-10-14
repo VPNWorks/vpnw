@@ -599,3 +599,92 @@ func TestPeerKey(t *testing.T) {
 		}
 	}
 }
+
+// halfRefusing refuses 10.0.0.1 by a rule of its own, can't reach 10.0.0.2,
+// and connects the rest directly.
+type halfRefusing struct{ path.Direct }
+
+func (h *halfRefusing) Dial(ctx context.Context, host string, ip net.IP, port int) (net.Conn, error) {
+	switch ip.String() {
+	case "10.0.0.1":
+		return nil, &path.Refusal{Rule: "exit", Reason: "10.0.0.1 is out of reach here"}
+	case "10.0.0.2":
+		return nil, fmt.Errorf("dial tcp 10.0.0.2:%d: connect: connection refused", port)
+	}
+	return h.Direct.Dial(ctx, host, ip, port)
+}
+
+// A name with one address the path refuses: if another opens, or fails,
+// the record still says which address was refused, and why.
+func TestExitRefusedAmongOthers(t *testing.T) {
+	port, _ := echoServer(t)
+	r := exitRig(t)
+	r.dns.m["mixed-fail.test"] = []net.IP{net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2")}
+	r.dns.m["mixed-open.test"] = []net.IP{net.ParseIP("10.0.0.1"), net.ParseIP("127.0.0.1")}
+	r.dns.m["refused.test"] = []net.IP{net.ParseIP("10.0.0.1")}
+	cl := &Client{Name: "m", Policy: pol(t, config.PolicySpec{Default: "allow"}), Path: &halfRefusing{}}
+	r.b.Exit.Clients.(tokens)["tok-m"] = cl
+	_, _, s1, h1 := exitAsk(t, r.addr, "CONNECT mixed-fail.test:443 HTTP/1.1\r\n"+basic("tok-m")+"\r\n")
+	c2, _, s2, _ := exitAsk(t, r.addr, fmt.Sprintf("CONNECT mixed-open.test:%d HTTP/1.1\r\n%s\r\n", port, basic("tok-m")))
+	c2.Close()
+	_, _, s3, h3 := exitAsk(t, r.addr, "CONNECT refused.test:443 HTTP/1.1\r\n"+basic("tok-m")+"\r\n")
+	if !strings.HasPrefix(s1, "HTTP/1.1 502") || strings.Contains(h1["vpnw-reason"], "10.0.0.") {
+		t.Errorf("mixed, failing: %q %v", s1, h1)
+	}
+	if s2 != "HTTP/1.1 200 Connection established" {
+		t.Errorf("mixed, opening: %q", s2)
+	}
+	if !strings.HasPrefix(s3, "HTTP/1.1 403") || h3["vpnw-rule"] != "exit" || strings.Contains(h3["vpnw-reason"], "10.0.0.1") {
+		t.Errorf("refused: %q %v", s3, h3)
+	}
+	waitEvents(r, events.ConnectionClose, 1)
+	var errRefused, openRefused any
+	for _, e := range r.mem.Snapshot() {
+		switch e.Type {
+		case events.ConnectionError:
+			errRefused = e.Fields["refused"]
+		case events.ConnectionOpen:
+			openRefused = e.Fields["refused"]
+		}
+	}
+	want := []string{"exit: 10.0.0.1 is out of reach here"}
+	if fmt.Sprint(errRefused) != fmt.Sprint(want) || fmt.Sprint(openRefused) != fmt.Sprint(want) {
+		t.Errorf("refused in the record: error %v, open %v", errRefused, openRefused)
+	}
+	if st := r.b.Stats(); st.Denied != 1 || st.Failed != 1 || st.Opened != 1 {
+		t.Errorf("stats: %+v", st)
+	}
+}
+
+// A client's share counts from its login, so connections that logged in
+// and sent nothing more can't take every slot either.
+func TestExitShareFromLogin(t *testing.T) {
+	old := MaxConnsPerClient
+	MaxConnsPerClient = 1
+	defer func() { MaxConnsPerClient = old }()
+	r := exitRig(t)
+	c, err := net.Dial("tcp", r.addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.SetDeadline(time.Now().Add(5 * time.Second))
+	c.Write([]byte{0x05, 0x01, 0x02})
+	var m [2]byte
+	io.ReadFull(c, m[:])
+	c.Write(append(append([]byte{0x01, 4}, "vpnw"...), append([]byte{5}, "tok-a"...)...))
+	var a [2]byte
+	if _, err := io.ReadFull(c, a[:]); err != nil || a[1] != 0 {
+		t.Fatalf("first login: %v %v", a, err)
+	}
+	// Logged in, idle: the client's one connection.
+	if _, login, _ := socksTalk(t, r.addr, []byte{0x02}, "vpnw", "tok-a", 1, "echo.test", 1); login != 1 {
+		t.Errorf("a second SOCKS5 login of client a: %d", login)
+	}
+	if _, _, status, _ := exitAsk(t, r.addr, "GET /health HTTP/1.1\r\n"+basic("tok-a")+"\r\n"); status != "HTTP/1.1 429 Too Many Requests" {
+		t.Errorf("an HTTP request of client a: %q", status)
+	}
+	if _, _, status, _ := exitAsk(t, r.addr, "GET /health HTTP/1.1\r\n"+basic("tok-b")+"\r\n"); status != "HTTP/1.1 200 OK" {
+		t.Errorf("client b: %q", status)
+	}
+}
