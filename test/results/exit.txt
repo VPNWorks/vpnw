@@ -1,0 +1,9 @@
+--- PASS: TestExitFixedAddresses (1.43s)
+--- PASS: TestExitTamperedClient (0.70s)
+--- PASS: TestExitAgreesWithClient (1.10s)
+--- PASS: TestExitFailover (5.15s)
+--- PASS: TestExitRefusesBadClients (1.73s)
+--- PASS: TestExitServeChecks (0.48s)
+--- PASS: TestExitPlugins (1.58s)
+--- PASS: TestExitOwnMachine (0.70s)
+ok  	github.com/VPNWorks/vpnw/test/integration	14.360s

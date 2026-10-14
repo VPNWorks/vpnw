@@ -1,9 +1,9 @@
-vpnw, linux/amd64: 26448056 bytes; gzip -9: 8541863 bytes
-vpnw, linux/arm64: 25886904 bytes; gzip -9: 8188033 bytes
+vpnw, linux/amd64: 27029688 bytes; gzip -9: 8775593 bytes
+vpnw, linux/arm64: 26476728 bytes; gzip -9: 8398351 bytes
 vpnw, darwin/amd64: compiles (env backend; sealed runs need Linux)
 vpnw, darwin/arm64: compiles (env backend; sealed runs need Linux)
-built-in plugin trace: 3303101 bytes of WebAssembly; gzip -9: 922806 bytes
-built-in plugin learn: 3925416 bytes of WebAssembly; gzip -9: 1079090 bytes
-built-in plugin ledger: 3910263 bytes of WebAssembly; gzip -9: 1088903 bytes
-built-in plugin ledger-verify: 3965762 bytes of WebAssembly; gzip -9: 1101584 bytes
+built-in plugin trace: 3315903 bytes of WebAssembly; gzip -9: 929512 bytes
+built-in plugin learn: 3925638 bytes of WebAssembly; gzip -9: 1079155 bytes
+built-in plugin ledger: 3910489 bytes of WebAssembly; gzip -9: 1089053 bytes
+built-in plugin ledger-verify: 3965970 bytes of WebAssembly; gzip -9: 1101662 bytes
 third-party modules linked: 8 (github.com/google/btree v1.1.2, github.com/tetratelabs/wazero v1.10.1, golang.org/x/crypto v0.37.0, golang.org/x/net v0.39.0, golang.org/x/sys v0.32.0, golang.org/x/time v0.7.0, golang.zx2c4.com/wireguard v0.0.0-20261006164505-2631ce99a06f, gvisor.dev/gvisor v0.0.0-20250503011706-39ed1f5ac29c)

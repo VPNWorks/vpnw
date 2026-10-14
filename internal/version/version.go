@@ -8,8 +8,9 @@ package version
 // and plugin platform; 0.4.0 adds WireGuard paths, run inside vpnw; 0.4.1
 // runs the IPv6 escape tests in CI and fixes a race in closing plugins;
 // 0.5.0 adds Ledger and the file.write permission. 0.6.0 adds Lab, the
-// fault kit in the tests, and the fixes it found.
-const Version = "0.6.0"
+// fault kit in the tests, and the fixes it found. 0.7.0 adds Exit, the
+// server end of a path (vpnw exit).
+const Version = "0.7.0"
 
 // Schema is the version of the event schema written to every event ("v").
 const Schema = 1

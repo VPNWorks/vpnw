@@ -1,18 +1,19 @@
 ?   	github.com/VPNWorks/vpnw/cmd/vpnw	[no test files]
-ok  	github.com/VPNWorks/vpnw/internal/broker	4.632s
-ok  	github.com/VPNWorks/vpnw/internal/config	1.016s
-ok  	github.com/VPNWorks/vpnw/internal/events	1.014s
-ok  	github.com/VPNWorks/vpnw/internal/path	15.736s
+ok  	github.com/VPNWorks/vpnw/internal/broker	5.698s
+ok  	github.com/VPNWorks/vpnw/internal/config	1.030s
+ok  	github.com/VPNWorks/vpnw/internal/events	1.025s
+ok  	github.com/VPNWorks/vpnw/internal/exit	3.192s
+ok  	github.com/VPNWorks/vpnw/internal/path	16.486s
 ?   	github.com/VPNWorks/vpnw/internal/path/wgtest	[no test files]
-ok  	github.com/VPNWorks/vpnw/internal/pluginhost	269.211s
-ok  	github.com/VPNWorks/vpnw/internal/policy	1.018s
-ok  	github.com/VPNWorks/vpnw/internal/process	1.016s
+ok  	github.com/VPNWorks/vpnw/internal/pluginhost	440.505s
+ok  	github.com/VPNWorks/vpnw/internal/policy	1.035s
+ok  	github.com/VPNWorks/vpnw/internal/process	1.033s
 ?   	github.com/VPNWorks/vpnw/internal/version	[no test files]
-ok  	github.com/VPNWorks/vpnw/plugins/builtin	1.040s
-ok  	github.com/VPNWorks/vpnw/plugins/learn/learn	1.016s
-ok  	github.com/VPNWorks/vpnw/plugins/ledger/chain	1.064s
-ok  	github.com/VPNWorks/vpnw/plugins/ledger/seal	1.021s
-ok  	github.com/VPNWorks/vpnw/plugins/ledgerverify/check	1.017s
-ok  	github.com/VPNWorks/vpnw/plugins/sdk	1.016s
-ok  	github.com/VPNWorks/vpnw/plugins/trace/render	1.015s
-ok  	github.com/VPNWorks/vpnw/test/integration	138.408s
+ok  	github.com/VPNWorks/vpnw/plugins/builtin	1.073s
+ok  	github.com/VPNWorks/vpnw/plugins/learn/learn	1.023s
+ok  	github.com/VPNWorks/vpnw/plugins/ledger/chain	1.110s
+ok  	github.com/VPNWorks/vpnw/plugins/ledger/seal	1.027s
+ok  	github.com/VPNWorks/vpnw/plugins/ledgerverify/check	1.036s
+ok  	github.com/VPNWorks/vpnw/plugins/sdk	1.028s
+ok  	github.com/VPNWorks/vpnw/plugins/trace/render	1.037s
+ok  	github.com/VPNWorks/vpnw/test/integration	170.491s
