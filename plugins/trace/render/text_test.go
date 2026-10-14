@@ -129,3 +129,29 @@ func TestTextExitServer(t *testing.T) {
 		}
 	}
 }
+
+// The console forgets a connection after its last event, so an exit that
+// serves for months doesn't pile up every connection it has seen.
+func TestTextForgets(t *testing.T) {
+	var buf bytes.Buffer
+	x := NewText(&buf, All)
+	b := events.NewBus("x-1", nil)
+	b.Add(x)
+	for i := uint64(1); i <= 300; i++ {
+		b.Emit(events.ConnectionAttempt, 0, "direct", i, map[string]any{"host": "a.example", "port": 443, "proto": "http-connect"})
+		switch i % 3 {
+		case 0:
+			b.Emit(events.ConnectionClose, 0, "direct", i, map[string]any{"bytes_up": 1, "bytes_down": 1, "ms": 1})
+		case 1:
+			b.Emit(events.ConnectionError, 0, "direct", i, map[string]any{"error": "refused"})
+		case 2:
+			b.Emit(events.PolicyDeny, 0, "direct", i, map[string]any{"rule": "default", "reason": "no"})
+		}
+	}
+	if len(x.hosts) != 0 {
+		t.Errorf("the console still holds %d connections", len(x.hosts))
+	}
+	if !strings.Contains(buf.String(), "#298   error  a.example:443: refused") || !strings.Contains(buf.String(), "#299   DENY   a.example:443  no") {
+		t.Errorf("the lines lost their hosts:\n%s", buf.String()[len(buf.String())-300:])
+	}
+}

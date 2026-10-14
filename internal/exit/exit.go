@@ -13,6 +13,7 @@
 package exit
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -54,16 +55,76 @@ type Clients struct {
 	list   []*broker.Client
 }
 
-// BrokerClients makes the broker's view of the clients.
+// BrokerClients makes the broker's view of the clients. The exit's own
+// addresses are taken from the machine now, when the exit starts.
 func (c *Config) BrokerClients() *Clients {
+	own := map[netip.Addr]bool{}
+	if addrs, err := net.InterfaceAddrs(); err == nil {
+		for _, a := range addrs {
+			if n, ok := a.(*net.IPNet); ok {
+				if x, ok := netip.AddrFromSlice(n.IP); ok {
+					own[x.Unmap()] = true
+				}
+			}
+		}
+	}
+	for _, a := range c.Sources() {
+		own[a] = true
+	}
 	out := &Clients{}
 	for _, cl := range c.Clients {
 		a := cl.Address()
-		p := &path.Direct{Dialer: net.Dialer{LocalAddr: &net.TCPAddr{IP: a.AsSlice()}}}
+		p := &exitPath{Direct: path.Direct{Dialer: net.Dialer{LocalAddr: &net.TCPAddr{IP: a.AsSlice()}}}, client: cl.Name, src: a, host: cl.ExitHost, own: own}
 		out.hashes = append(out.hashes, cl.Hash)
 		out.list = append(out.list, &broker.Client{Name: cl.Name, Policy: cl.Policy, Path: p, Source: a.String()})
 	}
 	return out
+}
+
+// exitPath is how a client's connections leave an exit: directly, from the
+// client's own address. Whatever the client's policy says, it refuses the
+// exit's own machine (its loopback and its addresses) unless the exit's
+// file lets that client reach it (allow_exit_host), and link-local,
+// multicast and unspecified addresses always: from an exit they could only
+// reach its own network segment, where a cloud's metadata service lives.
+// It also checks that each connection really left from the client's
+// address.
+type exitPath struct {
+	path.Direct
+	client string
+	src    netip.Addr
+	host   bool
+	own    map[netip.Addr]bool
+}
+
+var broadcast = netip.AddrFrom4([4]byte{255, 255, 255, 255})
+
+func (p *exitPath) Dial(ctx context.Context, host string, ip net.IP, port int) (net.Conn, error) {
+	a, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return nil, fmt.Errorf("no address to dial")
+	}
+	a = a.Unmap()
+	switch {
+	case a.IsUnspecified() || a.IsMulticast() || a.IsLinkLocalUnicast() || a == broadcast:
+		return nil, fmt.Errorf("%s is never reached from an exit: it's a link-local, multicast or unspecified address", a)
+	case !p.host && (a.IsLoopback() || p.own[a]):
+		return nil, fmt.Errorf("%s is the exit's own machine, which client %s may not reach (allow_exit_host)", a, p.client)
+	}
+	c, err := p.Direct.Dial(ctx, host, ip, port)
+	if err != nil {
+		return nil, err
+	}
+	la, _ := c.LocalAddr().(*net.TCPAddr)
+	if la == nil {
+		c.Close()
+		return nil, fmt.Errorf("can't tell which address the connection left from")
+	}
+	if got, ok := netip.AddrFromSlice(la.IP); !ok || got.Unmap() != p.src {
+		c.Close()
+		return nil, fmt.Errorf("the connection left from %s, not from client %s's address %s", la.IP, p.client, p.src)
+	}
+	return c, nil
 }
 
 // Login returns the client a token belongs to, or nil. It hashes the token

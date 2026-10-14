@@ -108,6 +108,13 @@ type Broker struct {
 	connections, opened, allowed, denied, failed atomic.Int64
 	bytesUp, bytesDown                           atomic.Int64
 	authDenied, healthChecks, tlsFailed          atomic.Int64
+	// At an exit, under mu: connections not yet logged in, by the address
+	// they came from and in all, and the auth.deny events of this window.
+	pending        map[string]int
+	pendingAll     int
+	denyWindow     time.Time
+	denyInWindow   int
+	denyUnrecorded int64
 }
 
 // baseCtx is the context every connection's lookups and dials run under;
@@ -153,26 +160,28 @@ func (b *Broker) Stats() Stats {
 	}
 }
 
-// Serve accepts connections until l is closed.
+// Serve accepts connections until l is closed. Any other error from Accept,
+// such as running out of file descriptors under a flood of connections, is
+// waited out, so a burst can't stop the broker.
 func (b *Broker) Serve(l net.Listener) error {
+	wait := 5 * time.Millisecond
 	for {
 		c, err := l.Accept()
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				return nil
 			}
-			var ne net.Error
-			if errors.As(err, &ne) && ne.Timeout() {
-				time.Sleep(10 * time.Millisecond)
-				continue
+			time.Sleep(wait)
+			if wait *= 2; wait > time.Second {
+				wait = time.Second
 			}
-			return err
+			continue
 		}
+		wait = 5 * time.Millisecond
 		if !b.track(c) {
 			c.Close()
 			continue
 		}
-		b.wg.Add(1)
 		go func() {
 			defer b.wg.Done()
 			defer b.untrack(c)
@@ -181,6 +190,9 @@ func (b *Broker) Serve(l net.Listener) error {
 	}
 }
 
+// track registers a connection from a client and counts its handler in
+// the wait group, both under the lock that Shutdown takes, so no handler
+// starts once Shutdown has begun waiting.
 func (b *Broker) track(c net.Conn) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -191,6 +203,7 @@ func (b *Broker) track(c net.Conn) bool {
 		b.conns = map[net.Conn]struct{}{}
 	}
 	b.conns[c] = struct{}{}
+	b.wg.Add(1)
 	return true
 }
 
@@ -324,6 +337,13 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 	}
 	from.fields(f)
 	emit(events.ConnectionAttempt, f)
+	if from.client != nil && pol == nil {
+		// An exit never treats a client without a policy as allowed.
+		d := policy.Decision{Allow: false, Rule: "no-policy", Reason: "the exit has no policy for client " + from.client.Name}
+		b.denied.Add(1)
+		emit(events.PolicyDeny, map[string]any{"rule": d.Rule, "reason": d.Reason})
+		return outcome{id: id, start: start, denied: &d, socks: 0x02}
+	}
 	if nerr != nil {
 		reason := strings.TrimPrefix(nerr.Error(), policy.ErrInvalid.Error()+": ")
 		if pol != nil {

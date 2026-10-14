@@ -39,6 +39,7 @@ import (
 //	[clients.ci]
 //	token_sha256 = "51b0..."
 //	pool         = "eu"
+//	allow_exit_host = false          # true lets it reach the exit's own machine
 //	default      = "deny"            # or the policy written here, as in [policy]
 //	deny_private = true
 //	allow        = ["registry.partner.example"]
@@ -73,7 +74,11 @@ type Client struct {
 	// PolicyFile is the file the policy came from, or "" when it is written
 	// in the client's table.
 	PolicyFile string
-	Line       int
+	// ExitHost lets the client reach the exit's own machine: its loopback
+	// and its own addresses (allow_exit_host = true). Off, they're refused
+	// whatever its policy says.
+	ExitHost bool
+	Line     int
 }
 
 // Loader reads a vpnw configuration file, for client policies kept in files
@@ -145,7 +150,7 @@ func (c *Config) Client(name string) *Client {
 }
 
 var rootKeys = []string{"version", "name", "listen", "cert", "key"}
-var clientKeys = []string{"token_sha256", "source", "pool", "policy", "default", "deny_private", "allow", "deny"}
+var clientKeys = []string{"token_sha256", "source", "pool", "policy", "allow_exit_host", "default", "deny_private", "allow", "deny"}
 var policyKeys = map[string]bool{"default": true, "deny_private": true, "allow": true, "deny": true}
 
 func known(k string, list []string) bool {
@@ -288,18 +293,34 @@ func ParseConfig(src, file string, load Loader) (*Config, error) {
 	}
 	for _, cl := range c.Clients {
 		if cl.Policy.Default == policy.Allow && !cl.Policy.DenyPrivate {
-			c.Warnings = append(c.Warnings, fmt.Sprintf("%s:%d: client %s has default allow without deny_private, so it can reach private addresses, the exit machine's own services among them", file, cl.Line, cl.Name))
+			c.Warnings = append(c.Warnings, fmt.Sprintf("%s:%d: client %s has default allow without deny_private, so it can reach private addresses on the network around the exit", file, cl.Line, cl.Name))
+		}
+		for _, r := range cl.Policy.Allow {
+			if pr, ok := rulePrefix(r); ok && privateOverlap(pr) {
+				c.Warnings = append(c.Warnings, fmt.Sprintf("%s:%d: client %s's policy allows %s, which takes in private addresses on the network around the exit", file, cl.Line, cl.Name, r.Text))
+			}
+		}
+		if cl.ExitHost {
+			c.Warnings = append(c.Warnings, fmt.Sprintf("%s:%d: client %s may reach the exit's own machine (allow_exit_host), every service on it that its policy allows", file, cl.Line, cl.Name))
 		}
 	}
 	return c, nil
 }
 
+// parseAddr reads an address a client leaves from. It has to be one
+// address: not a wildcard, which would let the machine pick any of its
+// addresses, another client's included, and not one that can't leave the
+// machine's own network segment.
 func parseAddr(s string) (netip.Addr, error) {
 	a, err := netip.ParseAddr(s)
 	if err != nil || a.Zone() != "" {
 		return netip.Addr{}, fmt.Errorf("%q is not an IP address", s)
 	}
-	return a.Unmap(), nil
+	a = a.Unmap()
+	if a.IsUnspecified() || a.IsMulticast() || a.IsLinkLocalUnicast() || a == netip.AddrFrom4([4]byte{255, 255, 255, 255}) {
+		return netip.Addr{}, fmt.Errorf("%s can't be a source address: give one address of this machine, not a wildcard, broadcast, multicast or link-local one", a)
+	}
+	return a, nil
 }
 
 func parsePool(file, name string, t *config.Table) (*Pool, error) {
@@ -346,6 +367,13 @@ func parseClient(file, name string, t *config.Table, load Loader, c *Config) (*C
 		}
 		if policyKeys[k] {
 			inline = true
+			continue
+		}
+		if k == "allow_exit_host" {
+			if v.Kind != config.KBool {
+				return nil, "", errAt(file, v.Line, "allow_exit_host must be true or false")
+			}
+			cl.ExitHost = v.Bool
 			continue
 		}
 		s, err := str(file, v, k)
@@ -483,6 +511,9 @@ func (cl *Client) Describe() string {
 	if cl.PolicyFile != "" {
 		from = "policy " + cl.PolicyFile
 	}
+	if cl.ExitHost {
+		src += ", may reach the exit's own machine"
+	}
 	s := cl.Policy.Summary()
 	rules := func(n any, kind string) string {
 		if fmt.Sprint(n) == "1" {
@@ -504,4 +535,45 @@ func (cl *Client) Address() netip.Addr {
 	h := fnv.New32a()
 	h.Write([]byte(cl.Name))
 	return cl.Pool.Addrs[int(h.Sum32()%uint32(len(cl.Pool.Addrs)))]
+}
+
+// privateNets are the ranges a client's allow rules shouldn't take in
+// without a second look: private, shared and loopback ranges, link-local.
+var privateNets = []netip.Prefix{
+	netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("172.16.0.0/12"), netip.MustParsePrefix("192.168.0.0/16"),
+	netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("169.254.0.0/16"),
+	netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fe80::/10"), netip.MustParsePrefix("::1/128"),
+}
+
+func rulePrefix(r policy.Rule) (netip.Prefix, bool) {
+	switch r.Kind {
+	case policy.KindIP:
+		a, ok := netip.AddrFromSlice(r.IP)
+		if !ok {
+			return netip.Prefix{}, false
+		}
+		a = a.Unmap()
+		return netip.PrefixFrom(a, a.BitLen()), true
+	case policy.KindCIDR:
+		a, ok := netip.AddrFromSlice(r.Net.IP)
+		if !ok {
+			return netip.Prefix{}, false
+		}
+		ones, _ := r.Net.Mask.Size()
+		a = a.Unmap()
+		if a.Is4() && ones > 32 {
+			ones -= 96
+		}
+		return netip.PrefixFrom(a, ones), true
+	}
+	return netip.Prefix{}, false
+}
+
+func privateOverlap(p netip.Prefix) bool {
+	for _, n := range privateNets {
+		if n.Overlaps(p) {
+			return true
+		}
+	}
+	return false
 }

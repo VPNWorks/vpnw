@@ -20,6 +20,7 @@ func FuzzExitConfig(f *testing.F) {
 		"version = 1\nlisten = \"127.0.0.1:8443\"\ncert = \"c\"\nkey = \"k\"\n[clients.a]\ntoken_sha256 = \"" + h + "\"\nsource = \"198.51.100.10\"\npolicy = \"p.toml\"\n",
 		"version = 1\nname = \"x\"\nlisten = \"[::]:0\"\ncert = \"c\"\nkey = \"k\"\n[clients.ci]\ntoken_sha256 = \"" + h + "\"\npool = \"eu\"\ndefault = \"deny\"\ndeny_private = true\nallow = [\"a.test\", \"10.0.0.0/8:22\"]\n[pools.eu]\naddresses = [\"198.51.100.20\", \"2001:db8::1\"]\n",
 		"version = 1\nlisten = \"h:1\"\ncert = \"c\"\nkey = \"k\"\n[clients.a]\ntoken_sha256 = \"" + h + "\"\nsource = \"10.0.0.1\"\ndefault = \"allow\"\n[clients.b]\ntoken_sha256 = \"" + HashHex("u") + "\"\nsource = \"10.0.0.1\"\ndefault = \"deny\"\n",
+		"version = 1\nlisten = \"h:1\"\ncert = \"c\"\nkey = \"k\"\n[clients.a]\ntoken_sha256 = \"" + h + "\"\nsource = \"0.0.0.0\"\nallow_exit_host = true\ndefault = \"allow\"\n",
 	} {
 		f.Add(s)
 	}
@@ -39,6 +40,9 @@ func FuzzExitConfig(f *testing.F) {
 		owner := map[netip.Addr]string{}
 		hashes := map[[32]byte]bool{}
 		for _, cl := range c.Clients {
+			if a := cl.Address(); a.IsUnspecified() || a.IsMulticast() || a.IsLinkLocalUnicast() {
+				t.Fatalf("client %s leaves from %s, which isn't one address of a machine", cl.Name, a)
+			}
 			if cl.Policy == nil || !cl.Address().IsValid() || hashes[cl.Hash] {
 				t.Fatalf("client %s: policy %v, address %v, token used twice %v", cl.Name, cl.Policy, cl.Address(), hashes[cl.Hash])
 			}

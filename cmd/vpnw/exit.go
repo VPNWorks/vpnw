@@ -47,8 +47,12 @@ anything is dialed, by the same code that decides a run's requests. Allowed
 requests leave from the client's fixed address. The record names the client,
 and its run and connection IDs, so it lines up with the client's own record.
 
+serve runs until it gets SIGINT, SIGTERM or SIGHUP; it reads its file only
+when it starts.
+
 Options for serve:
-  --out FILE          also write the record to FILE as JSON lines
+  --out FILE          also write the record to FILE as JSON lines, added to
+                      what is there, so a restart keeps the earlier record
   --json              print the record as JSON lines instead of text
   -v, --verbose       print every step, not only refusals and errors
   -q, --quiet         print nothing but errors
@@ -237,7 +241,7 @@ func exitServe(args []string, stderr io.Writer) int {
 	}
 	var outFile *events.JSONL
 	if out != "" {
-		f, err := os.OpenFile(out, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+		f, err := os.OpenFile(out, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 		if err != nil {
 			l.Close()
 			return fail(stderr, process.ExitConfig, "cannot write %s: %v", out, err)
@@ -343,6 +347,9 @@ func exitToken(args []string, stdout, stderr io.Writer) int {
 		tok, err := path.ReadToken(from)
 		if err != nil {
 			return fail(stderr, process.ExitConfig, "%v", err)
+		}
+		if len(tok) < 32 {
+			fmt.Fprintf(stderr, "vpnw: warning: the token in %s has %d characters; one that short can be guessed. vpnw exit token makes 43-character ones\n", from, len(tok))
 		}
 		fmt.Fprintf(stdout, "token_sha256 = %q\n", exit.HashHex(tok))
 		return 0

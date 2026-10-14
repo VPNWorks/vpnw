@@ -21,6 +21,27 @@ import (
 	"github.com/VPNWorks/vpnw/internal/policy"
 )
 
+// Limits on what anyone on the internet can hold at an exit before showing
+// a token. A connection gets ExitHandshakeTime for TLS and its request
+// together; at most MaxPendingPerPeer connections from one address, and
+// MaxPending in all, may be waiting for that at once, so a flood from a few
+// addresses can't take the slots of clients with tokens. A wrong token is
+// answered after RefusedLoginDelay, which keeps guessing slow.
+var (
+	ExitHandshakeTime = 10 * time.Second
+	MaxPending        = 1024
+	MaxPendingPerPeer = 32
+	RefusedLoginDelay = time.Second
+)
+
+// An exit records at most authDenyBurst auth.deny events in each
+// authDenyWindow. It counts the rest, and the next one it records says how
+// many it left out, in "unrecorded".
+const (
+	authDenyBurst  = 20
+	authDenyWindow = 10 * time.Second
+)
+
 // Exit makes a broker the front of an exit, the server end of a path (vpnw
 // exit). An exit takes HTTP CONNECT and SOCKS5 requests, inside TLS, from
 // many clients. Each request has to carry a client's token as its proxy
@@ -170,34 +191,78 @@ func (h *head) count(name string) int {
 	return n
 }
 
+// waiting holds a pending slot for a connection that hasn't logged in yet.
+func (b *Broker) waiting(ip string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.pendingAll >= MaxPending || b.pending[ip] >= MaxPendingPerPeer {
+		return false
+	}
+	if b.pending == nil {
+		b.pending = map[string]int{}
+	}
+	b.pending[ip]++
+	b.pendingAll++
+	return true
+}
+
+func (b *Broker) doneWaiting(ip string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.pending[ip]--; b.pending[ip] <= 0 {
+		delete(b.pending, ip)
+	}
+	b.pendingAll--
+}
+
 // exitHandle serves one connection to an exit: TLS first, when the
 // listener speaks it, then SOCKS5 if it starts with byte 5, otherwise HTTP.
 func (b *Broker) exitHandle(c net.Conn) {
+	peer, ip := "", ""
+	if a := c.RemoteAddr(); a != nil {
+		peer = a.String()
+		ip = peer
+		if h, _, err := net.SplitHostPort(peer); err == nil {
+			ip = h
+		}
+	}
+	if !b.waiting(ip) {
+		return
+	}
+	held := true
+	release := func() {
+		if held {
+			held = false
+			b.doneWaiting(ip)
+		}
+	}
+	defer release()
+	// Once a client has shown its token, it gets the time a run's program
+	// gets, and no more limit on writing than one has.
+	loggedIn := func() {
+		release()
+		c.SetWriteDeadline(time.Time{})
+		c.SetReadDeadline(time.Now().Add(HandshakeTime))
+	}
+	c.SetDeadline(time.Now().Add(ExitHandshakeTime))
 	if tc, ok := c.(*tls.Conn); ok {
-		tc.SetDeadline(time.Now().Add(HandshakeTime))
 		if err := tc.Handshake(); err != nil {
 			b.tlsFailed.Add(1)
 			return
 		}
-		tc.SetDeadline(time.Time{})
 	}
-	c.SetReadDeadline(time.Now().Add(HandshakeTime))
 	br := bufio.NewReaderSize(c, 16<<10)
 	first, err := br.Peek(1)
 	if err != nil {
 		return
 	}
-	peer := ""
-	if a := c.RemoteAddr(); a != nil {
-		peer = a.String()
-	}
 	switch first[0] {
 	case 0x05:
-		b.exitSOCKS(c, br, peer)
+		b.exitSOCKS(c, br, peer, loggedIn)
 	case 0x04:
 		c.Write([]byte{0x00, 0x5b, 0, 0, 0, 0, 0, 0})
 	default:
-		b.exitHTTP(c, br, peer)
+		b.exitHTTP(c, br, peer, loggedIn)
 	}
 }
 
@@ -225,11 +290,35 @@ func (b *Broker) login(v string) (*Client, string) {
 	return nil, "the token is not known here"
 }
 
-// refuseLogin records a request without a valid token. The token itself is
-// never recorded.
+// refuseLogin records a request without a valid token, then waits
+// RefusedLoginDelay before the caller answers it. The token itself is never
+// recorded. Past authDenyBurst in a window, the event is only counted.
 func (b *Broker) refuseLogin(peer, proto, why, host string, port int) {
 	b.authDenied.Add(1)
+	defer func() {
+		select {
+		case <-time.After(RefusedLoginDelay):
+		case <-b.baseCtx().Done():
+		}
+	}()
+	b.mu.Lock()
+	now := b.now()
+	if now.Sub(b.denyWindow) >= authDenyWindow {
+		b.denyWindow, b.denyInWindow = now, 0
+	}
+	if b.denyInWindow >= authDenyBurst {
+		b.denyUnrecorded++
+		b.mu.Unlock()
+		return
+	}
+	b.denyInWindow++
+	left := b.denyUnrecorded
+	b.denyUnrecorded = 0
+	b.mu.Unlock()
 	f := map[string]any{"proto": proto, "reason": why}
+	if left > 0 {
+		f["unrecorded"] = left
+	}
 	if peer != "" {
 		f["peer"] = peer
 	}
@@ -257,7 +346,18 @@ func headerSafe(s string) string {
 	return sb.String()
 }
 
-func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string) {
+// toClient is the reason for a refusal as the client is told it. A reason
+// that names an address the exit looked up stays in the exit's record: the
+// client hears only the rule, so a token can't be used to read the exit's
+// DNS answers.
+func toClient(d *policy.Decision, host string) string {
+	if host != "" && strings.Contains(d.Reason, " resolved to ") {
+		return fmt.Sprintf("an address %s resolves to at the exit is refused by %s", host, d.Rule)
+	}
+	return d.Reason
+}
+
+func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string, loggedIn func()) {
 	h, err := readHead(br)
 	if err != nil {
 		if errors.Is(err, errHeadTooLarge) {
@@ -294,6 +394,7 @@ func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string) {
 		httpReply(c, "407 Proxy Authentication Required", "Proxy-Authenticate: Basic realm=\"vpnw exit\"\r\n", "vpnw exit: "+why+"\n")
 		return
 	}
+	loggedIn()
 	if health {
 		b.healthChecks.Add(1)
 		httpReply(c, "200 OK", "", b.Exit.Name+"\n")
@@ -308,8 +409,9 @@ func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string) {
 	target := net.JoinHostPort(host, strconv.Itoa(port))
 	switch {
 	case o.denied != nil:
-		httpReply(c, "403 Forbidden", "VPNW-Rule: "+headerSafe(o.denied.Rule)+"\r\nVPNW-Reason: "+headerSafe(o.denied.Reason)+"\r\n",
-			fmt.Sprintf("vpnw exit: blocked %s (%s: %s)\n", target, o.denied.Rule, o.denied.Reason))
+		why := toClient(o.denied, host)
+		httpReply(c, "403 Forbidden", "VPNW-Rule: "+headerSafe(o.denied.Rule)+"\r\nVPNW-Reason: "+headerSafe(why)+"\r\n",
+			fmt.Sprintf("vpnw exit: blocked %s (%s: %s)\n", target, o.denied.Rule, headerSafe(why)))
 		return
 	case o.err != nil:
 		why := fmt.Sprintf("cannot reach %s: %v", target, o.err)
@@ -324,7 +426,7 @@ func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string) {
 	b.finish(o, c, br, 0, 0, nil)
 }
 
-func (b *Broker) exitSOCKS(c net.Conn, br *bufio.Reader, peer string) {
+func (b *Broker) exitSOCKS(c net.Conn, br *bufio.Reader, peer string, loggedIn func()) {
 	var hdr [2]byte
 	if _, err := io.ReadFull(br, hdr[:]); err != nil {
 		return
@@ -334,8 +436,8 @@ func (b *Broker) exitSOCKS(c net.Conn, br *bufio.Reader, peer string) {
 		return
 	}
 	if bytes.IndexByte(methods, 0x02) < 0 {
-		c.Write([]byte{0x05, 0xff})
 		b.refuseLogin(peer, "socks5", "no token; an exit needs the user-and-password login, with the token as the password", "", 0)
+		c.Write([]byte{0x05, 0xff})
 		return
 	}
 	c.Write([]byte{0x05, 0x02})
@@ -356,8 +458,8 @@ func (b *Broker) exitSOCKS(c net.Conn, br *bufio.Reader, peer string) {
 		return
 	}
 	if v[0] != 0x01 {
-		c.Write([]byte{0x01, 0x01})
 		b.refuseLogin(peer, "socks5", "the login is not SOCKS5 user-and-password", "", 0)
+		c.Write([]byte{0x01, 0x01})
 		return
 	}
 	var cl *Client
@@ -365,20 +467,21 @@ func (b *Broker) exitSOCKS(c net.Conn, br *bufio.Reader, peer string) {
 		cl = b.Exit.Clients.Login(string(pass))
 	}
 	if cl == nil {
-		c.Write([]byte{0x01, 0x01})
 		why := "the token is not known here"
 		if len(pass) == 0 {
 			why = "no token; send it as the password"
 		}
 		b.refuseLogin(peer, "socks5", why, "", 0)
+		c.Write([]byte{0x01, 0x01})
 		return
 	}
 	run, conn, err := idsFromUser(string(user))
 	if err != nil {
-		c.Write([]byte{0x01, 0x01})
 		b.refuseLogin(peer, "socks5", "the user name should be RUN/CONN: "+err.Error(), "", 0)
+		c.Write([]byte{0x01, 0x01})
 		return
 	}
+	loggedIn()
 	c.Write([]byte{0x01, 0x00})
 	cmd, host, port, ok := socksRequest(c, br)
 	if !ok {

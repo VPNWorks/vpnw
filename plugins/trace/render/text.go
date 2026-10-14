@@ -83,6 +83,12 @@ func (t *Text) Emit(e *events.Event) {
 		}
 	}
 	line := t.render(e)
+	switch e.Type {
+	case events.ConnectionClose, events.ConnectionError, events.PolicyDeny:
+		// A connection's last event: the console stops remembering it, so a
+		// long run, or an exit, doesn't pile them up.
+		delete(t.hosts, e.Conn)
+	}
 	if line == "" {
 		return
 	}

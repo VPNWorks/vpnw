@@ -376,11 +376,9 @@ func fileErr(err error) string {
 	return err.Error()
 }
 
-// readToken reads a token file: one token of 1 to 255 printable characters,
-// with surrounding spaces and newlines removed. Errors never show its
-// contents.
-// ReadToken reads a token file: one token, the way vpnw exit token writes
-// it, with nothing around it but a newline.
+// ReadToken reads a token file, as vpnw exit token writes one: one token
+// of 1 to 255 printable characters, with surrounding spaces and newlines
+// removed. Errors never show its contents.
 func ReadToken(name string) (string, error) {
 	b, err := os.ReadFile(name)
 	if err != nil {

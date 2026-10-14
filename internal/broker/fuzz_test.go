@@ -149,12 +149,13 @@ func FuzzExitFront(f *testing.F) {
 	if err != nil {
 		f.Fatal(err)
 	}
+	RefusedLoginDelay = 0
 	f.Fuzz(func(t *testing.T, input []byte) {
 		dials := make(chan string, 8)
-		clients := exitTokens{
+		clients := &loginLog{m: exitTokens{
 			"tok-a": {Name: "a", Policy: pa, Path: clientPath{client: "a", dials: dials}},
 			"tok-b": {Name: "b", Policy: pb, Path: clientPath{client: "b", dials: dials}},
-		}
+		}}
 		b := &Broker{
 			Exit:     &Exit{Name: "fuzz", Clients: clients},
 			Resolver: &fakeDNS{m: map[string][]net.IP{"a.test": {net.ParseIP("93.184.215.14")}, "b.test": {net.ParseIP("93.184.215.15")}, "evil.test": {net.ParseIP("10.0.0.1")}}},
@@ -176,8 +177,25 @@ func FuzzExitFront(f *testing.F) {
 			if d != "a a.test|93.184.215.14" && d != "b b.test|93.184.215.15" && d != "b |10.0.0.2" {
 				t.Fatalf("dialed %q, which that client's policy does not allow", d)
 			}
+			if who, _, _ := strings.Cut(d, " "); len(clients.in) != 1 || clients.in[0] != who {
+				t.Fatalf("dialed %q for client %s, but the logins were %v", d, who, clients.in)
+			}
 		}
 	})
+}
+
+// loginLog remembers which clients logged in.
+type loginLog struct {
+	m  exitTokens
+	in []string
+}
+
+func (l *loginLog) Login(tok string) *Client {
+	c := l.m[tok]
+	if c != nil {
+		l.in = append(l.in, c.Name)
+	}
+	return c
 }
 
 type exitTokens map[string]*Client

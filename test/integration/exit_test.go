@@ -311,7 +311,7 @@ func TestExitFixedAddresses(t *testing.T) {
 	t1, h1 := k.token("agent-1")
 	t2, h2 := k.token("agent-2")
 	t3, h3 := k.token("ci")
-	pol := "default = \"deny\"\nallow = [\"127.0.0.1\"]\n"
+	pol := "allow_exit_host = true\ndefault = \"deny\"\nallow = [\"127.0.0.1\"]\n"
 	x := k.serve("exit-a", fmt.Sprintf(`[clients.agent-1]
 token_sha256 = %q
 source = "127.0.0.2"
@@ -440,7 +440,7 @@ func TestExitAgreesWithClient(t *testing.T) {
 	s1, s2 := newSourceServer(t), newSourceServer(t)
 	tok, h := k.token("agent")
 	writeFile(t, k.e.dir, "agent.toml", fmt.Sprintf("version = 1\nname = \"agent\"\n[policy]\ndefault = \"deny\"\nallow = [\"localhost:%d\", \"127.0.0.1:%d\"]\n", s1.port, s2.port))
-	x := k.serve("exit-a", fmt.Sprintf("[clients.agent]\ntoken_sha256 = %q\nsource = \"127.0.0.2\"\npolicy = \"agent.toml\"\n", h))
+	x := k.serve("exit-a", fmt.Sprintf("[clients.agent]\ntoken_sha256 = %q\nsource = \"127.0.0.2\"\nallow_exit_host = true\npolicy = \"agent.toml\"\n", h))
 	urls := []string{
 		fmt.Sprintf("http://localhost:%d/", s1.port),
 		fmt.Sprintf("http://127.0.0.1:%d/", s2.port),
@@ -524,7 +524,7 @@ func TestExitFailover(t *testing.T) {
 	srv := newSourceServer(t)
 	tok, h := k.token("agent")
 	client := func(src string) string {
-		return fmt.Sprintf("[clients.agent]\ntoken_sha256 = %q\nsource = %q\ndefault = \"deny\"\nallow = [\"127.0.0.1\"]\n", h, src)
+		return fmt.Sprintf("[clients.agent]\ntoken_sha256 = %q\nsource = %q\nallow_exit_host = true\ndefault = \"deny\"\nallow = [\"127.0.0.1\"]\n", h, src)
 	}
 	a := k.serve("exit-a", client("127.0.0.2"))
 	b := k.serve("exit-b", client("127.0.0.3"))
@@ -616,12 +616,15 @@ func TestExitRefusesBadClients(t *testing.T) {
 			t.Errorf("%s: exit %d\n%s", c.what, code, out)
 		}
 	}
-	if ad := x.events(t, "auth.deny"); len(ad) != 1 || fields(ad[0])["proto"] != "health" {
-		t.Errorf("auth.deny: %v", ad)
-	}
+	ad := x.events(t, "auth.deny")
 	b, _ := os.ReadFile(x.record)
-	if strings.Contains(string(b), "not-the-token") {
-		t.Error("the exit's record holds a token")
+	tokens, _ := os.ReadFile(filepath.Join(k.e.dir, "agent.token"))
+	leaked := strings.Contains(string(b), "not-the-token") || strings.Contains(string(b), strings.TrimSpace(string(tokens)))
+	ok := len(ad) == 1 && fields(ad[0])["proto"] == "health" && !leaked
+	exitRecord(t, "the exit's record of these", "the wrong token is recorded as refused; no token is ever written down",
+		fmt.Sprintf("auth.deny events: %d; a token in the record: %v", len(ad), leaked), ok)
+	if !ok {
+		t.Errorf("auth.deny: %v, leaked %v", ad, leaked)
 	}
 }
 
@@ -641,24 +644,41 @@ func TestExitServeChecks(t *testing.T) {
 	if !ok {
 		t.Errorf("source: exit %d\n%s", code, out)
 	}
-	if out := k.e.must("exit", "check", "--config", conf); !strings.Contains(out, "agent: source 192.0.2.99; policy in its table (default deny") || !strings.Contains(out, "not on this machine; serve needs them") {
+	out = k.e.must("exit", "check", "--config", conf)
+	ok = strings.Contains(out, "agent: source 192.0.2.99; policy in its table (default deny") && strings.Contains(out, "not on this machine; serve needs them")
+	exitRecord(t, "vpnw exit check on that file", "says what the client may do, and that its address isn't here", fmt.Sprintf("said so: %v", ok), ok)
+	if !ok {
 		t.Errorf("check:\n%s", out)
+	}
+	conf = write("127.0.0.1:0", "0.0.0.0")
+	out, code = k.e.run("exit", "serve", "--config", conf)
+	ok = code == 121 && strings.Contains(out, "0.0.0.0 can't be a source address")
+	exitRecord(t, "a wildcard source address, 0.0.0.0", "refused (exit 121): the machine could pick any of its addresses, another client's included", fmt.Sprintf("exit %d", code), ok)
+	if !ok {
+		t.Errorf("wildcard: exit %d\n%s", code, out)
 	}
 	busy, _ := net.Listen("tcp", "127.0.0.1:0")
 	defer busy.Close()
 	conf = write(busy.Addr().String(), "127.0.0.2")
-	if out, code := k.e.run("exit", "serve", "--config", conf); code != 122 || !strings.Contains(out, "cannot listen on") {
+	out, code = k.e.run("exit", "serve", "--config", conf)
+	ok = code == 122 && strings.Contains(out, "cannot listen on")
+	exitRecord(t, "a listening address that's taken", "serve refuses to start (exit 122)", fmt.Sprintf("exit %d", code), ok)
+	if !ok {
 		t.Errorf("busy: exit %d\n%s", code, out)
 	}
 	bad := writeFile(t, k.e.dir, "bad.toml", "version = 1\nlisten = \"127.0.0.1:0\"\ncert = \"c\"\nkey = \"k\"\n[clients.a]\ntoken_sha256 = \"abc\"\n")
-	if out, code := k.e.run("exit", "serve", "--config", bad); code != 121 || !strings.Contains(out, "bad.toml:6: token_sha256 must be 64 hexadecimal characters") {
+	out, code = k.e.run("exit", "serve", "--config", bad)
+	ok = code == 121 && strings.Contains(out, "bad.toml:6: token_sha256 must be 64 hexadecimal characters")
+	exitRecord(t, "a mistake in the exit's file", "refused with the file and line (exit 121)", fmt.Sprintf("exit %d", code), ok)
+	if !ok {
 		t.Errorf("bad file: exit %d\n%s", code, out)
 	}
-	if out, code := k.e.run("exit", "token", "--out", "agent.token"); code != 121 || !strings.Contains(out, "never overwritten") {
-		t.Errorf("token over a token: exit %d\n%s", code, out)
-	}
-	if out, code := k.e.run("exit", "cert", "--host", "127.0.0.1", "--name", "exit-a"); code != 121 || !strings.Contains(out, "never overwritten") {
-		t.Errorf("cert over a cert: exit %d\n%s", code, out)
+	outT, codeT := k.e.run("exit", "token", "--out", "agent.token")
+	outC, codeC := k.e.run("exit", "cert", "--host", "127.0.0.1", "--name", "exit-a")
+	ok = codeT == 121 && strings.Contains(outT, "never overwritten") && codeC == 121 && strings.Contains(outC, "never overwritten")
+	exitRecord(t, "a token or a certificate made over one that exists", "refused (exit 121); nothing is overwritten", fmt.Sprintf("token: exit %d, cert: exit %d", codeT, codeC), ok)
+	if !ok {
+		t.Errorf("over: %d %d\n%s\n%s", codeT, codeC, outT, outC)
 	}
 }
 
@@ -671,7 +691,7 @@ func TestExitPlugins(t *testing.T) {
 	k.e.must("plugin", "add", "--allow-unsigned", testPlugin(t, "blocker"))
 	tok, h := k.token("agent")
 	ledger := filepath.Join(k.e.dir, "exit.ledger")
-	x := k.serve("exit-a", fmt.Sprintf("[clients.agent]\ntoken_sha256 = %q\nsource = \"127.0.0.2\"\ndefault = \"deny\"\nallow = [\"localhost\", \"127.0.0.1\"]\n", h),
+	x := k.serve("exit-a", fmt.Sprintf("[clients.agent]\ntoken_sha256 = %q\nsource = \"127.0.0.2\"\nallow_exit_host = true\ndefault = \"deny\"\nallow = [\"localhost\", \"127.0.0.1\"]\n", h),
 		"--plugin", "blocker", "--set", "blocker.deny=localhost", "--plugin", "ledger", "--plugin-file", "ledger="+ledger)
 	d := k.direct(x.addr, tok)
 	codeL, rule, _ := d.connect(fmt.Sprintf("localhost:%d", srv.port))
@@ -689,5 +709,57 @@ func TestExitPlugins(t *testing.T) {
 		fmt.Sprintf("localhost: %s by %s; 127.0.0.1: %s, %s; exit code %d; ledger: %s", codeL, rule, codeI, body, exitCode, verdict), ok)
 	if !ok {
 		t.Errorf("%s %s %s %q exit %d ends %d verify %d\n%s\n%s", codeL, rule, codeI, body, exitCode, len(ends), vcode, out, x.output())
+	}
+}
+
+// The exit's own machine is out of reach for a client, whatever its policy
+// says, unless the exit's file lets that client reach it; link-local
+// addresses, cloud metadata among them, are out of reach for every client.
+func TestExitOwnMachine(t *testing.T) {
+	k := newExitKit(t)
+	srv := newSourceServer(t)
+	own := newServerAt(t, "tcp", hostAddress(t)+":0")
+	tg, hg := k.token("guest")
+	ta, ha := k.token("admin")
+	x := k.serve("exit-a", fmt.Sprintf(`[clients.guest]
+token_sha256 = %q
+source = "127.0.0.2"
+default = "allow"
+
+[clients.admin]
+token_sha256 = %q
+source = "127.0.0.3"
+allow_exit_host = true
+default = "allow"
+`, hg, ha))
+	targets := []string{
+		fmt.Sprintf("127.0.0.1:%d", srv.port),
+		fmt.Sprintf("localhost:%d", srv.port),
+		fmt.Sprintf("%s:%d", hostAddress(t), own.port),
+		"169.254.169.254:80",
+		"0.0.0.0:80",
+	}
+	g := k.direct(x.addr, tg)
+	refused := 0
+	for _, tg := range targets {
+		if code, _, _ := g.connect(tg); code == "502" {
+			refused++
+		}
+	}
+	reached := len(srv.list()) + own.count()
+	ok := refused == len(targets) && reached == 0
+	exitRecord(t, "a client whose policy allows everything asks for the exit's own machine and for cloud metadata", "every one refused at the exit, whatever the policy says; nothing reached",
+		fmt.Sprintf("%d of %d refused, %d reached", refused, len(targets), reached), ok)
+	if !ok {
+		t.Errorf("guest: %d of %d refused, %d reached", refused, len(targets), reached)
+	}
+	a := k.direct(x.addr, ta)
+	code1, _, body := a.connect(targets[0])
+	code2, _, _ := a.connect(targets[3])
+	ok = code1 == "200" && body == "from 127.0.0.3" && code2 == "502"
+	exitRecord(t, "the same with allow_exit_host = true for that client", "the exit's own machine is reached, from the client's address; cloud metadata stays refused",
+		fmt.Sprintf("loopback: %s, %s; metadata: %s", code1, body, code2), ok)
+	if !ok {
+		t.Errorf("admin: %s %q %s", code1, body, code2)
 	}
 }

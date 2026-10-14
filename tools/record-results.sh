@@ -163,7 +163,7 @@ fi
 say "Exit: the server end of a path"
 rm -f "$OUT/exit.md"
 ex=0
-VPNW_EXIT_OUT="$PWD/$OUT/exit.md" go test -count=1 -run 'TestExit(FixedAddresses|TamperedClient|AgreesWithClient|Failover|RefusesBadClients|ServeChecks|Plugins)$' -v ./test/integration/ >"$OUT/exit.log" 2>&1 || ex=$?
+VPNW_EXIT_OUT="$PWD/$OUT/exit.md" go test -count=1 -run 'TestExit(FixedAddresses|TamperedClient|AgreesWithClient|Failover|RefusesBadClients|ServeChecks|Plugins|OwnMachine)$' -v ./test/integration/ >"$OUT/exit.log" 2>&1 || ex=$?
 grep -E '^(---|ok|FAIL)' "$OUT/exit.log" | tee "$OUT/exit.txt"; rm -f "$OUT/exit.log"
 if [ ! -s "$OUT/exit.md" ] || ! grep -qE '\| (passed|FAILED) \|' "$OUT/exit.md"; then
   echo "Exit's tests didn't run: they need a sealed run (Linux with user namespaces)" | tee "$OUT/exit.md"
@@ -171,8 +171,15 @@ else
   cat "$OUT/exit.md"
   echo "$(grep -c '| passed |' "$OUT/exit.md") of $(grep -cE '\| (passed|FAILED) \|' "$OUT/exit.md") checks passed$([ "$ex" -ne 0 ] && echo "; go test FAILED (exit $ex)")" | tee -a "$OUT/exit.md"
 fi
-same=$(go test -count=1 -run 'TestSameDecisionAtBothEnds$' -v ./internal/broker/ 2>&1 | grep -o '[0-9]* requests decided the same way at both ends' || echo "the comparison of the two ends FAILED")
-echo "$same, by the run's broker and by an exit (TestSameDecisionAtBothEnds)" | tee -a "$OUT/exit.md"
+sd=0
+go test -count=1 -run 'TestSameDecisionAtBothEnds$' -v ./internal/broker/ >"$OUT/same.log" 2>&1 || sd=$?
+same=$(grep -o '[0-9]* of [0-9]* requests decided the same way at both ends' "$OUT/same.log" || true)
+rm -f "$OUT/same.log"
+if [ "$sd" -ne 0 ] || [ -z "$same" ]; then
+  echo "the comparison of the two ends FAILED (go test exit $sd)" | tee -a "$OUT/exit.md"
+else
+  echo "$same, by a run's broker and by an exit, given the same policy and the same DNS answers (TestSameDecisionAtBothEnds)" | tee -a "$OUT/exit.md"
+fi
 
 say "bypass matrix"
 rm -f "$OUT/bypass-matrix.md" "$OUT/bypass-matrix-ci.md"

@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -31,16 +32,23 @@ func (m tokens) Login(tok string) *Client { return m[tok] }
 // other.test. It speaks plain TCP; TLS is the listener's business.
 func exitRig(t *testing.T, guards ...Guard) *rig {
 	t.Helper()
+	old := RefusedLoginDelay
+	RefusedLoginDelay = 0
+	t.Cleanup(func() { RefusedLoginDelay = old })
 	mem := &events.Memory{}
 	bus := events.NewBus("x-test", nil)
 	bus.Add(mem)
 	dns := &fakeDNS{m: map[string][]net.IP{
-		"echo.test":  {net.ParseIP("127.0.0.1")},
-		"other.test": {net.ParseIP("127.0.0.1")},
+		"echo.test":     {net.ParseIP("127.0.0.1")},
+		"other.test":    {net.ParseIP("127.0.0.1")},
+		"db.corp.test":  {net.ParseIP("10.2.3.4")},
+		"nopolicy.test": {net.ParseIP("127.0.0.1")},
 	}}
 	a := &Client{Name: "a", Policy: pol(t, config.PolicySpec{Default: "deny", Allow: []string{"echo.test", "missing.test"}}), Path: &path.Direct{}, Source: "127.0.0.1"}
 	b := &Client{Name: "b", Policy: pol(t, config.PolicySpec{Default: "deny", Allow: []string{"other.test"}}), Path: &path.Direct{}, Source: "127.0.0.1"}
-	br := &Broker{Exit: &Exit{Name: "exit-test", Clients: tokens{"tok-a": a, "tok-b": b}}, Resolver: dns, Bus: bus, DialTimeout: 3 * time.Second, Guards: guards}
+	c := &Client{Name: "c", Policy: pol(t, config.PolicySpec{Default: "allow", DenyPrivate: true}), Path: &path.Direct{}, Source: "127.0.0.1"}
+	n := &Client{Name: "n", Path: &path.Direct{}, Source: "127.0.0.1"}
+	br := &Broker{Exit: &Exit{Name: "exit-test", Clients: tokens{"tok-a": a, "tok-b": b, "tok-c": c, "tok-n": n}}, Resolver: dns, Bus: bus, DialTimeout: 3 * time.Second, Guards: guards}
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -151,6 +159,8 @@ func TestExitRefusals(t *testing.T) {
 		{"refused by the policy", "CONNECT evil.test:443 HTTP/1.1\r\n" + basic("tok-a") + "\r\n", "403", "vpnw exit: blocked evil.test:443 (default:", false},
 		{"another client's policy", "CONNECT " + target + " HTTP/1.1\r\n" + basic("tok-b") + "\r\n", "403", "no allow rule matches " + target, false},
 		{"cannot reach", "CONNECT missing.test:443 HTTP/1.1\r\n" + basic("tok-a") + "\r\n", "502", "cannot reach missing.test:443: dns: no such host", false},
+		{"what the exit's DNS says stays at the exit", "CONNECT db.corp.test:443 HTTP/1.1\r\n" + basic("tok-c") + "\r\n", "403", "an address db.corp.test resolves to at the exit is refused by deny_private", false},
+		{"a client without a policy", "CONNECT nopolicy.test:443 HTTP/1.1\r\n" + basic("tok-n") + "\r\n", "403", "the exit has no policy for client n", false},
 	}
 	denials := 0
 	for _, k := range cases {
@@ -159,8 +169,11 @@ func TestExitRefusals(t *testing.T) {
 		if !strings.HasPrefix(status, "HTTP/1.1 "+k.status) || !strings.Contains(string(body)+h["vpnw-reason"], k.has) {
 			t.Errorf("%s: %q %v %q", k.name, status, h, body)
 		}
-		if k.status == "403" && (h["vpnw-rule"] != "default" || !strings.Contains(h["vpnw-reason"], "default is deny")) {
+		if k.status == "403" && (h["vpnw-rule"] == "" || h["vpnw-reason"] == "") {
 			t.Errorf("%s: no VPNW-Rule and VPNW-Reason: %v", k.name, h)
+		}
+		if strings.Contains(string(body)+h["vpnw-reason"], "10.2.3.4") {
+			t.Errorf("%s: the answer holds the exit's DNS answer: %v %q", k.name, h, body)
 		}
 		if k.status == "407" && h["proxy-authenticate"] == "" {
 			t.Errorf("%s: no Proxy-Authenticate", k.name)
@@ -181,8 +194,16 @@ func TestExitRefusals(t *testing.T) {
 	if ad[0].Fields["proto"] != "http-connect" || ad[0].Fields["host"] != "echo.test" || ad[0].Fields["port"] != port {
 		t.Errorf("auth.deny: %v", ad[0].Fields)
 	}
-	if st := r.b.Stats(); st.AuthDenied != int64(denials) || st.HealthChecks != 1 || st.Denied != 2 || st.Failed != 1 {
+	if st := r.b.Stats(); st.AuthDenied != int64(denials) || st.HealthChecks != 1 || st.Denied != 4 || st.Failed != 1 {
 		t.Errorf("stats: %+v", st)
+	}
+	// The record keeps the whole reason.
+	found := false
+	for _, e := range r.events(events.PolicyDeny) {
+		found = found || strings.Contains(e.Fields["reason"].(string), "db.corp.test resolved to 10.2.3.4")
+	}
+	if !found {
+		t.Error("the exit's record lost the reason")
 	}
 	b, _ := json.Marshal(r.mem.Snapshot())
 	for _, tok := range []string{"tok-a", "tok-b", "tok-x", base64.StdEncoding.EncodeToString([]byte("vpnw:tok-a"))} {
@@ -386,7 +407,7 @@ func TestSameDecisionAtBothEnds(t *testing.T) {
 		{Default: "deny", Allow: []string{"api.partner.test:443", "127.0.0.1:8080", "2001:db8::/32"}, Deny: []string{"api.partner.test:22"}},
 		{Default: "allow", DenyPrivate: true, Deny: []string{"cdn.example"}, Allow: []string{"10.50.0.5"}},
 	}
-	total := 0
+	total, same := 0, 0
 	for i, spec := range policies {
 		p := pol(t, spec)
 		runMem, exitMem := &events.Memory{}, &events.Memory{}
@@ -410,11 +431,77 @@ func TestSameDecisionAtBothEnds(t *testing.T) {
 		for id := range a {
 			if strings.Join(a[id], "\n") != strings.Join(b[id], "\n") {
 				t.Errorf("policy %d, connection %d:\n run:  %q\n exit: %q", i, id, a[id], b[id])
+				continue
 			}
+			same++
 		}
 		if rs, es := run.Stats(), ex.Stats(); rs.Allowed != es.Allowed || rs.Denied != es.Denied || rs.Failed != es.Failed {
 			t.Errorf("policy %d: totals %+v and %+v", i, rs, es)
 		}
 	}
-	t.Logf("%d requests decided the same way at both ends", total)
+	if same == total && !t.Failed() {
+		t.Logf("%d of %d requests decided the same way at both ends", same, total)
+	}
+}
+
+// Before a token, little is held: a peer gets MaxPendingPerPeer
+// connections that haven't logged in, each for ExitHandshakeTime, and a
+// flood of wrong tokens fills the record only up to authDenyBurst in each
+// window, with a count of the rest.
+func TestExitLimitsBeforeLogin(t *testing.T) {
+	oldPer, oldTime := MaxPendingPerPeer, ExitHandshakeTime
+	MaxPendingPerPeer, ExitHandshakeTime = 3, 300*time.Millisecond
+	defer func() { MaxPendingPerPeer, ExitHandshakeTime = oldPer, oldTime }()
+	var now time.Time
+	var mu sync.Mutex
+	r := exitRig(t)
+	r.b.Clock = func() time.Time { mu.Lock(); defer mu.Unlock(); return now }
+	mu.Lock()
+	now = time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
+	mu.Unlock()
+	var idle []net.Conn
+	for i := 0; i < 3; i++ {
+		c, err := net.Dial("tcp", r.addr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer c.Close()
+		idle = append(idle, c)
+	}
+	time.Sleep(50 * time.Millisecond)
+	// The fourth from this address is closed at once.
+	c, _ := net.Dial("tcp", r.addr)
+	c.SetDeadline(time.Now().Add(2 * time.Second))
+	t0 := time.Now()
+	if _, err := c.Read(make([]byte, 1)); err == nil || time.Since(t0) > 200*time.Millisecond {
+		t.Errorf("a fourth waiting connection was kept: %v after %v", err, time.Since(t0))
+	}
+	c.Close()
+	// The idle ones are closed after ExitHandshakeTime, and then there is
+	// room again.
+	idle[0].SetDeadline(time.Now().Add(3 * time.Second))
+	t0 = time.Now()
+	if _, err := idle[0].Read(make([]byte, 1)); err == nil || time.Since(t0) > 2*time.Second {
+		t.Errorf("an idle connection stayed: %v after %v", err, time.Since(t0))
+	}
+	time.Sleep(100 * time.Millisecond)
+	_, _, status, _ := exitAsk(t, r.addr, "GET /health HTTP/1.1\r\n"+basic("tok-a")+"\r\n")
+	if status != "HTTP/1.1 200 OK" {
+		t.Errorf("after the idle ones went: %q", status)
+	}
+	// 25 wrong tokens: 20 recorded, then a count of the 5 left out.
+	for i := 0; i < 25; i++ {
+		exitAsk(t, r.addr, "GET /health HTTP/1.1\r\n"+basic("nope")+"\r\n")
+	}
+	if n := len(r.events(events.AuthDeny)); n != 20 {
+		t.Errorf("%d auth.deny events in the first window, want 20", n)
+	}
+	mu.Lock()
+	now = now.Add(authDenyWindow)
+	mu.Unlock()
+	exitAsk(t, r.addr, "GET /health HTTP/1.1\r\n"+basic("nope")+"\r\n")
+	ad := r.events(events.AuthDeny)
+	if len(ad) != 21 || ad[20].Fields["unrecorded"] != int64(5) || r.b.Stats().AuthDenied != 26 {
+		t.Errorf("after the window: %d events, last %v, %d counted", len(ad), ad[len(ad)-1].Fields, r.b.Stats().AuthDenied)
+	}
 }

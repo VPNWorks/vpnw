@@ -123,6 +123,12 @@ func TestConfigErrors(t *testing.T) {
 		{client("default = \"deny\"\n"), "needs a source address"},
 		{client("source = \"10.0.0.1\"\npool = \"p\"\ndefault = \"deny\"\n"), "both a source and a pool"},
 		{client("source = \"10.0.0.300\"\n"), "is not an IP address"},
+		{client("source = \"0.0.0.0\"\ndefault = \"deny\"\n"), "0.0.0.0 can't be a source address"},
+		{client("source = \"::\"\ndefault = \"deny\"\n"), ":: can't be a source address"},
+		{client("source = \"169.254.1.1\"\ndefault = \"deny\"\n"), "can't be a source address"},
+		{client("source = \"255.255.255.255\"\ndefault = \"deny\"\n"), "can't be a source address"},
+		{client("pool = \"p\"\ndefault = \"deny\"\n") + "[pools.p]\naddresses = [\"10.0.0.1\", \"0.0.0.0\"]\n", "0.0.0.0 can't be a source address"},
+		{client("source = \"10.0.0.1\"\ndefault = \"deny\"\nallow_exit_host = \"yes\"\n"), "allow_exit_host must be true or false"},
 		{client("source = \"10.0.0.1\"\n"), "client a has no policy"},
 		{client("source = \"10.0.0.1\"\npolicy = \"p.toml\"\ndefault = \"deny\"\n"), "a policy file and policy keys"},
 		{client("source = \"10.0.0.1\"\nallow = [\"a b\"]\n"), "f.toml:8: client a: allow entry"},
@@ -166,6 +172,16 @@ func TestConfigErrors(t *testing.T) {
 	c, err := ParseConfig(client("source = \"10.0.0.1\"\ndefault = \"allow\"\n"), "/x/exit-nl.toml", nil)
 	if err != nil || c.Name != "exit-nl" || len(c.Warnings) != 1 || !strings.Contains(c.Warnings[0], "default allow without deny_private") {
 		t.Errorf("%v %+v", err, c)
+	}
+	// Allow rules that take in private ranges, and the exit's own machine,
+	// are warned about.
+	c, err = ParseConfig(client("source = \"10.0.0.1\"\nallow_exit_host = true\nallow = [\"api.partner.test\", \"10.0.0.0/8\", \"0.0.0.0/0:443\", \"51.15.0.9\", \"::1\"]\n"), "/x/exit-nl.toml", nil)
+	if err != nil || len(c.Warnings) != 4 || !strings.Contains(c.Warnings[0], "allows 10.0.0.0/8, which takes in private addresses") ||
+		!strings.Contains(c.Warnings[1], "allows 0.0.0.0/0:443") || !strings.Contains(c.Warnings[2], "allows ::1") || !strings.Contains(c.Warnings[3], "may reach the exit's own machine (allow_exit_host)") {
+		t.Errorf("warnings: %v %q", err, c.Warnings)
+	}
+	if d := c.Clients[0].Describe(); !strings.Contains(d, "source 10.0.0.1, may reach the exit's own machine;") {
+		t.Errorf("describe: %s", d)
 	}
 }
 

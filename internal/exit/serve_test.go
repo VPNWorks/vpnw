@@ -115,6 +115,13 @@ key = "k"
 [clients.agent]
 token_sha256 = "` + HashHex("token-agent") + `"
 source = "` + source + `"
+allow_exit_host = true
+default = "deny"
+allow = ["echo.test"]
+
+[clients.guest]
+token_sha256 = "` + HashHex("token-guest") + `"
+source = "127.0.0.1"
 default = "deny"
 allow = ["echo.test"]
 `
@@ -122,6 +129,7 @@ allow = ["echo.test"]
 	port, from := echo(t)
 	os.WriteFile(filepath.Join(dir, "agent.token"), []byte("token-agent\n"), 0o600)
 	os.WriteFile(filepath.Join(dir, "wrong.token"), []byte("token-wrong\n"), 0o600)
+	os.WriteFile(filepath.Join(dir, "guest.token"), []byte("token-guest\n"), 0o600)
 	ctx := context.Background()
 	for _, scheme := range []string{"https", "socks5+tls"} {
 		p, err := path.Build("exit", []string{scheme + "://" + addr}, path.Options{CAFile: "ca.pem", TokenFile: "agent.token", Dir: dir})
@@ -158,6 +166,17 @@ allow = ["echo.test"]
 			t.Errorf("%s wrong token: %v", scheme, err)
 		}
 	}
+	// Without allow_exit_host, the exit's own machine is out of reach, even
+	// when the client's policy allows it: echo.test is on its loopback.
+	guest, _ := path.Build("exit", []string{"https://" + addr}, path.Options{CAFile: "ca.pem", TokenFile: "guest.token", Dir: dir})
+	if _, err := guest.Dial(path.WithConn(ctx, &path.Conn{Run: "r-guest", ID: 1}), "echo.test", nil, port); err == nil || !strings.Contains(err.Error(), "127.0.0.1 is the exit's own machine, which client guest may not reach (allow_exit_host)") {
+		t.Errorf("guest reached the exit's machine: %v", err)
+	}
+	select {
+	case got := <-from:
+		t.Errorf("the echo server saw a connection from %s", got)
+	default:
+	}
 	// A client that trusts another CA doesn't get as far as the token.
 	other := t.TempDir()
 	_, caPEM, _, _ := NewCA(time.Now())
@@ -173,7 +192,7 @@ allow = ["echo.test"]
 			ids = append(ids, fmt.Sprintf("%v %v/%v %v", e.Fields["proto"], e.Fields["client_run"], e.Fields["client_conn"], e.Fields["host"]))
 		}
 	}
-	if strings.Join(ids, ", ") != "http-connect r-test/5 echo.test, http-connect r-test/6 evil.test, socks5 r-test/5 echo.test, socks5 r-test/6 evil.test" {
+	if strings.Join(ids, ", ") != "http-connect r-test/5 echo.test, http-connect r-test/6 evil.test, socks5 r-test/5 echo.test, socks5 r-test/6 evil.test, http-connect r-guest/1 echo.test" {
 		t.Errorf("record: %v", ids)
 	}
 }
@@ -182,7 +201,7 @@ allow = ["echo.test"]
 // echo.test, and that client's path to it.
 func benchExit(b *testing.B) (path.Path, int) {
 	dir := b.TempDir()
-	src := "version = 1\nlisten = \"127.0.0.1:0\"\ncert = \"c\"\nkey = \"k\"\n[clients.agent]\ntoken_sha256 = \"" + HashHex("token-agent") + "\"\nsource = \"127.0.0.1\"\ndefault = \"deny\"\nallow = [\"echo.test\"]\n"
+	src := "version = 1\nlisten = \"127.0.0.1:0\"\ncert = \"c\"\nkey = \"k\"\n[clients.agent]\ntoken_sha256 = \"" + HashHex("token-agent") + "\"\nsource = \"127.0.0.1\"\nallow_exit_host = true\ndefault = \"deny\"\nallow = [\"echo.test\"]\n"
 	addr, _ := testExit(b, dir, src)
 	os.WriteFile(filepath.Join(dir, "agent.token"), []byte("token-agent\n"), 0o600)
 	p, err := path.Build("exit", []string{"https://" + addr}, path.Options{CAFile: "ca.pem", TokenFile: "agent.token", Dir: dir})

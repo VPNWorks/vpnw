@@ -216,7 +216,7 @@ Give `--proxy` twice, or `urls` in the file, for a list of exits: when the one i
 
 | Command | What it does |
 |---|---|
-| `vpnw exit serve --config FILE` | takes clients' requests over TLS until SIGINT or SIGTERM. Takes `--out`, `--json`, `-v`, `-q`, `--plugin`, `--set` and `--plugin-file` as a run does. The console prints refusals and errors; `-v` every step |
+| `vpnw exit serve --config FILE` | takes clients' requests over TLS until SIGINT, SIGTERM or SIGHUP. Takes `--out`, `--json`, `-v`, `-q`, `--plugin`, `--set` and `--plugin-file` as a run does; `--out` adds to the file, so a restart keeps the earlier record. The console prints refusals and errors; `-v` every step |
 | `vpnw exit check --config FILE` | reads the file, its policy files, certificate and key, and says what each client may do and whether its addresses are on this machine |
 | `vpnw exit token [--out FILE]` | makes a token, 32 random bytes as 43 characters, and prints the `token_sha256` line for the exit's file. With `--out` the token goes to FILE, created new and readable by you alone, instead of the screen |
 | `vpnw exit token --from FILE` | prints the `token_sha256` of a token kept in FILE |
@@ -239,6 +239,7 @@ key     = "exit-de.key"
 token_sha256 = "1045911b…"       # vpnw exit token prints it
 source       = "198.51.100.10"   # an address of its own
 policy       = "agent-1.toml"    # the client's own policy file: its [policy] table
+allow_exit_host = false          # the default; true lets it reach this machine
 
 [clients.ci]
 token_sha256 = "576873c3…"
@@ -253,9 +254,10 @@ addresses = ["198.51.100.20", "198.51.100.21"]
 
 - Every client needs `token_sha256`, a `source` or a `pool`, and a policy: a policy file, or the keys `default`, `deny_private`, `allow` and `deny` in its table, not both.
 - An address belongs to one client, or to one pool. A client of a pool always leaves from the same address of it, picked from the client's name.
-- Every source address has to be on the exit's machine, or `serve` refuses to start (exit code 122).
+- A source is one address of the machine: not a wildcard such as `0.0.0.0`, and not a broadcast, multicast or link-local address. Every source has to be on the exit's machine, or `serve` refuses to start (exit code 122). The exit checks that each connection really left from the client's address.
+- Whatever a client's policy says, the exit never connects to its own machine, its loopback addresses and the addresses it had when it started, unless the client's table has `allow_exit_host = true`. It never connects to a link-local, multicast or unspecified address for any client, so cloud metadata at 169.254.169.254 is out of reach from an exit.
 - Names are looked up at the exit, so `deny_private` sees where a name really points. Give clients of an exit the default, names resolved at the exit (`dns = "remote"`): the exit needs the names to check name rules.
-- `check` and `serve` warn about a client with default allow and no `deny_private`: it can reach private addresses, the exit machine's own services among them.
+- `check` and `serve` warn about a client with default allow and no `deny_private`, an allow rule that takes in private addresses, and `allow_exit_host`.
 
 ### On the wire
 
@@ -267,13 +269,15 @@ addresses = ["198.51.100.20", "198.51.100.21"]
 | wrong token | 407 | login refused |
 | health check | `GET /health` with the token: 200 and the exit's name, or 407 | a login, then nothing |
 
-vpnw sends the IDs with every request. A request that gives the token or an ID header twice is refused, so the exit never chooses between two. A client without vpnw can send no IDs at all; its connections are decided and recorded like any other. The exit takes nothing but CONNECT, the health check and SOCKS5 CONNECT; SOCKS5 BIND and UDP are refused with a record of it.
+vpnw sends the IDs with every request. A request that gives the token or an ID header twice is refused, so the exit never chooses between two. A refusal's reason never holds an address the exit looked up, so a token can't be used to read the exit's DNS answers; the exit's record has the full reason.
+
+Before a client shows its token, it holds little: a connection gets 10 seconds for TLS and its request together, one address can have at most 32 such connections waiting, and all addresses together 1,024. A wrong token is answered after a second. A client without vpnw can send no IDs at all; its connections are decided and recorded like any other. The exit takes nothing but CONNECT, the health check and SOCKS5 CONNECT; SOCKS5 BIND and UDP are refused with a record of it.
 
 ### The exit's record
 
-Events of schema version 1, the same types as a run's. Each connection's first event, `connection.attempt`, also has `client`, `source` (the address it leaves from), `peer` (where the request came from), and `client_run` and `client_conn`, the client's own run and connection IDs. So the exit's record lines up with the client's, whose `connection.open` names the exit that carried it. `connection.open` has `source`, the address the connection really left from. `auth.deny` records a request without a valid token, never the token itself. `run.start` has `mode` = `exit`, `exit`, `listen`, `clients`, `cert_for` and `cert_until`; `run.end` adds `auth_denied`, `health_checks` and `tls_failed` to a run's totals.
+Events of schema version 1, the same types as a run's. Each connection's first event, `connection.attempt`, also has `client`, `source` (the address it leaves from), `peer` (where the request came from), and `client_run` and `client_conn`, the client's own run and connection IDs. So the exit's record lines up with the client's, whose `connection.open` names the exit that carried it. `connection.open` has `source`, the address the connection really left from. `auth.deny` records a request without a valid token, never the token itself: at most 20 in 10 seconds, and the next one recorded after more says how many were left out (`unrecorded`). `run.start` has `mode` = `exit`, `exit`, `listen`, `clients`, `cert_for` and `cert_until`. `run.end` has a run's totals except `code`, with `auth_denied`, `health_checks`, `tls_failed`, and `why` the exit stopped.
 
-Plugins run at an exit as they do in a run. Observers see its record (`--plugin ledger` seals it), and Guard plugins are asked about every connection a client's policy allowed, with the client's name in the request.
+Plugins run at an exit as they do in a run. Observers see its record (`--plugin ledger` seals it), and Guard plugins are asked about every connection a client's policy allowed, with the client's name in the request. A ledger file grows to at most 1 GiB, about half a million connections at an exit; each start of the exit begins a new one.
 
 ### What an exit doesn't do yet
 
