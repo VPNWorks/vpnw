@@ -169,8 +169,17 @@ allow = ["echo.test"]
 	// Without allow_exit_host, the exit's own machine is out of reach, even
 	// when the client's policy allows it: echo.test is on its loopback.
 	guest, _ := path.Build("exit", []string{"https://" + addr}, path.Options{CAFile: "ca.pem", TokenFile: "guest.token", Dir: dir})
-	if _, err := guest.Dial(path.WithConn(ctx, &path.Conn{Run: "r-guest", ID: 1}), "echo.test", nil, port); err == nil || !strings.Contains(err.Error(), "127.0.0.1 is the exit's own machine, which client guest may not reach (allow_exit_host)") {
-		t.Errorf("guest reached the exit's machine: %v", err)
+	if _, err := guest.Dial(path.WithConn(ctx, &path.Conn{Run: "r-guest", ID: 1}), "echo.test", nil, port); err == nil || err.Error() != "the exit refused it (exit): an address echo.test resolves to at the exit is refused by exit" {
+		t.Errorf("guest reached the exit's machine, or heard where echo.test points: %v", err)
+	}
+	full := false
+	for _, e := range mem.Snapshot() {
+		if e.Type == events.PolicyDeny && e.Fields["rule"] == "exit" {
+			full = e.Fields["reason"] == "127.0.0.1 is the exit's own machine, which client guest may not reach (allow_exit_host)"
+		}
+	}
+	if !full {
+		t.Error("the exit's record lacks the whole reason")
 	}
 	select {
 	case got := <-from:

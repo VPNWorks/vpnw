@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -503,5 +504,98 @@ func TestExitLimitsBeforeLogin(t *testing.T) {
 	ad := r.events(events.AuthDeny)
 	if len(ad) != 21 || ad[20].Fields["unrecorded"] != int64(5) || r.b.Stats().AuthDenied != 26 {
 		t.Errorf("after the window: %d events, last %v, %d counted", len(ad), ad[len(ad)-1].Fields, r.b.Stats().AuthDenied)
+	}
+}
+
+// When every waiting slot is taken, the oldest connection of the address
+// holding the most gives way, so a flood from a few addresses can't keep
+// anyone else out. Needs Linux, where all of 127.0.0.0/8 is local.
+func TestExitMakesRoom(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("needs several loopback addresses")
+	}
+	oldAll, oldPer := MaxPending, MaxPendingPerPeer
+	MaxPending, MaxPendingPerPeer = 4, 3
+	defer func() { MaxPending, MaxPendingPerPeer = oldAll, oldPer }()
+	r := exitRig(t)
+	from := func(ip string) net.Conn {
+		d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP(ip)}}
+		c, err := d.Dial("tcp", r.addr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { c.Close() })
+		time.Sleep(20 * time.Millisecond)
+		return c
+	}
+	flood := []net.Conn{from("127.0.0.2"), from("127.0.0.2"), from("127.0.0.2")}
+	from("127.0.0.3")
+	// Full: a newcomer from another address gets in, and the oldest of
+	// 127.0.0.2's goes.
+	d := net.Dialer{LocalAddr: &net.TCPAddr{IP: net.ParseIP("127.0.0.4")}}
+	c, err := d.Dial("tcp", r.addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.SetDeadline(time.Now().Add(5 * time.Second))
+	io.WriteString(c, "GET /health HTTP/1.1\r\n"+basic("tok-a")+"\r\n")
+	if status, _ := bufio.NewReader(c).ReadString('\n'); strings.TrimSpace(status) != "HTTP/1.1 200 OK" {
+		t.Errorf("the newcomer: %q", status)
+	}
+	flood[0].SetDeadline(time.Now().Add(2 * time.Second))
+	if _, err := flood[0].Read(make([]byte, 1)); err == nil || strings.Contains(err.Error(), "timeout") {
+		t.Errorf("the oldest waiting connection of the busiest address stayed: %v", err)
+	}
+	flood[1].SetDeadline(time.Now().Add(200 * time.Millisecond))
+	if _, err := flood[1].Read(make([]byte, 1)); err == nil || !strings.Contains(err.Error(), "timeout") {
+		t.Errorf("another waiting connection was closed: %v", err)
+	}
+}
+
+// One client can have MaxConnsPerClient connections open, and no more.
+func TestExitConnsPerClient(t *testing.T) {
+	old := MaxConnsPerClient
+	MaxConnsPerClient = 2
+	defer func() { MaxConnsPerClient = old }()
+	port, _ := echoServer(t)
+	r := exitRig(t)
+	ask := func() (net.Conn, string) {
+		c, _, status, _ := exitAsk(t, r.addr, fmt.Sprintf("CONNECT echo.test:%d HTTP/1.1\r\n%s\r\n", port, basic("tok-a")))
+		return c, status
+	}
+	c1, s1 := ask()
+	_, s2 := ask()
+	c3, s3 := ask()
+	if s1 != "HTTP/1.1 200 Connection established" || s2 != s1 || s3 != "HTTP/1.1 429 Too Many Requests" {
+		t.Fatalf("%q %q %q", s1, s2, s3)
+	}
+	c3.Close()
+	// Another client isn't held back, and a closed connection makes room.
+	if _, _, st, _ := exitAsk(t, r.addr, fmt.Sprintf("CONNECT other.test:%d HTTP/1.1\r\n%s\r\n", port, basic("tok-b"))); st != "HTTP/1.1 200 Connection established" {
+		t.Errorf("client b: %q", st)
+	}
+	c1.Close()
+	waitEvents(r, events.ConnectionClose, 1)
+	time.Sleep(50 * time.Millisecond)
+	if _, s := ask(); s != "HTTP/1.1 200 Connection established" {
+		t.Errorf("after one closed: %q", s)
+	}
+	if st := r.b.Stats(); st.OverLimit != 1 {
+		t.Errorf("over_limit %d", st.OverLimit)
+	}
+}
+
+func TestPeerKey(t *testing.T) {
+	for in, want := range map[string]string{
+		"198.51.100.7":         "198.51.100.7",
+		"2001:db8:1:2:3:4:5:6": "2001:db8:1:2::/64",
+		"2001:db8:1:2:ffff::1": "2001:db8:1:2::/64",
+		"::ffff:198.51.100.7":  "::ffff:198.51.100.7",
+		"not an address":       "not an address",
+	} {
+		if got := peerKey(in); got != want {
+			t.Errorf("%s: %s, want %s", in, got, want)
+		}
 	}
 }

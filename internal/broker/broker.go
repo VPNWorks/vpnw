@@ -47,11 +47,16 @@ type Stats struct {
 	Failed      int64 `json:"failed"`
 	BytesUp     int64 `json:"bytes_up"`
 	BytesDown   int64 `json:"bytes_down"`
-	// At an exit: logins refused, health checks answered, and connections
-	// that never finished TLS.
+	// At an exit: logins refused, health checks answered, connections that
+	// never finished TLS, and requests turned away because their client
+	// had MaxConnsPerClient open already.
 	AuthDenied   int64 `json:"auth_denied,omitempty"`
 	HealthChecks int64 `json:"health_checks,omitempty"`
 	TLSFailed    int64 `json:"tls_failed,omitempty"`
+	OverLimit    int64 `json:"over_limit,omitempty"`
+	// AcceptErrors counts errors taking new connections, such as running
+	// out of file descriptors; the broker waits each one out.
+	AcceptErrors int64 `json:"accept_errors,omitempty"`
 }
 
 // Guard is a further check on a connection the policy allowed, such as a
@@ -93,6 +98,9 @@ type Broker struct {
 	// and decides and sends each request with that client's policy and path.
 	// Policy, Path and Token are then not used. See exit.go.
 	Exit *Exit
+	// OnAcceptError, if set, hears about each error taking a new
+	// connection, which Serve waits out.
+	OnAcceptError func(error)
 
 	pid                                          atomic.Int64
 	seq                                          atomic.Uint64
@@ -108,10 +116,13 @@ type Broker struct {
 	connections, opened, allowed, denied, failed atomic.Int64
 	bytesUp, bytesDown                           atomic.Int64
 	authDenied, healthChecks, tlsFailed          atomic.Int64
-	// At an exit, under mu: connections not yet logged in, by the address
-	// they came from and in all, and the auth.deny events of this window.
+	overLimit, acceptErrors                      atomic.Int64
+	// At an exit, under mu: connections not yet logged in, and how many
+	// each address holds; each client's connections; and the auth.deny
+	// events of this window.
+	waiters        map[*waiter]struct{}
 	pending        map[string]int
-	pendingAll     int
+	clientConns    map[string]int
 	denyWindow     time.Time
 	denyInWindow   int
 	denyUnrecorded int64
@@ -157,6 +168,7 @@ func (b *Broker) Stats() Stats {
 		Connections: b.connections.Load(), Opened: b.opened.Load(), Allowed: b.allowed.Load(), Denied: b.denied.Load(),
 		Failed: b.failed.Load(), BytesUp: b.bytesUp.Load(), BytesDown: b.bytesDown.Load(),
 		AuthDenied: b.authDenied.Load(), HealthChecks: b.healthChecks.Load(), TLSFailed: b.tlsFailed.Load(),
+		OverLimit: b.overLimit.Load(), AcceptErrors: b.acceptErrors.Load(),
 	}
 }
 
@@ -170,6 +182,10 @@ func (b *Broker) Serve(l net.Listener) error {
 		if err != nil {
 			if errors.Is(err, net.ErrClosed) {
 				return nil
+			}
+			b.acceptErrors.Add(1)
+			if b.OnAcceptError != nil {
+				b.OnAcceptError(err)
 			}
 			time.Sleep(wait)
 			if wait *= 2; wait > time.Second {
@@ -474,9 +490,17 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 	}
 	t0 := b.now()
 	var lastErr error
+	var refused *path.Refusal
 	for _, cand := range cands {
 		conn, err := p.Dial(ctx, host, cand, port)
 		if err != nil {
+			var rf *path.Refusal
+			if errors.As(err, &rf) {
+				if refused == nil {
+					refused = rf
+				}
+				continue
+			}
 			lastErr = err
 			continue
 		}
@@ -499,6 +523,13 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		b.opened.Add(1)
 		emit(events.ConnectionOpen, of)
 		return outcome{conn: conn, id: id, start: start}
+	}
+	if refused != nil && lastErr == nil {
+		// The path refused every address by a rule of its own.
+		d := policy.Decision{Allow: false, Rule: refused.Rule, Reason: refused.Reason}
+		b.denied.Add(1)
+		emit(events.PolicyDeny, map[string]any{"rule": d.Rule, "reason": d.Reason})
+		return outcome{id: id, start: start, denied: &d, socks: 0x02}
 	}
 	code := byte(0x05)
 	if lastErr != nil && strings.Contains(lastErr.Error(), "unreachable") {

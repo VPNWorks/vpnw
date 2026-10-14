@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -23,15 +24,20 @@ import (
 
 // Limits on what anyone on the internet can hold at an exit before showing
 // a token. A connection gets ExitHandshakeTime for TLS and its request
-// together; at most MaxPendingPerPeer connections from one address, and
-// MaxPending in all, may be waiting for that at once, so a flood from a few
-// addresses can't take the slots of clients with tokens. A wrong token is
-// answered after RefusedLoginDelay, which keeps guessing slow.
+// together. At most MaxPendingPerPeer connections from one address (one
+// /64 for IPv6) may be waiting for that at once, and MaxPending in all;
+// when all are taken, the oldest waiting connection of the address holding
+// the most is closed to make room, so a flood from a few addresses can't
+// keep clients with tokens out. A wrong token is answered after
+// RefusedLoginDelay, which keeps guessing slow. Once logged in, a client
+// may have MaxConnsPerClient connections open, so one token can't take
+// every slot of the exit.
 var (
 	ExitHandshakeTime = 10 * time.Second
 	MaxPending        = 1024
 	MaxPendingPerPeer = 32
 	RefusedLoginDelay = time.Second
+	MaxConnsPerClient = 1024
 )
 
 // An exit records at most authDenyBurst auth.deny events in each
@@ -191,28 +197,99 @@ func (h *head) count(name string) int {
 	return n
 }
 
-// waiting holds a pending slot for a connection that hasn't logged in yet.
-func (b *Broker) waiting(ip string) bool {
+// waiter is a connection to an exit that hasn't logged in yet.
+type waiter struct {
+	key   string // the address it came from; for IPv6, its /64
+	c     net.Conn
+	since time.Time
+	gone  bool
+}
+
+// peerKey is what the limit per address counts by: the address, or the /64
+// of an IPv6 one, since anyone with one IPv6 address usually has its /64.
+func peerKey(ip string) string {
+	if a, err := netip.ParseAddr(ip); err == nil && a.Is6() && !a.Is4In6() {
+		if p, err := a.Prefix(64); err == nil {
+			return p.String()
+		}
+	}
+	return ip
+}
+
+// waiting gives a connection that hasn't logged in yet a slot, closing
+// another to make room when all are taken. It returns nil when the address
+// it came from holds its share already.
+func (b *Broker) waiting(key string, c net.Conn) *waiter {
+	b.mu.Lock()
+	if b.pending[key] >= MaxPendingPerPeer {
+		b.mu.Unlock()
+		return nil
+	}
+	var victim *waiter
+	if len(b.waiters) >= MaxPending {
+		most := 0
+		for w := range b.waiters {
+			if n := b.pending[w.key]; victim == nil || n > most || (n == most && w.since.Before(victim.since)) {
+				victim, most = w, n
+			}
+		}
+		if victim != nil {
+			b.forget(victim)
+		}
+	}
+	if b.waiters == nil {
+		b.waiters, b.pending = map[*waiter]struct{}{}, map[string]int{}
+	}
+	w := &waiter{key: key, c: c, since: time.Now()}
+	b.waiters[w] = struct{}{}
+	b.pending[key]++
+	b.mu.Unlock()
+	if victim != nil {
+		victim.c.Close()
+	}
+	return w
+}
+
+// forget lets a waiting connection's slot go; b.mu is held.
+func (b *Broker) forget(w *waiter) {
+	if w.gone {
+		return
+	}
+	w.gone = true
+	delete(b.waiters, w)
+	if b.pending[w.key]--; b.pending[w.key] <= 0 {
+		delete(b.pending, w.key)
+	}
+}
+
+func (b *Broker) doneWaiting(w *waiter) {
+	b.mu.Lock()
+	b.forget(w)
+	b.mu.Unlock()
+}
+
+// clientIn counts a connection of a client that has logged in, if it has
+// fewer than MaxConnsPerClient open.
+func (b *Broker) clientIn(name string) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.pendingAll >= MaxPending || b.pending[ip] >= MaxPendingPerPeer {
+	if b.clientConns[name] >= MaxConnsPerClient {
+		b.overLimit.Add(1)
 		return false
 	}
-	if b.pending == nil {
-		b.pending = map[string]int{}
+	if b.clientConns == nil {
+		b.clientConns = map[string]int{}
 	}
-	b.pending[ip]++
-	b.pendingAll++
+	b.clientConns[name]++
 	return true
 }
 
-func (b *Broker) doneWaiting(ip string) {
+func (b *Broker) clientOut(name string) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.pending[ip]--; b.pending[ip] <= 0 {
-		delete(b.pending, ip)
+	if b.clientConns[name]--; b.clientConns[name] <= 0 {
+		delete(b.clientConns, name)
 	}
-	b.pendingAll--
+	b.mu.Unlock()
 }
 
 // exitHandle serves one connection to an exit: TLS first, when the
@@ -226,16 +303,11 @@ func (b *Broker) exitHandle(c net.Conn) {
 			ip = h
 		}
 	}
-	if !b.waiting(ip) {
+	w := b.waiting(peerKey(ip), c)
+	if w == nil {
 		return
 	}
-	held := true
-	release := func() {
-		if held {
-			held = false
-			b.doneWaiting(ip)
-		}
-	}
+	release := func() { b.doneWaiting(w) }
 	defer release()
 	// Once a client has shown its token, it gets the time a run's program
 	// gets, and no more limit on writing than one has.
@@ -346,12 +418,12 @@ func headerSafe(s string) string {
 	return sb.String()
 }
 
-// toClient is the reason for a refusal as the client is told it. A reason
-// that names an address the exit looked up stays in the exit's record: the
-// client hears only the rule, so a token can't be used to read the exit's
-// DNS answers.
+// toClient is the reason for a refusal as the client is told it. When the
+// client asked for a name, a reason that comes from an address the exit
+// looked up stays in the exit's record, and the client hears only the
+// rule, so a token can't be used to read the exit's DNS answers.
 func toClient(d *policy.Decision, host string) string {
-	if host != "" && strings.Contains(d.Reason, " resolved to ") {
+	if host != "" && (strings.Contains(d.Reason, " resolved to ") || d.Rule == "exit") {
 		return fmt.Sprintf("an address %s resolves to at the exit is refused by %s", host, d.Rule)
 	}
 	return d.Reason
@@ -405,6 +477,11 @@ func (b *Broker) exitHTTP(c net.Conn, br *bufio.Reader, peer string, loggedIn fu
 		httpReply(c, "400 Bad Request", "", "vpnw exit: "+err.Error()+"\n")
 		return
 	}
+	if !b.clientIn(cl.Name) {
+		httpReply(c, "429 Too Many Requests", "", fmt.Sprintf("vpnw exit: client %s has %d connections open here already\n", cl.Name, MaxConnsPerClient))
+		return
+	}
+	defer b.clientOut(cl.Name)
 	o := b.open(origin{client: cl, run: run, conn: conn, peer: peer}, host, port, proto)
 	target := net.JoinHostPort(host, strconv.Itoa(port))
 	switch {
@@ -492,6 +569,11 @@ func (b *Broker) exitSOCKS(c net.Conn, br *bufio.Reader, peer string, loggedIn f
 		b.unsupported(from, c, host, port, cmd)
 		return
 	}
+	if !b.clientIn(cl.Name) {
+		socksReply(c, 0x01)
+		return
+	}
+	defer b.clientOut(cl.Name)
 	o := b.open(from, host, port, "socks5")
 	if o.conn == nil {
 		socksReply(c, o.socks)

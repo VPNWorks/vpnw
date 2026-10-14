@@ -99,6 +99,30 @@ type exitPath struct {
 
 var broadcast = netip.AddrFrom4([4]byte{255, 255, 255, 255})
 
+// metadata are cloud metadata addresses outside link-local, which an exit
+// never connects to either: AWS's over IPv6, and Alibaba Cloud's.
+var metadata = map[netip.Addr]bool{
+	netip.MustParseAddr("fd00:ec2::254"):   true,
+	netip.MustParseAddr("100.100.100.200"): true,
+}
+
+// local reports whether a is an address of this machine: one it had when
+// the exit started, or one the machine routes to itself now. A connected
+// UDP socket sends nothing; for a local destination the system picks the
+// destination itself as the source.
+func (p *exitPath) local(a netip.Addr) bool {
+	if a.IsLoopback() || p.own[a] {
+		return true
+	}
+	c, err := net.DialUDP("udp", nil, net.UDPAddrFromAddrPort(netip.AddrPortFrom(a, 9)))
+	if err != nil {
+		return false
+	}
+	defer c.Close()
+	la, ok := netip.AddrFromSlice(c.LocalAddr().(*net.UDPAddr).IP)
+	return ok && la.Unmap() == a
+}
+
 func (p *exitPath) Dial(ctx context.Context, host string, ip net.IP, port int) (net.Conn, error) {
 	a, ok := netip.AddrFromSlice(ip)
 	if !ok {
@@ -106,10 +130,10 @@ func (p *exitPath) Dial(ctx context.Context, host string, ip net.IP, port int) (
 	}
 	a = a.Unmap()
 	switch {
-	case a.IsUnspecified() || a.IsMulticast() || a.IsLinkLocalUnicast() || a == broadcast:
-		return nil, fmt.Errorf("%s is never reached from an exit: it's a link-local, multicast or unspecified address", a)
-	case !p.host && (a.IsLoopback() || p.own[a]):
-		return nil, fmt.Errorf("%s is the exit's own machine, which client %s may not reach (allow_exit_host)", a, p.client)
+	case a.IsUnspecified() || a.IsMulticast() || a.IsLinkLocalUnicast() || a == broadcast || metadata[a]:
+		return nil, &path.Refusal{Rule: "exit", Reason: fmt.Sprintf("%s is never reached from an exit: it's a link-local, multicast, unspecified or cloud metadata address", a)}
+	case !p.host && p.local(a):
+		return nil, &path.Refusal{Rule: "exit", Reason: fmt.Sprintf("%s is the exit's own machine, which client %s may not reach (allow_exit_host)", a, p.client)}
 	}
 	c, err := p.Direct.Dial(ctx, host, ip, port)
 	if err != nil {

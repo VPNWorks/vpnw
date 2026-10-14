@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -257,6 +258,18 @@ func exitServe(args []string, stderr io.Writer) int {
 		Bus:      bus,
 		Guards:   pr.brokerGuards(),
 	}
+	// The broker waits out errors taking connections (a flood can run the
+	// machine out of file descriptors); say so now and then.
+	var lastSaid time.Time
+	var saidMu sync.Mutex
+	br.OnAcceptError = func(err error) {
+		saidMu.Lock()
+		defer saidMu.Unlock()
+		if time.Since(lastSaid) >= time.Minute {
+			lastSaid = time.Now()
+			fmt.Fprintf(stderr, "vpnw: cannot take new connections: %v; trying again\n", err)
+		}
+	}
 	start := map[string]any{
 		"mode": "exit", "exit": cfg.Name, "listen": l.Addr().String(), "clients": len(cfg.Clients),
 		"version": version.Version, "cert_for": certFor(leaf), "cert_until": leaf.NotAfter.UTC().Format("2006-01-02"),
@@ -266,22 +279,11 @@ func exitServe(args []string, stderr io.Writer) int {
 	}
 	bus.Emit(events.RunStart, 0, "", 0, start)
 
-	served := make(chan error, 1)
-	go func() { served <- br.Serve(tl) }()
+	// Serve returns only when the listener is closed, below.
+	go br.Serve(tl)
 	sigs := make(chan os.Signal, 4)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-	code = 0
-	var why string
-	select {
-	case s := <-sigs:
-		why = "stopped by " + s.String()
-	case err := <-served:
-		why = "the listener failed"
-		if err != nil {
-			why += ": " + err.Error()
-		}
-		code = process.ExitInternal
-	}
+	why := "stopped by " + (<-sigs).String()
 	signal.Stop(sigs)
 	l.Close()
 	br.Shutdown(5 * time.Second)
@@ -289,13 +291,10 @@ func exitServe(args []string, stderr io.Writer) int {
 	bus.Emit(events.RunEnd, 0, "", 0, map[string]any{
 		"connections": st.Connections, "opened": st.Opened, "allowed": st.Allowed, "denied": st.Denied, "failed": st.Failed,
 		"bytes_up": st.BytesUp, "bytes_down": st.BytesDown, "auth_denied": st.AuthDenied, "health_checks": st.HealthChecks,
-		"tls_failed": st.TLSFailed, "why": why,
+		"tls_failed": st.TLSFailed, "over_limit": st.OverLimit, "accept_errors": st.AcceptErrors, "why": why,
 	})
 	pr.close()
-	if code != 0 {
-		fmt.Fprintf(stderr, "vpnw: %s\n", why)
-	}
-	return code
+	return 0
 }
 
 func exitCheck(args []string, stdout, stderr io.Writer) int {

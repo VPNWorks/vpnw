@@ -742,7 +742,7 @@ default = "allow"
 	g := k.direct(x.addr, tg)
 	refused := 0
 	for _, tg := range targets {
-		if code, _, _ := g.connect(tg); code == "502" {
+		if code, rule, _ := g.connect(tg); code == "403" && rule == "exit" {
 			refused++
 		}
 	}
@@ -756,7 +756,7 @@ default = "allow"
 	a := k.direct(x.addr, ta)
 	code1, _, body := a.connect(targets[0])
 	code2, _, _ := a.connect(targets[3])
-	ok = code1 == "200" && body == "from 127.0.0.3" && code2 == "502"
+	ok = code1 == "200" && body == "from 127.0.0.3" && code2 == "403"
 	exitRecord(t, "the same with allow_exit_host = true for that client", "the exit's own machine is reached, from the client's address; cloud metadata stays refused",
 		fmt.Sprintf("loopback: %s, %s; metadata: %s", code1, body, code2), ok)
 	if !ok {

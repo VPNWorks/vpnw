@@ -64,6 +64,16 @@ func (SystemResolver) LookupIP(ctx context.Context, host string) ([]net.IP, erro
 	return out, nil
 }
 
+// Refusal is a path refusing a destination by a rule of its own: an exit
+// never connects to its own machine, say. The broker records it as a
+// refusal, with the rule, not as a failure to connect.
+type Refusal struct {
+	Rule   string
+	Reason string
+}
+
+func (r *Refusal) Error() string { return r.Reason }
+
 // DialTimeout bounds how long one connection may take to open.
 const DialTimeout = 15 * time.Second
 
