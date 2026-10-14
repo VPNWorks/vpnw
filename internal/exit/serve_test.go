@@ -101,9 +101,11 @@ func testExit(t testing.TB, dir, src string) (string, *events.Memory) {
 // health check, the IDs, a refusal with its reason, both front ends, and a
 // client that leaves from its own address.
 func TestExitWithClientPath(t *testing.T) {
-	source := "127.0.0.1"
+	// On Linux all of 127.0.0.0/8 is local, so the agent gets an address
+	// of its own; elsewhere both clients share 127.0.0.1, as a pool.
+	source, agentFrom, guestFrom, pool := "127.0.0.1", "pool = \"lo\"", "pool = \"lo\"", "[pools.lo]\naddresses = [\"127.0.0.1\"]\n"
 	if runtime.GOOS == "linux" {
-		source = "127.0.0.2"
+		source, agentFrom, guestFrom, pool = "127.0.0.2", "source = \"127.0.0.2\"", "source = \"127.0.0.1\"", ""
 	}
 	dir := t.TempDir()
 	src := `version = 1
@@ -114,17 +116,18 @@ key = "k"
 
 [clients.agent]
 token_sha256 = "` + HashHex("token-agent") + `"
-source = "` + source + `"
+` + agentFrom + `
 allow_exit_host = true
 default = "deny"
 allow = ["echo.test"]
 
 [clients.guest]
 token_sha256 = "` + HashHex("token-guest") + `"
-source = "127.0.0.1"
+` + guestFrom + `
 default = "deny"
 allow = ["echo.test"]
-`
+
+` + pool
 	addr, mem := testExit(t, dir, src)
 	port, from := echo(t)
 	os.WriteFile(filepath.Join(dir, "agent.token"), []byte("token-agent\n"), 0o600)
