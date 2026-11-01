@@ -24,7 +24,15 @@ whole procedure and the checks to run afterwards.
 
 Read this first in a new session, and update it at the end of every release.
 
-- **Released:** 0.8.0 (October 14, 2026): Tunnel plugins. The `tunnel`
+- **Released:** 0.9.0 (November 1, 2026): egress budgets. Guards can put
+  byte budgets on connections (the `meter` host call; internal/broker/meter.go
+  counts and cuts, `connection.cut`), the built-in `budget` Guard
+  (plugins/budget), and `vpnw exit serve` reloads its file
+  (internal/exit/reload.go, `exit.reload`). Results in test/results/budget.md
+  (7 of 7) and exit.md (23 of 23). Two independent review rounds:
+  6 defects, all fixed with tests (review_090*_test.go). Guards are asked a
+  refuse-only `stage: lookup` question before a policy lookup, so a refused
+  name never reaches DNS. 0.8.0 (October 14, 2026): Tunnel plugins. The `tunnel`
   plugin type is open (internal/path/tunnels.go for the path,
   internal/pluginhost/tunnel.go and folder.go for the plugin side,
   plugins/rotate for the built-in), with the new `folder.read` permission.
@@ -33,10 +41,17 @@ Read this first in a new session, and update it at the end of every release.
   (`vpnw exit`, in the core), 0.6.0 Lab, 0.5.0 Ledger and `file.write`,
   0.4.1 the IPv6 escape tests in CI, 0.4.0 WireGuard paths, 0.3.0 the core
   with plugins.
-- **Next:** 0.9.0 (egress budgets for AI agents), approved by the owner on
-  November 1, 2026 as item 4, Phase A of softdev-plan.md in
-  photozeitgeist/jollyroger.biz. Plan below, under "0.9.0". Phase B
-  (signed ledger checkpoints, `vpnw verify`) waits for the owner's go.
+- **Next:** Phase B of softdev-plan.md item 4: signed ledger checkpoints with
+  a key held by the core, and `vpnw verify` against a checkpoint. Waits for
+  the owner's go.
+- **Budgets, what to keep in mind:** meters are per (guard, key), bounded by
+  MaxMeters per guard and exit client; only metered connections leave the
+  kernel copy path. Budget's request counts are per key and counted when it
+  lets a connection through at the decision stage, never at `lookup`. A
+  Guard built with the 0.9 SDK imports `meter`, which 0.8 refuses. Exit
+  reload: every broker.Client generation of a name is kept in `gens` and
+  revoked together; the files are hashed from the same bytes they're parsed
+  from; a refused reload also watches the files it tried to read.
 - **Tunnel plugins, what to keep in mind:**
   - Liveness counts only what WireGuard accepted: rx_bytes from IpcGet,
     polled each second (`Silent`), with the socket's arrival time as the
@@ -159,9 +174,9 @@ Steps:
 1. [x] core meters + `meter` host call + SDK `Budget`; tests
 2. [x] plugins/budget; tests; Trace line for connection.cut
 3. [x] exit hot reload; tests
-4. [ ] agent-session recording (test/results/budget.md), README, docs,
+4. [x] agent-session recording (test/results/budget.md), README, docs,
        workflows on stable Go
-5. [ ] independent review, fixes, record-results.sh
+5. [x] independent review, fixes, record-results.sh
 6. [ ] release 0.9.0; vpnw.com post; softdevstudio note; softdev-plan.md
 
 ## The program
@@ -179,6 +194,7 @@ release on your own, even when the last one went well.
 | 0.6.0 | Lab | released |
 | 0.7.0 | Exit | released |
 | 0.8.0 | Tunnel plugins | released |
+| 0.9.0 | Egress budgets (softdev-plan.md item 4, Phase A) | released |
 
 **0.5.0, Ledger.**
 - Plugin interface: a new permission that lets a plugin write to one file
