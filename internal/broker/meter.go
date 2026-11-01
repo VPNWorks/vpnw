@@ -6,7 +6,6 @@ package broker
 import (
 	"errors"
 	"io"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -214,7 +213,7 @@ func spentReason(m *meter, dir int) string {
 	lim, reason := m.limits()
 	var b strings.Builder
 	b.WriteString("byte budget spent: ")
-	b.WriteString(formatBytes(lim[dir]))
+	b.WriteString(events.BudgetBytes(lim[dir]))
 	if dir == dirUp {
 		b.WriteString(" sent")
 	} else {
@@ -224,20 +223,4 @@ func spentReason(m *meter, dir int) string {
 		b.WriteString(" (" + reason + ")")
 	}
 	return b.String()
-}
-
-// formatBytes says a byte count the way people read one.
-func formatBytes(n int64) string {
-	units := []string{"B", "KB", "MB", "GB", "TB"}
-	f := float64(n)
-	i := 0
-	for f >= 1000 && i < len(units)-1 {
-		f /= 1000
-		i++
-	}
-	if i == 0 {
-		return strconv.FormatInt(n, 10) + " B"
-	}
-	s := strings.TrimRight(strings.TrimRight(strconv.FormatFloat(f, 'f', 1, 64), "0"), ".")
-	return s + " " + units[i]
 }

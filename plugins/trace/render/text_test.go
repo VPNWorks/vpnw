@@ -86,7 +86,7 @@ func TestEveryType(t *testing.T) {
 		"allow  [2001:db8::1]:443  default allow", "open  exit resolves a.example via office", "close  sent 1.2 KB  received 3.0 MB",
 		"#4     error  : connection refused", "guard plugin geo stopped: panic: boom", "#1     plugin.geo.note  country=NL n=2",
 		"killed by SIGTERM", "summary  1 connection: 1 opened",
-		"CUT    [2001:db8::1]:443  sent 1.0 KB, the budget  budget for a.example: 1 KB up",
+		"CUT    [2001:db8::1]:443  sent 1 KB, the budget  budget for a.example: 1 KB up",
 		"reload  clients: added agent-3; removed agent-1; listen changed too, which takes a restart",
 		"reload  exit.toml, line 4: unknown key; the clients stay as they were",
 	} {

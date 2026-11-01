@@ -36,10 +36,24 @@ Plugins do the rest. They're WebAssembly modules that run in a sandbox inside vp
 |---|---|---|
 | **Observer** | Watches a run's events as they happen | `trace`: the console output of run, trace and guard. `ledger`: seals the run's record |
 | **Advisor** | Reads recorded traces or files and writes advice | `learn`: turns a trace into a draft policy. `ledger-verify`: checks a sealed record |
-| **Guard** | Can refuse a connection the policy allowed | none yet |
+| **Guard** | Can refuse a connection the policy allowed, or put a byte budget on it | `budget`: an allowlist of hosts, each with byte and connection budgets |
 | **Tunnel** | Hands vpnw WireGuard configs, and says when to move to the next | `rotate`: rotates through the configs in a folder |
 
 Exit and Identity plugins are reserved for later versions.
+
+## Budgets for what an agent sends out
+
+An AI agent or a build script given the network can send anything, anywhere. The built-in Budget plugin lets it reach only the hosts you list, and caps what it sends to each, what it receives and how many connections it opens:
+
+```
+vpnw guard --policy agent.toml --plugin budget --plugin ledger \
+  --set budget.allow='api.model.example up=2MB; *.npmjs.org down=500MB; github.com up=10MB requests=200' \
+  -- ./my-agent
+```
+
+A host on no entry is refused. vpnw counts every byte itself, and a connection that would pass its budget is carried up to it, then cut, with a `connection.cut` event saying which budget ran out; a connection asked for once a budget is spent is refused. The names under a pattern such as `*.npmjs.org` share one budget, so a program can't get a fresh one from each made-up subdomain; `*` allows any host with a budget of its own. `up`, `down` and `requests` settings give defaults for entries that set none. In the [recorded agent session](test/results/budget.md), an agent's 5 MB upload to a host with 256 KiB up is cut at exactly 262,144 bytes, its retry is refused, a host it wasn't given is refused, and Ledger seals the cut.
+
+Budgets are part of the Guard interface, not a privilege of the built-in: any Guard can put one on a connection it lets through ([docs/plugins.md](docs/plugins.md#byte-budgets)), and the core enforces it.
 
 ## A record nobody can quietly edit
 
@@ -95,7 +109,9 @@ vpnw exit serve --config exit-de.toml
 vpnw guard --proxy https://198.51.100.2:8443 --ca ca.pem --token-file agent-1.token --policy agent-1.toml -- ./my-agent
 ```
 
-Clients reach the exit over TLS, each with a token of its own. The exit decides every request again with the client's own policy file, by the same code the client used, before it connects anywhere. A client that skips its own check, or someone holding its token, gets nothing that policy refuses. Names are looked up at the exit, where `deny_private` sees where they really point, and whatever a client's policy allows, it can't reach the cloud metadata addresses vpnw knows from the exit, or the exit's own machine unless the exit's file says so. The exit's record names the client and its run and connection IDs, so it lines up with the client's own record. Plugins run at the exit as they do in a run, so Ledger can seal its record and a Guard plugin gets a say. The file format and the wire conventions are in [the reference](docs/reference.md#exit).
+Clients reach the exit over TLS, each with a token of its own. The exit decides every request again with the client's own policy file, by the same code the client used, before it connects anywhere. A client that skips its own check, or someone holding its token, gets nothing that policy refuses. Names are looked up at the exit, where `deny_private` sees where they really point, and whatever a client's policy allows, it can't reach the cloud metadata addresses vpnw knows from the exit, or the exit's own machine unless the exit's file says so. The exit's record names the client and its run and connection IDs, so it lines up with the client's own record. Plugins run at the exit as they do in a run, so Ledger can seal its record and a Guard plugin gets a say; Budget keeps separate budgets for each client.
+
+The exit looks at its file, and the policy files it names, every 2 seconds, and takes in changes while it serves: a client added can connect at once, a client taken out (or given a new token) is refused and its open connections are closed, and a changed policy applies to new requests. A file with a mistake is refused, with the reason in the exit's record, and the clients stay as they were. Changing the exit's name, listening address, certificate or key still takes a restart. The file format and the wire conventions are in [the reference](docs/reference.md#exit).
 
 ## Install
 
@@ -177,6 +193,7 @@ The rules plugins live by:
 - A plugin decides and observes. It never carries traffic, so it can't slow a connection once it's open. A Guard is asked before each connection opens and gets 250 ms to decide, sleeping included; Observers and Advisors are never in the way at all.
 - A plugin that crashes or runs past its time budget is stopped for the rest of the run. The run carries on and the failure goes into the record.
 - A Guard that fails refuses the connection it was asked about and every one after it. Guards fail closed.
+- A Guard can put a byte budget on a connection it lets through; vpnw counts the bytes and cuts the connection at the budget, so the plugin still never touches traffic.
 - An Observer that falls behind loses events (counted and reported) rather than slowing the program.
 - A Tunnel plugin hands over configs and nothing else, and they decide where traffic goes, so install one you trust as you would a VPN provider. vpnw checks each config before using it; a Tunnel plugin that fails stops the rotation, and the tunnel in use carries on.
 
@@ -184,11 +201,11 @@ Writing a plugin in Go takes the SDK and one build command; [docs/plugins.md](do
 
 ## How it was tested
 
-Every number here comes from `tools/record-results.sh`, which writes [test/results](test/results). The main promise is that a sealed program can't get out except through vpnw, so the integration tests try every way out they know from inside the sandbox ([bypass matrix](test/results/bypass-matrix.md)), and the plugin tests aim at the plugin promises: a plugin that panics, spins forever, writes without permission, falls behind, or fails while guarding. Costs per plugin call are in [plugins.txt](test/results/plugins.txt). WireGuard paths are tested against a real WireGuard peer running in the tests, with a web and a DNS server inside its tunnel; their speed is in [wireguard.txt](test/results/wireguard.txt). Lab, the fault kit in the tests, breaks that tunnel on purpose (a silent peer, lost handshakes, an impostor peer, a slow path, a DNS server that lies) and checks that the program hears about it, nothing goes around the tunnel, every connection has an outcome in the record, and vpnw never hangs: [lab.md](test/results/lab.md). Exit's tests run the real `vpnw exit serve` with the real vpnw as its client: fixed addresses, a client that skips its own policy, one policy file at both ends, an exit killed partway through, and clients with the wrong token or CA ([exit.md](test/results/exit.md)). Tunnel plugins are tested with the real vpnw and the built-in rotate against several real WireGuard peers: rotation while the program keeps asking, connections that outlast a rotation and the move back to their own config, a peer that goes silent, bad configs, and a plugin that crashes ([tunnel.md](test/results/tunnel.md)); every Lab case runs through rotate too.
+Every number here comes from `tools/record-results.sh`, which writes [test/results](test/results). The main promise is that a sealed program can't get out except through vpnw, so the integration tests try every way out they know from inside the sandbox ([bypass matrix](test/results/bypass-matrix.md)), and the plugin tests aim at the plugin promises: a plugin that panics, spins forever, writes without permission, falls behind, or fails while guarding. Costs per plugin call are in [plugins.txt](test/results/plugins.txt). WireGuard paths are tested against a real WireGuard peer running in the tests, with a web and a DNS server inside its tunnel; their speed is in [wireguard.txt](test/results/wireguard.txt). Lab, the fault kit in the tests, breaks that tunnel on purpose (a silent peer, lost handshakes, an impostor peer, a slow path, a DNS server that lies) and checks that the program hears about it, nothing goes around the tunnel, every connection has an outcome in the record, and vpnw never hangs: [lab.md](test/results/lab.md). Exit's tests run the real `vpnw exit serve` with the real vpnw as its client: fixed addresses, a client that skips its own policy, one policy file at both ends, an exit killed partway through, clients with the wrong token or CA, and clients added and taken out while it serves ([exit.md](test/results/exit.md)). The Budget plugin is tested with an agent session under `vpnw guard` that hits its byte budget ([budget.md](test/results/budget.md)). Tunnel plugins are tested with the real vpnw and the built-in rotate against several real WireGuard peers: rotation while the program keeps asking, connections that outlast a rotation and the move back to their own config, a peer that goes silent, bad configs, and a plugin that crashes ([tunnel.md](test/results/tunnel.md)); every Lab case runs through rotate too.
 
 ## Build from source
 
-Go 1.24 or later:
+Go 1.24 or later (releases are built with the current Go release):
 
 ```
 sh tools/build-plugins.sh        # the built-in plugins, to WebAssembly
@@ -196,7 +213,7 @@ go build -o vpnw ./cmd/vpnw
 go test ./...
 ```
 
-`tools/build-plugins.sh` rebuilds the built-in plugins, `plugins/builtin/*.wasm`, from `plugins/trace`, `plugins/learn`, `plugins/ledger` and `plugins/ledgerverify`. CI runs it before every build, so released binaries always embed plugins built from the same commit.
+`tools/build-plugins.sh` rebuilds the six built-in plugins, `plugins/builtin/*.wasm`, from `plugins/trace`, `plugins/learn`, `plugins/ledger`, `plugins/ledgerverify` (ledger-verify), `plugins/rotate` and `plugins/budget`. CI runs it before every build, so released binaries always embed plugins built from the same commit.
 
 | Folder | What's in it |
 |---|---|
@@ -204,7 +221,7 @@ go test ./...
 | `internal/broker`, `policy`, `path`, `process`, `events`, `config` | the core; `path` holds the direct, proxy and WireGuard paths |
 | `internal/pluginhost` | loads and runs plugins (wazero, a pure-Go WebAssembly runtime) |
 | `plugins/sdk` | the Go SDK for plugins |
-| `plugins/trace`, `plugins/learn` | the built-in plugins |
+| `plugins/trace`, `learn`, `ledger`, `ledgerverify`, `rotate`, `budget` | the built-in plugins |
 | `test/integration` | end-to-end tests of the real binary |
 | `test/results` | recorded results |
 

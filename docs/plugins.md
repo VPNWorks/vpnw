@@ -10,7 +10,7 @@ This page shows how to write one in Go with the SDK, then documents the interfac
 |---|---|---|
 | `observer` | `OnEvent` for every event of a run, as it happens, then `Finish` | `vpnw run/trace/guard --plugin NAME`, and at an exit, `vpnw exit serve --plugin NAME` |
 | `advisor` | `OnEvent` for every event of the traces it's given (or `OnLine` for every line of its files, with `input = "lines"`), then `Finish`, where it writes its advice | `vpnw advise NAME --from FILE` |
-| `guard` | `OnDecide` for every connection the policy allowed | `vpnw run/trace/guard --plugin NAME`, and at an exit, `vpnw exit serve --plugin NAME` |
+| `guard` | `OnDecide` (or `Decide`) for every connection the policy allowed | `vpnw run/trace/guard --plugin NAME`, and at an exit, `vpnw exit serve --plugin NAME` |
 | `tunnel` | `OnTunnel` when vpnw needs a WireGuard config: when the run starts, when the one in use is due, when its tunnel stops answering, and after vpnw refused one or it didn't come up | `vpnw run/trace/guard --tunnel NAME` |
 
 `Init` comes first for every type. `exit` and `identity` are reserved for later versions of vpnw; a manifest with one of them is refused with that message. A Tunnel plugin hands vpnw configs and says how long to keep each; the tunnel itself, like every byte of traffic, stays in the core.
@@ -76,6 +76,27 @@ A refusal shows up like any other denial, with the rule `plugin:no-domain` and y
 
 The SDK's hooks run as ordinary Go: test them with `go test` on your machine. Outside WebAssembly, `sdk.CallInit`, `CallEvent`, `CallDecide`, `CallTunnel` and `CallFinish` run your hooks with the JSON vpnw would send, `sdk.TestStdout`, `TestStderr`, `TestEmit` and `TestLog` catch what the plugin sends back, and `sdk.TestFile` and `TestFolder` stand in for its file and its folder.
 
+## Byte budgets
+
+A Guard that lets a connection through can also put a byte budget on it. Use `Decide` instead of `OnDecide`, and return a `Budget`:
+
+```go
+sdk.Register(sdk.Plugin{
+	Decide: func(r *sdk.Request) sdk.Decision {
+		if r.Host == "paste.example" {
+			return sdk.Decision{Budget: &sdk.Budget{Key: "paste", Up: 1 << 20, Reason: "1 MiB to the paste site"}}
+		}
+		return sdk.Decision{}
+	},
+})
+```
+
+Every connection the Guard gives the same `Key`, for the rest of the run, counts against one budget: `Up` bytes the program may send, `Down` bytes it may receive, 0 for no limit that way (but not both 0). vpnw does the counting, on the connection itself, so the plugin still never touches traffic and pays nothing per byte. A connection that would pass a budget is carried up to the limit and closed; the record gets a `connection.cut` event (`rule` `plugin:NAME`, `key`, `limit` `up` or `down`, `bytes`, and your `Reason`), then the connection's `connection.close`. A connection the Guard lets through once its budget is spent is refused, with the rule `plugin:NAME` and the reason `byte budget spent: …`. Connections sharing a budget at the same time never get past it together. The limits given last for a key are the ones that count, so a Guard can raise or lower a budget as the run goes. `Key` is 1 to 128 printable characters; one Guard may keep at most 100,000 budgets in a run, and a connection that would make one more is refused. A budget vpnw can't use (an empty key, a negative limit) stops the plugin, so a Guard never lets a connection through without the budget it meant to put on it.
+
+The built-in `budget` plugin is a Guard built this way; its source is in [plugins/budget](../plugins/budget). `sdk.CallDecision` runs `Decide` in a test and returns the whole decision.
+
+A plugin built with this SDK imports the `meter` host call, which vpnw 0.9.0 and later have; older vpnw refuse such a plugin when they load it.
+
 ## A Tunnel in Go
 
 A Tunnel that hands over two configs from its folder, in turn, each for an hour:
@@ -126,7 +147,7 @@ A Tunnel decides where a run's traffic goes, and users are told to choose one as
 
 | Key | Required | Value |
 |---|---|---|
-| `name` | yes | lower-case letters, digits and dashes, starting with a letter, at most 40. `trace`, `learn`, `ledger`, `ledger-verify` and `rotate` are taken by the built-in plugins |
+| `name` | yes | lower-case letters, digits and dashes, starting with a letter, at most 40. `trace`, `learn`, `ledger`, `ledger-verify`, `rotate` and `budget` are taken by the built-in plugins |
 | `version` | yes | `X.Y.Z`, optionally with a `-pre` or `+build` part |
 | `type` | yes | `observer`, `advisor`, `guard` or `tunnel` |
 | `abi` | yes | `1` |
@@ -213,7 +234,7 @@ For plugins in other languages: the module must be a WASI (`wasi_snapshot_previe
 | `vpnw_init` | `(ptr, len) -> i32` | the config, as JSON; 0 for success |
 | `vpnw_on_event` | `(ptr, len) -> i32` | one event, as JSON; 0 for success. Observers and Advisors |
 | `vpnw_finish` | `() -> i32` | the events are over; 0 for success. Advisors (and Observers, if exported) |
-| `vpnw_on_decide` | `(ptr, len) -> i32` | one request, as JSON; 0 lets it through, 1 refuses it. Guards |
+| `vpnw_on_decide` | `(ptr, len) -> i32` | one request, as JSON; 0 lets it through (with the budget given through `meter` first, if any), 1 refuses it. Guards |
 | `vpnw_tunnel` | `(ptr, len) -> i64` | a tunnel request, as JSON. 0: no config to give (with the reason through `reason` first); -1 (all bits set): failure; anything else is where the plugin's answer is in its memory, the address in the high 32 bits and the length in the low. The answer stays there until the next call. Tunnels |
 
 They take `i32`, and all but `vpnw_tunnel` return `i32`; vpnw refuses a module whose exports have other signatures. Any other result of an `i32` hook means failure: the plugin should have called `error` first with the message.
@@ -225,6 +246,7 @@ They take `i32`, and all but `vpnw_tunnel` return `i32`; vpnw refuses a module w
 | `log` | `(ptr, len)` | nothing |
 | `error` | `(ptr, len)` | nothing: the message for a failing hook |
 | `reason` | `(ptr, len)` | nothing: the reason for a refusal, called before `vpnw_on_decide` returns 1 |
+| `meter` | `(ptr, len)` | nothing: a byte budget for the connection being let through, called at most once before `vpnw_on_decide` returns 0. JSON `{"key":"paste","up":1048576,"down":0,"reason":"..."}`, at most 4 KiB, no other keys. Other types may import it; vpnw only reads it in a Guard's decision |
 | `write` | `(stream i32, ptr, len)` | `console`; stream 1 is standard output, 2 standard error |
 | `emit` | `(ptr, len)` | `events.emit`; JSON `{"type": "...", "fields": {...}}` |
 | `file_write` | `(ptr, len) -> i32` | `file.write`; appends, 0 for success, 1 for failure (no file, over 1 MiB, the file full, a write error) |

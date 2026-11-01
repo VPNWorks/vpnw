@@ -158,7 +158,7 @@ Design decisions:
 Steps:
 1. [x] core meters + `meter` host call + SDK `Budget`; tests
 2. [x] plugins/budget; tests; Trace line for connection.cut
-3. [ ] exit hot reload; tests
+3. [x] exit hot reload; tests
 4. [ ] agent-session recording (test/results/budget.md), README, docs,
        workflows on stable Go
 5. [ ] independent review, fixes, record-results.sh

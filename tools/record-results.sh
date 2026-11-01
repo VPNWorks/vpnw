@@ -183,7 +183,7 @@ fi
 say "Exit: the server end of a path"
 rm -f "$OUT/exit.md"
 ex=0
-VPNW_EXIT_OUT="$PWD/$OUT/exit.md" go test -count=1 -run 'TestExit(FixedAddresses|TamperedClient|AgreesWithClient|Failover|RefusesBadClients|ServeChecks|Plugins|OwnMachine)$' -v ./test/integration/ >"$OUT/exit.log" 2>&1 || ex=$?
+VPNW_EXIT_OUT="$PWD/$OUT/exit.md" go test -count=1 -run 'TestExit(FixedAddresses|TamperedClient|AgreesWithClient|Failover|RefusesBadClients|ServeChecks|Plugins|OwnMachine|Reload)$' -v ./test/integration/ >"$OUT/exit.log" 2>&1 || ex=$?
 grep -E '^(---|ok|FAIL)' "$OUT/exit.log" | tee "$OUT/exit.txt"; rm -f "$OUT/exit.log"
 if [ ! -s "$OUT/exit.md" ] || ! grep -qE '\| (passed|FAILED) \|' "$OUT/exit.md"; then
   echo "Exit's tests didn't run: they need a sealed run (Linux with user namespaces)" | tee "$OUT/exit.md"
@@ -199,6 +199,18 @@ if [ "$sd" -ne 0 ] || [ -z "$same" ]; then
   echo "the comparison of the two ends FAILED (go test exit $sd)" | tee -a "$OUT/exit.md"
 else
   echo "$same, by a run's broker and by an exit, given the same policy and the same DNS answers (TestSameDecisionAtBothEnds)" | tee -a "$OUT/exit.md"
+fi
+
+say "Budget: an agent session cut off at its byte budget"
+rm -f "$OUT/budget.md"
+bud=0
+VPNW_BUDGET_OUT="$PWD/$OUT/budget.md" go test -count=1 -run 'TestBudgetAgentSession$' -v ./test/integration/ >"$OUT/budget.log" 2>&1 || bud=$?
+grep -E '^(---|ok|FAIL)' "$OUT/budget.log" | tee "$OUT/budget.txt"; rm -f "$OUT/budget.log"
+if [ ! -s "$OUT/budget.md" ] || ! grep -qE '\| (passed|FAILED) \|' "$OUT/budget.md"; then
+  echo "The budget session didn't run: it needs a sealed run (Linux with user namespaces)" | tee "$OUT/budget.md"
+else
+  cat "$OUT/budget.md"
+  echo "$(grep -c '| passed |' "$OUT/budget.md") of $(grep -cE '\| (passed|FAILED) \|' "$OUT/budget.md") steps passed$([ "$bud" -ne 0 ] && echo "; go test FAILED (exit $bud)")" | tee -a "$OUT/budget.md"
 fi
 
 say "bypass matrix"

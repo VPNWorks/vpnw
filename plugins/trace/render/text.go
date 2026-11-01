@@ -271,7 +271,7 @@ func (t *Text) render(e *events.Event) string {
 		if e.Str("limit") == "down" {
 			what = "received"
 		}
-		line := fmt.Sprintf("%-4s   %s  %s  %s %s, the budget", id, t.c(red+bold, "CUT  "), t.hosts[e.Conn], what, events.HumanBytes(e.Int("bytes")))
+		line := fmt.Sprintf("%-4s   %s  %s  %s %s, the budget", id, t.c(red+bold, "CUT  "), t.hosts[e.Conn], what, events.BudgetBytes(e.Int("bytes")))
 		if r := e.Str("reason"); r != "" {
 			line += t.c(dim, "  "+r)
 		}

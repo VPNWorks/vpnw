@@ -243,11 +243,3 @@ func TestMeterLimitPerGuard(t *testing.T) {
 		t.Fatalf("deny %+v", d)
 	}
 }
-
-func TestFormatBytes(t *testing.T) {
-	for n, want := range map[int64]string{0: "0 B", 999: "999 B", 1000: "1 KB", 1500: "1.5 KB", 10_000_000: "10 MB", 1_250_000_000: "1.2 GB"} {
-		if got := formatBytes(n); got != want {
-			t.Errorf("%d: %q, want %q", n, got, want)
-		}
-	}
-}

@@ -159,7 +159,35 @@ Every connection is decided in the same order:
 
 A name is looked up only when an address could change the answer. A name that's denied, or simply not allowed, is never looked up, because a DNS query can carry data out too. If a name resolves to several addresses, all must pass.
 
-Guard plugins come after the policy: they see only connections the policy allowed, and can only refuse them.
+Guard plugins come after the policy: they see only connections the policy allowed, and can only refuse them, or put a byte budget on them (see [Budget](#budget)).
+
+## Budget
+
+The built-in Budget plugin is a Guard: it lets a program reach only the hosts on its list, each with a budget of bytes sent, bytes received and connections.
+
+```
+vpnw guard --policy agent.toml --plugin budget \
+  --set budget.allow='api.model.example up=2MB; *.npmjs.org down=500MB; github.com up=10MB requests=200' \
+  -- ./my-agent
+```
+
+| Setting | Value |
+|---|---|
+| `budget.allow` | entries separated by `;`. Each starts with a host (`api.github.com`), a pattern for the names under a domain (`*.npmjs.org`, not `npmjs.org` itself), an IP address, or `*` for any host, and may go on with `up=SIZE`, `down=SIZE` and `requests=N` |
+| `budget.up` | bytes the program may send, for entries that don't say |
+| `budget.down` | bytes it may receive, likewise |
+| `budget.requests` | connections it may open, likewise |
+
+A size is a number with `B`, `KB`, `MB`, `GB`, `TB` (powers of 1000) or `KiB`, `MiB`, `GiB`, `TiB` (powers of 1024); `0` or `none` is no limit, so an entry can lift a default. Budgets last for the run (at an exit, for as long as the exit serves).
+
+- A host on no entry is refused: `HOST is not on the budget allowlist`. A host matches its own entry first, then the longest pattern above it, then `*`.
+- The names under a pattern share its budget, so a program can't get a fresh budget from each made-up subdomain. Under `*`, each host has its own.
+- `requests` counts connections Budget lets through; the one past the budget is refused (`request budget spent`). An HTTP client that keeps a connection open sends many requests over one.
+- Bytes are counted by vpnw, on the connection, both ways: what the program sends (`up`) and what it receives (`down`), TLS and HTTP headers included. A connection that would pass a budget is carried up to it, then closed, with a `connection.cut` event before its `connection.close`; a connection asked for once a budget is spent is refused (`byte budget spent`). Connections sharing a budget at the same time never get past it together.
+- At an exit, each client has budgets of its own.
+- A connection that has no byte budget keeps the kernel's fast copy; one that has a budget is copied through vpnw.
+
+Any Guard can put budgets on connections the same way; see [docs/plugins.md](plugins.md#byte-budgets).
 
 ## Events
 
@@ -177,11 +205,13 @@ One JSON object per line, schema version 1. Every event has `v`, `ts`, `type` an
 | `path.switch` | `from`, `to`, `error`, `ms` |
 | `connection.open` | `ip` or `host`, `exit`, `ms`; `tunnel`, the config whose tunnel carried it, with `--tunnel`; at an exit, `source`, and `refused` when the path refused some of the name's addresses |
 | `connection.close` | `bytes_up`, `bytes_down`, `ms` |
+| `connection.cut` | a Guard's byte budget ran out and vpnw closed the connection: `rule` (`plugin:NAME`), `key` (the budget's name), `limit` (`up` or `down`), `bytes` (the budget), `reason` (what the Guard said the budget is). Its `connection.close` follows |
 | `connection.error` | `error`, `exit`, `tunnel`, and `refused` as for `connection.open` |
 | `plugin.error` | `plugin`, `type`, `error` |
 | `auth.deny` | at an exit: `peer`, `proto`, `reason`, and `host` or `ip` and `port` when the request named them |
 | `tunnel.switch` | with `--tunnel`: new connections moved to another config's tunnel. `from`, `to`, `why` (`due` or `failed`), `error` (why the one left failed), `ms` (to bring the new one up), `peer`; `again` when vpnw moved back to a rotated-out tunnel still up, with `ms` 0 |
 | `tunnel.error` | with `--tunnel`: `config` and `error` for a config refused or whose tunnel didn't come up during the run; `error` alone when the one in use stays, because no other config came up or because the plugin handed back the one that stopped answering |
+| `exit.reload` | at an exit: its file was read again. `added`, `removed`, `changed` (client names), `closed` (connections of removed clients closed), `restart` (settings changed that need a restart: `name`, `listen`, `cert`, `key`), `warnings`; or `error` when the new file was refused and the clients stayed as they were |
 | `tunnel.close` | with `--tunnel`: a rotated-out tunnel closed. `config`; `why`: `drained` (after its last connection), `limit` (more than 4 would have been winding down) or `replaced` (a new tunnel with its key and peer came up, the config named in `by`); `cut`, the connections still open closed with it |
 | `process.exit` | `code`, `signal`, `ms` |
 | `run.end` | `connections`, `opened`, `allowed`, `denied`, `failed`, `bytes_up`, `bytes_down`, `code` |
@@ -315,9 +345,18 @@ Events of schema version 1, the same types as a run's. Each connection's first e
 
 Plugins run at an exit as they do in a run. Observers see its record (`--plugin ledger` seals it), and Guard plugins are asked about every connection a client's policy allowed, with the client's name in the request. A ledger file grows to at most 1 GiB, about half a million connections at an exit; each start of the exit begins a new one.
 
+### Changing clients while the exit serves
+
+`vpnw exit serve` looks at its file, and at the policy files its clients name, every 2 seconds, by their contents. When one has changed it reads the file again, whole, and checks it as at start, source addresses included:
+
+- If the new file is refused (a mistake in it, a source address this machine doesn't have, a file it can't read), the clients stay as they were, and `exit.reload` records the error. With `--quiet`, the error is printed too.
+- Otherwise the new clients take over at once. A client added can connect. A client taken out, or given a new token, is refused from then on, and its open connections are closed. A client whose policy, address or pool changed keeps its open connections; its new requests are decided by the new file.
+- The exit's `name`, `listen`, `cert` and `key` stay as they were at start; `exit.reload` lists them under `restart` when they changed. Restart the exit to change them.
+
+A new token takes effect within 2 seconds; editing the file is the way to take a client's access away.
+
 ### What an exit doesn't do yet
 
-- It reads its file when it starts. To change its clients, restart it.
 - A client's policy file at the exit is the exit's own copy. When the client's policy changes, copy it to the exit too.
 - A client can't ask for a particular address of its pool.
 - Over SOCKS5 a refusal carries no reason. Over HTTP CONNECT it does, and vpnw shows it.
