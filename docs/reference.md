@@ -228,14 +228,16 @@ vpnw guard --plugin ledger --policy agent.toml -- ./my-agent
 vpnw verify ~/.local/state/vpnw/ledger/r-3f9a1c.ledger
 ```
 
-The ledger is JSON Lines. Each event is written as it arrives, exactly as vpnw sent it, with a SHA-256 hash that covers the line before it, its number and the event. Every 100 entries (`--set ledger.every=N`) and at the end, Ledger writes a checkpoint; at the end it writes an end line, then prints the ledger's path and its last hash. Each checkpoint is also copied into the run's trace as a `plugin.ledger.checkpoint` event (fields `cp`, `n`, `h`, and `end` on the last).
+The ledger is JSON Lines. Each event is written as it arrives, exactly as vpnw sent it, with a SHA-256 hash that covers the line before it, its number and the event. Every 100 entries (`--set ledger.every=N`) and at the end, Ledger writes a checkpoint; at the end it writes an end line, then prints the ledger's path and its last hash. vpnw signs each checkpoint and the end line with this machine's key (see [Signed ledgers](#signed-ledgers)). Each checkpoint is also copied into the run's trace as a `plugin.ledger.checkpoint` event (fields `cp`, `n`, `h`, `sig`, and `end` on the last).
 
 ```
-{"vpnw-ledger":1,"run":"r-3f9a1c"}
+{"vpnw-ledger":1,"run":"r-3f9a1c","key":"vpnw-ed25519:J+BD…"}
 {"n":1,"ev":{"v":1,"ts":"…","type":"run.start",…},"h":"7e3b…"}
 {"n":7,"lost":12,"h":"…"}
 {"cp":1,"n":100,"h":"…"}
+{"sig":1,"s":"<base64>"}
 {"end":143,"cp":2,"h":"…"}
+{"sig":"end","s":"<base64>"}
 ```
 
 ```
@@ -259,7 +261,29 @@ h = SHA-256(h' || 0x03 || N as 8 bytes || K as 8 bytes)        the end: N entrie
 
 `lost` entries mark events that never reached Ledger because it fell behind the run. They are part of the chain and reported, and don't make a ledger changed.
 
-What a ledger can't show alone: anyone who can write the file and knows the format can write a new one from scratch. That includes the program being watched, while it runs: vpnw limits the network, not files, and the program runs as your user. Keep the last hash Ledger prints, or the trace with its checkpoint copies, somewhere neither the program nor the person holding the ledger can change.
+### Signed ledgers
+
+vpnw holds a signing key, one per machine and user, and signs each of Ledger's checkpoints and its end line with it. Ledger never sees the key: it asks vpnw for a signature through the `sign` permission, and vpnw signs only in Ledger's name and for the run it is part of. So a ledger can be checked by anyone with the public key, and a ledger written again after a checkpoint, hashes and all, no longer matches that checkpoint's signature.
+
+```
+vpnw key                                      # where the key is, and its public key
+vpnw verify r-3f9a1c.ledger                   # on this machine: checked against its own key
+vpnw verify r-3f9a1c.ledger --key vpnw-ed25519:J+BD…    # anywhere else
+```
+
+The key is made the first time Ledger runs (`~/.config/vpnw/signing.key`, readable by you alone), and vpnw prints its public key then. `--sign-key FILE` uses another one, in `run`, `trace`, `guard` and `exit serve`; `--set ledger.sign=false` writes an unsigned ledger, as 0.9 did.
+
+What is signed is the statement `cp K N <hash>` for checkpoint K after entry N, and `end N K <hash>` for the end, as Ed25519 over `"vpnw-signed v1\nledger\n" || run || "\n" || statement`. The header names the key, and the header is in the chain. Signature lines aren't links of the chain.
+
+| `vpnw verify` | Finds |
+|---|---|
+| with `--key KEY` (a public key, or a file holding one or a signing key) | the ledger must be signed by that key: a ledger not signed, signed by another key, a checkpoint or the end without its signature, or one that doesn't match it, is `CHANGED`, naming the line |
+| on the machine that ran it, without `--key` | the same, checked against this machine's key. A ledger signed by another key is reported, not failed: it may come from another machine |
+| elsewhere, without `--key` | the signatures are checked against the key the ledger names, and the report says that key wasn't checked against one you trust |
+
+A run killed between a checkpoint and its signature is `cut short`, and the report says which checkpoint was never signed: the entries after the last signed checkpoint are covered by the hash chain alone.
+
+What a signed ledger can't show: the key is a file of yours, and the program being watched runs as your user. vpnw limits the network, not files, so while it runs the program could read the key and sign a ledger of its own. Keep the key where the program can't read it (`--sign-key` on a path its user can't reach, or vpnw run as another user), or keep the last hash Ledger prints, or the trace with its checkpoint copies, somewhere the program can't change.
 
 ## Exit
 
@@ -368,6 +392,7 @@ A new token takes effect within 2 seconds; editing the file is the way to take a
 |---|---|
 | the last trace (for `learn`) | `~/.local/state/vpnw/last.jsonl`, or under `$XDG_STATE_HOME` |
 | a plugin's file (`file.write`), unless `--plugin-file` says otherwise | `~/.local/state/vpnw/NAME/RUN.NAME`, as `ledger/r-3f9a1c.ledger`; created new, readable by you alone |
+| the signing key, unless `--sign-key` says otherwise | `~/.config/vpnw/signing.key`, or under `$XDG_CONFIG_HOME`; readable by you alone |
 | a plugin's folder (`folder.read`), unless `--plugin-folder` says otherwise | `~/.config/vpnw/NAME/`, as `rotate/` for the configs rotate hands over; or under `$XDG_CONFIG_HOME` |
 | installed plugins | `~/.local/share/vpnw/plugins/NAME/`, or under `$XDG_DATA_HOME` |
 | trusted signing keys | `~/.config/vpnw/trusted-keys`, or under `$XDG_CONFIG_HOME` |

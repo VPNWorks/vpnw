@@ -163,6 +163,7 @@ Unknown keys and tables are errors, never silently skipped.
 | `events.emit` | add its own events to the run's record (`sdk.Emit`) |
 | `file.write` | append to one file that vpnw opens for it (`sdk.FileWrite`, `sdk.FileSync`) |
 | `folder.read` | read the files in one folder that vpnw opens for it (`sdk.FolderList`, `sdk.FolderRead`) |
+| `sign` | have vpnw sign short statements with this machine's key, in the plugin's own name (`sdk.Sign`) |
 
 ### file.write
 
@@ -171,6 +172,10 @@ vpnw creates the file new when the plugin starts in `run`, `trace`, `guard` or `
 ### folder.read
 
 vpnw opens the folder when the plugin starts in `run`, `trace`, `guard` or `exit serve`: `--plugin-folder NAME=PATH`, or by default `~/.config/vpnw/NAME`, which must exist. `Config.Folder` is its path. `sdk.FolderList` names the regular files directly in it, in name order, with their sizes; `sdk.FolderRead` reads one of them, of at most 1 MiB. A name is one entry of the folder: no separators, no `.` or `..`. A subfolder, a named pipe or a device isn't listed or read. A link is followed when it leads to a file inside the folder, in a subfolder of it too, and never out of it, so nothing outside the folder can be reached. A folder with more than 10,000 entries, files, subfolders and anything else counted, can't be listed. In `vpnw advise` no folder is opened, and both fail; a failure's reason is in vpnw's plugin log (`-v`).
+
+### sign
+
+vpnw holds a signing key (`vpnw key` shows it; `--sign-key FILE` uses another). A plugin with `sign` never sees the key: `sdk.Sign(statement)` has vpnw return an Ed25519 signature over `"vpnw-signed v1\n" || plugin name || "\n" || run || "\n" || statement`. The statement is printable ASCII, at most 1 KiB. Because vpnw adds the plugin's name and the run, a plugin can only sign in its own name, for the run it is part of; a signature checks out with `Config.SignKey`, the public key, given in `Init`. Signing works in `run`, `trace`, `guard` and `exit serve`, where vpnw makes the key on first use; in `vpnw advise` there is no key, and `sdk.Sign` fails. Ledger signs its checkpoints this way.
 
 Logging (`sdk.Log`, shown with `--verbose`), reporting an error, and giving the reason for a refusal need no permission.
 
@@ -253,14 +258,15 @@ They take `i32`, and all but `vpnw_tunnel` return `i32`; vpnw refuses a module w
 | `file_sync` | `() -> i32` | `file.write`; flushes the file to disk, 0 for success |
 | `folder_list` | `(ptr, cap) -> i32` | `folder.read`; the listing as JSON, `[{"name":"a.conf","size":412}]`, written into the buffer when it fits in `cap` bytes. Returns its length either way, or -1 for failure |
 | `folder_read` | `(name ptr, name len, ptr, cap) -> i32` | `folder.read`; the file, written into the buffer when it fits. Returns its length either way, or -1 for failure |
+| `sign` | `(ptr, len, out ptr) -> i32` | `sign`; the statement at ptr signed, the 64-byte signature written at out. 0 for success, 1 for failure (no key, a statement that isn't printable ASCII or is over 1 KiB) |
 
 ### Config (`vpnw_init`)
 
 ```json
-{"plugin":"no-domain","command":"guard","settings":{"domain":"tracker.example"},"color":false,"tz_offset":10800,"tz_name":"IDT","run":"r-3f9a1c","file":"","folder":""}
+{"plugin":"no-domain","command":"guard","settings":{"domain":"tracker.example"},"color":false,"tz_offset":10800,"tz_name":"IDT","run":"r-3f9a1c","file":"","folder":"","sign_key":""}
 ```
 
-`command` is `run`, `trace`, `guard`, `advise`, or `exit` at an exit. `run` is the run's identifier (empty in `advise`; at an exit, the identifier of the exit's record, as `x-4b1e07`); `file` is the path of the plugin's file, or empty; `folder` the path of its folder, or empty.
+`command` is `run`, `trace`, `guard`, `advise`, or `exit` at an exit. `run` is the run's identifier (empty in `advise`; at an exit, the identifier of the exit's record, as `x-4b1e07`); `file` is the path of the plugin's file, or empty; `folder` the path of its folder, or empty; `sign_key` the public key vpnw signs with for it (`sign`), or empty.
 
 ### Lines (`input = "lines"`)
 

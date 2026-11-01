@@ -34,7 +34,7 @@ Plugins do the rest. They're WebAssembly modules that run in a sandbox inside vp
 
 | Type | What it does | Built in |
 |---|---|---|
-| **Observer** | Watches a run's events as they happen | `trace`: the console output of run, trace and guard. `ledger`: seals the run's record |
+| **Observer** | Watches a run's events as they happen | `trace`: the console output of run, trace and guard. `ledger`: seals the run's record, signed by vpnw |
 | **Advisor** | Reads recorded traces or files and writes advice | `learn`: turns a trace into a draft policy. `ledger-verify`: checks a sealed record |
 | **Guard** | Can refuse a connection the policy allowed, or put a byte budget on it | `budget`: an allowlist of hosts, each with byte and connection budgets |
 | **Tunnel** | Hands vpnw WireGuard configs, and says when to move to the next | `rotate`: rotates through the configs in a folder |
@@ -64,9 +64,18 @@ vpnw guard --plugin ledger --policy agent.toml -- ./my-agent
 vpnw verify ~/.local/state/vpnw/ledger/r-3f9a1c.ledger
 ```
 
-`vpnw verify` names the line where something was changed, removed, added or moved. A run that was killed leaves a ledger that checks out up to where it stops, and verify says it was cut short. Ledger copies each checkpoint into the run's trace and prints the last hash at the end; kept somewhere else, either one also catches a ledger written again from scratch. The format is in [the reference](docs/reference.md#ledger).
+`vpnw verify` names the line where something was changed, removed, added or moved. A run that was killed leaves a ledger that checks out up to where it stops, and verify says it was cut short.
 
-Ledger is a plugin like any other. It writes its file through the `file.write` permission, which vpnw offers every plugin: one new file, opened by vpnw, that the plugin can only add to.
+vpnw signs each checkpoint and the end of the ledger with this machine's key, which Ledger never sees. Anyone with the public key can check a ledger, and a ledger written again after a checkpoint, its hashes recomputed and all, fails at that checkpoint:
+
+```
+vpnw key                                                  # this machine's public key
+vpnw verify r-3f9a1c.ledger --key vpnw-ed25519:J+BD…      # on any machine
+```
+
+The [signed ledger tests](test/results/ledger-signed.md) rewrite a real run's ledger after its first checkpoint, strip its signatures, sign it with another key and write it unsigned: verify catches each one. The key is a file of yours, and the watched program runs as your user, so keep the key where the program can't read it if the program itself is what you're guarding against. The format is in [the reference](docs/reference.md#ledger).
+
+Ledger is a plugin like any other. It writes its file through the `file.write` permission, which vpnw offers every plugin: one new file, opened by vpnw, that the plugin can only add to. It gets its signatures through `sign`, which any plugin can ask for too: vpnw signs only in the plugin's own name, for its own run.
 
 ## WireGuard, without root
 
