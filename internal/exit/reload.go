@@ -45,6 +45,7 @@ type Reloader struct {
 	cfg     *Config // the file as last taken in
 	clients *Clients
 	sum     [32]byte // of the files as last read
+	watch   []string // the files sum covers
 	// gens holds every broker.Client each name has had since it was last
 	// taken out or given a new token: a request or a connection may still
 	// hold an older one, and taking the client out must reach them all.
@@ -56,7 +57,8 @@ type Reloader struct {
 // NewReloader watches the exit that started with cfg and clients.
 func NewReloader(cfg *Config, clients *Clients, live *Live, revoke func(...*broker.Client) int) *Reloader {
 	r := &Reloader{Live: live, Revoke: revoke, start: cfg, cfg: cfg, clients: clients, gens: map[string][]*broker.Client{}}
-	r.sum = newSnapshot().sum(watched(cfg))
+	r.watch = watched(cfg)
+	r.sum = newSnapshot().sum(r.watch)
 	for _, bc := range clients.list {
 		r.gens[bc.Name] = append(r.gens[bc.Name], bc)
 	}
@@ -119,6 +121,29 @@ func (s *snapshot) sum(names []string) [32]byte {
 	var out [32]byte
 	copy(out[:], h.Sum(nil))
 	return out
+}
+
+// names is first, then every other file the snapshot read or tried to,
+// in name order.
+func (s *snapshot) names(first []string) []string {
+	out := append([]string{}, first...)
+	have := map[string]bool{}
+	for _, n := range first {
+		have[n] = true
+	}
+	var more []string
+	for n := range s.data {
+		if !have[n] {
+			more = append(more, n)
+		}
+	}
+	for n := range s.errs {
+		if !have[n] {
+			more = append(more, n)
+		}
+	}
+	sort.Strings(more)
+	return append(out, more...)
 }
 
 func newSnapshot() *snapshot {
@@ -197,21 +222,28 @@ func (r *Reloader) Check() *Change {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	snap := newSnapshot()
-	sum := snap.sum(watched(r.cfg))
+	sum := snap.sum(r.watch)
 	if sum == r.sum {
 		return nil
 	}
-	// Whatever comes of it, these bytes have been looked at.
-	r.sum = sum
-	cfg, err := snap.parse(r.start.File)
-	if err != nil {
+	// Whatever comes of it, these bytes have been looked at. A refused file
+	// may name policy files that don't exist yet: watch those too, so
+	// writing one brings the reload in.
+	refused := func(err error) *Change {
+		r.watch = snap.names(r.watch)
+		r.sum = snap.sum(r.watch)
 		return &Change{Err: err}
 	}
+	cfg, err := snap.parse(r.start.File)
+	if err != nil {
+		return refused(err)
+	}
 	if err := cfg.CheckSources(); err != nil {
-		return &Change{Err: fmt.Errorf("%v; each client's connections leave from its own address, so the exit needs them all", err)}
+		return refused(fmt.Errorf("%v; each client's connections leave from its own address, so the exit needs them all", err))
 	}
 	// The policy files may be other ones now: watch the new set, as read.
-	r.sum = snap.sum(watched(cfg))
+	r.watch = watched(cfg)
+	r.sum = snap.sum(r.watch)
 	ch := &Change{}
 	for _, w := range cfg.Warnings {
 		if !r.warned[w] {

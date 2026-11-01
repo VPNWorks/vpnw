@@ -272,7 +272,7 @@ An Advisor with `input = "lines"` gets, through `vpnw_on_event`, one JSON object
 {"run":"r-3f9a1c","conn":17,"pid":4242,"path":"office","host":"api.github.com","port":443,"proto":"http-connect"}
 ```
 
-`host` is empty when the program asked for an address, which is then in `ip`. `proto` is `http-connect`, `http` or `socks5`. A Guard can only refuse a connection, or put a byte budget on it. It is asked only about connections the policy allows; when the policy needs the name's addresses to decide, the Guard is asked first, before the name is looked up, and the policy decides after it, so a name a Guard refuses never reaches DNS.
+`host` is empty when the program asked for an address, which is then in `ip`. `proto` is `http-connect`, `http` or `socks5`. A Guard can only refuse a connection, or put a byte budget on it, and it decides only connections the policy allows. When the policy needs the name's addresses to decide, vpnw first asks the Guard with `"stage":"lookup"`, before the name is looked up, so a name a Guard refuses never reaches DNS. At that stage a Guard should refuse what it would refuse anyway and count nothing: a budget given there is not taken. If the policy then allows the connection, the Guard is asked again, without `stage`, for its decision. A Guard that ignores `stage` is simply asked twice.
 
 At an exit, the request also has `client`, the exit's client the connection came from, and the policy that allowed it is that client's: `{"run":"x-4b1e07","conn":3,"path":"direct","host":"api.partner.example","port":443,"proto":"http-connect","client":"agent-1"}`. A Guard at an exit refuses for every client unless it reads `client`.
 

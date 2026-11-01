@@ -96,6 +96,12 @@ type Request struct {
 	// Client is the exit's client the connection came from, when the Guard
 	// runs at an exit (vpnw exit serve); "" in a run.
 	Client string `json:"client,omitempty"`
+	// Stage is "lookup" when vpnw asks before the policy looks the name up,
+	// so a name the Guard refuses never reaches DNS. Refuse there if you
+	// would refuse the connection at all, and count nothing: a budget given
+	// at this stage is not taken, and vpnw asks again, with Stage empty,
+	// only if the policy allows the connection.
+	Stage string `json:"stage,omitempty"`
 }
 
 // Config is what vpnw tells a plugin when it starts.

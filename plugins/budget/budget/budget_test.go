@@ -192,3 +192,26 @@ func TestCountersPerClient(t *testing.T) {
 		t.Fatalf("other: %+v", d)
 	}
 }
+
+// Asked before the lookup, Budget refuses what it would refuse and counts
+// nothing.
+func TestLookupStage(t *testing.T) {
+	r := mustParse(t, map[string]string{"allow": "a.example up=1KB requests=1"})
+	q := req("b.example")
+	q.Stage = "lookup"
+	if d := r.Decide(q); !d.Deny {
+		t.Fatalf("unlisted at lookup: %+v", d)
+	}
+	q.Host = "a.example"
+	for i := 0; i < 3; i++ {
+		if d := r.Decide(q); d.Deny || d.Budget != nil {
+			t.Fatalf("listed at lookup: %+v", d)
+		}
+	}
+	if d := r.Decide(req("a.example")); d.Deny || d.Budget == nil {
+		t.Fatalf("the decision: %+v", d)
+	}
+	if d := r.Decide(q); !d.Deny {
+		t.Fatal("at lookup once the requests are spent")
+	}
+}

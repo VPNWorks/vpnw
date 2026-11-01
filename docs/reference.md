@@ -159,7 +159,7 @@ Every connection is decided in the same order:
 
 A name is looked up only when an address could change the answer. A name that's denied, or simply not allowed, is never looked up, because a DNS query can carry data out too. If a name resolves to several addresses, all must pass.
 
-Guard plugins come after the policy: they decide only connections the policy allows, and can only refuse them, or put a byte budget on them (see [Budget](#budget)). When the policy needs a name's addresses (`deny_private`, or rules on addresses), the Guards are asked before the lookup, so a name a Guard refuses is never looked up.
+Guard plugins come after the policy: they decide only connections the policy allows, and can only refuse them, or put a byte budget on them (see [Budget](#budget)). When the policy needs a name's addresses (`deny_private`, or rules on addresses), the Guards are first asked whether they would refuse the name, before it's looked up, so a name a Guard refuses never reaches DNS. That first question (`stage` `lookup` in the request) can only refuse: nothing a Guard says there counts as a decision, and Budget counts nothing there.
 
 ## Budget
 
@@ -351,7 +351,7 @@ Plugins run at an exit as they do in a run. Observers see its record (`--plugin 
 
 - If the new file is refused (a mistake in it, a source address this machine doesn't have, a file it can't read), the clients stay as they were, and `exit.reload` records the error. With `--quiet`, the error is printed too.
 - Otherwise the new clients take over at once. A client added can connect. A client taken out, or given a new token, is refused from then on, a request it sent just before included, and its open connections are closed. A client whose policy, address or pool changed keeps its open connections; requests it sends after the reload are decided by the new file.
-- A source address that isn't on the machine yet refuses the reload; once it is there, save the file again.
+- A source address that isn't on the machine yet refuses the reload; once it is there, save the file again. A policy file the file names that doesn't exist yet refuses it too, and is watched: the reload comes in once the policy file is written.
 - The exit's `name`, `listen`, `cert` and `key` stay as they were at start; `exit.reload` lists them under `restart` when they changed. Restart the exit to change them.
 
 A new token takes effect within 2 seconds; editing the file is the way to take a client's access away.

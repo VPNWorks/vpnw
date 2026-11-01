@@ -298,6 +298,13 @@ func (r *Rules) Decide(q *sdk.Request) sdk.Decision {
 		return sdk.Decision{Deny: true, Reason: target(q) + " is not on the budget allowlist"}
 	}
 	k := key(e, q)
+	if q.Stage == "lookup" {
+		// Asked before the name is looked up: refuse only, count nothing.
+		if e.Requests > 0 && r.count[k] >= e.Requests {
+			return sdk.Decision{Deny: true, Reason: fmt.Sprintf("request budget spent: %d connections (%s)", e.Requests, describe(e, q))}
+		}
+		return sdk.Decision{}
+	}
 	if e.Requests > 0 {
 		n, ok := r.count[k]
 		if !ok && r.perClient[q.Client] >= MaxCounters {

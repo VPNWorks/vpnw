@@ -79,6 +79,11 @@ type GuardRequest struct {
 	Proto string `json:"proto"`
 	// Client is the exit's client the connection came from, at an exit.
 	Client string `json:"client,omitempty"`
+	// Stage is "lookup" when the Guard is asked before the policy looks the
+	// name up: it may refuse, and anything else it says is not taken (no
+	// budget, and it should count nothing). The policy decides next, and
+	// the Guard is asked again, with Stage empty, only if the policy allows.
+	Stage string `json:"stage,omitempty"`
 }
 
 // Broker decides and carries connections for one run.
@@ -489,13 +494,13 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		return o
 	}
 
-	// The Guards are asked about a connection the policy allows. When the
-	// policy needs a name's addresses, they are asked before the lookup, so a
-	// name a Guard refuses is never looked up: a DNS query can carry data
-	// out too.
+	// The Guards decide a connection the policy allows. When the policy
+	// needs a name's addresses, they are first asked, at the "lookup" stage,
+	// whether they would refuse it, so a name a Guard refuses is never looked
+	// up: a DNS query can carry data out too. That stage only refuses.
 	var metr *metered
-	askGuards := func() *outcome {
-		req := GuardRequest{Run: b.runID(), Conn: id, PID: int(b.pid.Load()), Path: pathID, Host: host, Port: port, Proto: proto}
+	askGuards := func(stage string) *outcome {
+		req := GuardRequest{Run: b.runID(), Conn: id, PID: int(b.pid.Load()), Path: pathID, Host: host, Port: port, Proto: proto, Stage: stage}
 		if host == "" {
 			req.IP = ip.String()
 		}
@@ -505,7 +510,7 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		for _, g := range b.Guards {
 			deny, reason, m, err := g.Check(ctx, req)
 			if err == nil && !deny {
-				if m == nil {
+				if m == nil || stage != "" {
 					continue
 				}
 				mt := b.meterFor(g.Name(), req.Client, m)
@@ -534,12 +539,10 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		}
 		return nil
 	}
-	guardsAsked := false
 	if pol != nil && len(b.Guards) > 0 && host != "" && pol.NeedsAddresses(t) {
-		if o := askGuards(); o != nil {
+		if o := askGuards("lookup"); o != nil {
 			return *o
 		}
-		guardsAsked = true
 	}
 	if pol != nil {
 		var d policy.Decision
@@ -562,8 +565,8 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		}
 		emit(events.PolicyAllow, df)
 	}
-	if !guardsAsked && len(b.Guards) > 0 {
-		if o := askGuards(); o != nil {
+	if len(b.Guards) > 0 {
+		if o := askGuards(""); o != nil {
 			return *o
 		}
 	}
