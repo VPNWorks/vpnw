@@ -1,2 +1,2 @@
---- PASS: TestBudgetAgentSession (1.21s)
-ok  	github.com/VPNWorks/vpnw/test/integration	2.204s
+--- PASS: TestBudgetAgentSession (1.38s)
+ok  	github.com/VPNWorks/vpnw/test/integration	2.450s

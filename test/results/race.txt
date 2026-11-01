@@ -1,22 +1,22 @@
 ?   	github.com/VPNWorks/vpnw/cmd/vpnw	[no test files]
-ok  	github.com/VPNWorks/vpnw/internal/broker	5.786s
-ok  	github.com/VPNWorks/vpnw/internal/config	1.021s
-ok  	github.com/VPNWorks/vpnw/internal/events	1.015s
-ok  	github.com/VPNWorks/vpnw/internal/exit	12.023s
-ok  	github.com/VPNWorks/vpnw/internal/path	54.214s
-ok  	github.com/VPNWorks/vpnw/internal/path/netstack	1.452s
+ok  	github.com/VPNWorks/vpnw/internal/broker	5.719s
+ok  	github.com/VPNWorks/vpnw/internal/config	1.024s
+ok  	github.com/VPNWorks/vpnw/internal/events	1.013s
+ok  	github.com/VPNWorks/vpnw/internal/exit	10.897s
+ok  	github.com/VPNWorks/vpnw/internal/path	54.660s
+ok  	github.com/VPNWorks/vpnw/internal/path/netstack	1.423s
 ?   	github.com/VPNWorks/vpnw/internal/path/wgtest	[no test files]
-ok  	github.com/VPNWorks/vpnw/internal/pluginhost	393.732s
-ok  	github.com/VPNWorks/vpnw/internal/policy	1.040s
-ok  	github.com/VPNWorks/vpnw/internal/process	1.016s
+ok  	github.com/VPNWorks/vpnw/internal/pluginhost	414.402s
+ok  	github.com/VPNWorks/vpnw/internal/policy	1.022s
+ok  	github.com/VPNWorks/vpnw/internal/process	1.012s
 ?   	github.com/VPNWorks/vpnw/internal/version	[no test files]
-ok  	github.com/VPNWorks/vpnw/plugins/budget/budget	1.399s
-ok  	github.com/VPNWorks/vpnw/plugins/builtin	1.059s
-ok  	github.com/VPNWorks/vpnw/plugins/learn/learn	1.019s
-ok  	github.com/VPNWorks/vpnw/plugins/ledger/chain	1.060s
-ok  	github.com/VPNWorks/vpnw/plugins/ledger/seal	1.021s
-ok  	github.com/VPNWorks/vpnw/plugins/ledgerverify/check	1.021s
-ok  	github.com/VPNWorks/vpnw/plugins/rotate/rotate	1.017s
-ok  	github.com/VPNWorks/vpnw/plugins/sdk	1.016s
-ok  	github.com/VPNWorks/vpnw/plugins/trace/render	1.028s
-ok  	github.com/VPNWorks/vpnw/test/integration	381.846s
+ok  	github.com/VPNWorks/vpnw/plugins/budget/budget	1.393s
+ok  	github.com/VPNWorks/vpnw/plugins/builtin	1.055s
+ok  	github.com/VPNWorks/vpnw/plugins/learn/learn	1.018s
+ok  	github.com/VPNWorks/vpnw/plugins/ledger/chain	1.131s
+ok  	github.com/VPNWorks/vpnw/plugins/ledger/seal	1.016s
+ok  	github.com/VPNWorks/vpnw/plugins/ledgerverify/check	1.017s
+ok  	github.com/VPNWorks/vpnw/plugins/rotate/rotate	1.018s
+ok  	github.com/VPNWorks/vpnw/plugins/sdk	1.013s
+ok  	github.com/VPNWorks/vpnw/plugins/trace/render	1.027s
+ok  	github.com/VPNWorks/vpnw/test/integration	384.599s

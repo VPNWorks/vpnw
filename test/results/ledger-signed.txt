@@ -1,0 +1,2 @@
+--- PASS: TestLedgerSigned (2.54s)
+ok  	github.com/VPNWorks/vpnw/test/integration	3.512s

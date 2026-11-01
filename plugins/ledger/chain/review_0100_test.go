@@ -126,10 +126,10 @@ func TestReview0100NonCanonicalKeyGiven(t *testing.T) {
 	i := strings.IndexByte(alpha, last)
 	b[len(b)-2] = alpha[i^1] // flip a padding bit
 	alt := string(b)
-	if !ValidKey(alt) {
-		t.Skip("not accepted by ValidKey")
-	}
-	if r := verifyKey(l, alt, "given"); r.Verdict == Changed {
-		t.Errorf("same key, other base64 spelling: CHANGED: %s", r.Problem)
+	// Fixed by refusing the other spelling: only the canonical one is a key.
+	if ValidKey(alt) {
+		if r := verifyKey(l, alt, "given"); r.Verdict == Changed {
+			t.Errorf("same key, other base64 spelling: CHANGED: %s", r.Problem)
+		}
 	}
 }

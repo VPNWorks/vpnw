@@ -1,12 +1,12 @@
 date: 2026-11-01
-commit: 519df51
+commit: 8015136
 kernel: Linux 7.0.0-1017-azure, x86_64, 4 CPUs
-runner: GitHub Actions ubuntu-latest, run 41280943355
+runner: GitHub Actions ubuntu-latest, run 41287711182
 
 | Way out | Inside the sandbox | Outside (control) | Result |
 |---|---|---|---|
 | IPv4 TCP to this machine's loopback (127.0.0.1) | nothing listening in the sandbox (ECONNREFUSED) | reached | blocked |
-| IPv4 TCP to this machine's own address (10.1.0.144) | no route (ENETUNREACH) | reached | blocked |
+| IPv4 TCP to this machine's own address (10.1.0.214) | no route (ENETUNREACH) | reached | blocked |
 | IPv4 TCP to a public address (1.1.1.1:443) | no route (ENETUNREACH) | reached | blocked |
 | IPv4 TCP to a private address (10.0.0.1:80) | no route (ENETUNREACH) | not needed | blocked |
 | IPv4 TCP to cloud metadata (169.254.169.254:80) | no route (ENETUNREACH) | not needed | blocked |

@@ -1,8 +1,8 @@
---- PASS: TestLabSilentPeer (28.14s)
---- PASS: TestLabPeerComesBack (81.47s)
---- PASS: TestLabLostHandshakes (35.81s)
---- PASS: TestLabImpostor (45.95s)
---- PASS: TestLabHostileDNS (12.17s)
---- PASS: TestLabSlowPath (6.09s)
---- PASS: TestLabSilentMidTransfer (10.08s)
-ok  	github.com/VPNWorks/vpnw/test/integration	220.738s
+--- PASS: TestLabSilentPeer (28.20s)
+--- PASS: TestLabPeerComesBack (81.60s)
+--- PASS: TestLabLostHandshakes (35.62s)
+--- PASS: TestLabImpostor (45.85s)
+--- PASS: TestLabHostileDNS (12.20s)
+--- PASS: TestLabSlowPath (6.25s)
+--- PASS: TestLabSilentMidTransfer (10.13s)
+ok  	github.com/VPNWorks/vpnw/test/integration	220.907s
