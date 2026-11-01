@@ -33,8 +33,10 @@ Read this first in a new session, and update it at the end of every release.
   (`vpnw exit`, in the core), 0.6.0 Lab, 0.5.0 Ledger and `file.write`,
   0.4.1 the IPv6 escape tests in CI, 0.4.0 WireGuard paths, 0.3.0 the core
   with plugins.
-- **Next:** the approved program is complete. Waiting for the owner to say
-  what comes next; nothing from "Later" starts without the owner.
+- **Next:** 0.9.0 (egress budgets for AI agents), approved by the owner on
+  November 1, 2026 as item 4, Phase A of softdev-plan.md in
+  photozeitgeist/jollyroger.biz. Plan below, under "0.9.0". Phase B
+  (signed ledger checkpoints, `vpnw verify`) waits for the owner's go.
 - **Tunnel plugins, what to keep in mind:**
   - Liveness counts only what WireGuard accepted: rx_bytes from IpcGet,
     polled each second (`Silent`), with the socket's arrival time as the
@@ -103,6 +105,64 @@ Read this first in a new session, and update it at the end of every release.
 - **Getting Go modules here:** proxy.golang.org may be unreachable; use
   `GOTOOLCHAIN=local GOPROXY=off GONOSUMDB='*' GOFLAGS=-mod=mod` with the
   module cache already in place. CI checks the sums.
+
+## 0.9.0: egress budgets (Phase A)
+
+What and why: an AI agent or a build script given network access can send
+anything anywhere. A domain allowlist with byte and request budgets per
+host, enforced by vpnw and recorded in the ledger, bounds what it can send
+out and to whom. Exits served to several clients need clients added without
+a restart.
+
+Design decisions:
+- Budgets are a Guard interface addition any Guard can use, not a back
+  door for the built-in: a new host call `meter(ptr, len)` (no permission,
+  Guards only), called before `vpnw_on_decide` returns 0, with
+  `{"key":"...","up":N,"down":N,"reason":"..."}`. The core keeps one meter
+  per (plugin, key) for the run (at an exit, for the exit's run); every
+  connection given that key adds its bytes to it. A connection that would
+  pass `up` or `down` is sent only up to the limit, then closed: a
+  `connection.cut` event (rule `plugin:NAME`, the reason, key, which limit,
+  bytes so far), then its `connection.close`. A connection asked for once a
+  meter is spent is refused (`policy.deny`, same rule). Only metered
+  connections leave the kernel copy path. Plugins still never carry traffic.
+- Built-in Guard `budget` (plugins/budget), settings only (no file, so no
+  folder that must exist):
+  `allow` = entries separated by `;`, each a host (`api.github.com`), a
+  subdomain pattern (`*.npmjs.org`), an IP, or `*` (any host), optionally
+  followed by `up=SIZE down=SIZE requests=N`; `up`, `down`, `requests`
+  settings are defaults for entries that set none. Sizes: B, KB, MB, GB
+  (1000s), KiB, MiB, GiB. A host on no entry is refused ("not on the
+  allowlist"). A pattern's hosts share one budget (so a wildcard can't be
+  used to mint budgets); `*` gives each host its own. Requests are
+  connections, counted by the plugin; at an exit every key carries the
+  client, so each client has its own budgets.
+- Trace prints `connection.cut`; Ledger seals it like every event.
+- Exit hot reload: `vpnw exit serve` checks its config file and the policy
+  files it names every 2 s (contents, not times). A changed file is read
+  again whole; if it's invalid, the old clients stay and the error is
+  printed and recorded (`exit.reload`, with `error`). If valid: clients
+  added, removed and changed are swapped in (`exit.reload` names them); a
+  removed client, or one whose token changed, has its open connections
+  closed; others keep theirs, and new requests use the new policy. Changes
+  to name, listen, cert or key need a restart and are reported as such; a
+  new source address must be on the machine, or the reload is refused.
+  SIGHUP keeps stopping the exit (unchanged).
+- Upkeep: release and test workflows build with `go-version: stable`;
+  go.mod stays `go 1.24` (this sandbox has only Go 1.24.7). README build
+  section lists all six built-in plugins and `rotate`.
+- Done when: a recorded agent session (test/results) hits its byte budget
+  and is cut off, with the ledger entry; a client added to a running exit
+  can use it without a restart.
+
+Steps:
+1. [ ] core meters + `meter` host call + SDK `Budget`; tests
+2. [ ] plugins/budget; tests; Trace line for connection.cut
+3. [ ] exit hot reload; tests
+4. [ ] agent-session recording (test/results/budget.md), README, docs,
+       workflows on stable Go
+5. [ ] independent review, fixes, record-results.sh
+6. [ ] release 0.9.0; vpnw.com post; softdevstudio note; softdev-plan.md
 
 ## The program
 
