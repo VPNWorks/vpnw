@@ -102,6 +102,22 @@ func (t *Text) Emit(e *events.Event) {
 	}
 }
 
+// strList reads a list of strings from an event field, decoded from JSON
+// or not.
+func strList(v any) []string {
+	switch l := v.(type) {
+	case []string:
+		return l
+	case []any:
+		out := make([]string, 0, len(l))
+		for _, x := range l {
+			out = append(out, fmt.Sprint(x))
+		}
+		return out
+	}
+	return nil
+}
+
 func target(e *events.Event) string {
 	h := e.Str("host")
 	if h == "" {
@@ -247,6 +263,40 @@ func (t *Text) render(e *events.Event) string {
 			return ""
 		}
 		return fmt.Sprintf("%-4s   %s  %s: %s", id, t.c(red, "error"), t.hosts[e.Conn], e.Str("error"))
+	case events.ConnectionCut:
+		if !dec {
+			return ""
+		}
+		what := "sent"
+		if e.Str("limit") == "down" {
+			what = "received"
+		}
+		line := fmt.Sprintf("%-4s   %s  %s  %s %s, the budget", id, t.c(red+bold, "CUT  "), t.hosts[e.Conn], what, events.HumanBytes(e.Int("bytes")))
+		if r := e.Str("reason"); r != "" {
+			line += t.c(dim, "  "+r)
+		}
+		return line
+	case events.ExitReload:
+		if !dec {
+			return ""
+		}
+		if err := e.Str("error"); err != "" {
+			return fmt.Sprintf("%s  %s; the clients stay as they were", t.c(red, "reload"), err)
+		}
+		var parts []string
+		for _, k := range []string{"added", "removed", "changed"} {
+			if names := strList(e.Fields[k]); len(names) > 0 {
+				parts = append(parts, k+" "+strings.Join(names, ", "))
+			}
+		}
+		if len(parts) == 0 {
+			parts = append(parts, "no client changed")
+		}
+		line := fmt.Sprintf("%s  clients: %s", t.c(bold, "reload"), strings.Join(parts, "; "))
+		if names := strList(e.Fields["restart"]); len(names) > 0 {
+			line += "; " + strings.Join(names, ", ") + " changed too, which takes a restart"
+		}
+		return line
 	case events.PathSwitch:
 		if !dec {
 			return ""

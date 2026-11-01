@@ -19,6 +19,7 @@ import (
 type stubGuard struct {
 	name  string
 	deny  map[string]string
+	meter func(GuardRequest) *Meter
 	err   error
 	mu    sync.Mutex
 	asked []GuardRequest
@@ -26,15 +27,19 @@ type stubGuard struct {
 
 func (g *stubGuard) Name() string { return g.name }
 
-func (g *stubGuard) Check(_ context.Context, r GuardRequest) (bool, string, error) {
+func (g *stubGuard) Check(_ context.Context, r GuardRequest) (bool, string, *Meter, error) {
 	g.mu.Lock()
 	g.asked = append(g.asked, r)
 	g.mu.Unlock()
 	if g.err != nil {
-		return true, "", g.err
+		return true, "", nil, g.err
 	}
 	why, ok := g.deny[r.Host]
-	return ok, why, nil
+	var m *Meter
+	if !ok && g.meter != nil {
+		m = g.meter(r)
+	}
+	return ok, why, m, nil
 }
 
 func lastDeny(r *rig) *events.Event {

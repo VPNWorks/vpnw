@@ -107,13 +107,18 @@ func emit(b []byte) {
 	}
 }
 
-// CallInit, CallEvent, CallDecide, CallTunnel and CallFinish run the
-// registered hooks with the JSON vpnw would send, for tests. CallTunnel
+// CallInit, CallEvent, CallDecide, CallDecision, CallTunnel and CallFinish
+// run the registered hooks with the JSON vpnw would send, for tests.
+// CallDecision returns the whole decision, budget included. CallTunnel
 // returns the offer as vpnw reads it, or none and why.
-func CallInit(cfg []byte) error                   { return doInit(cfg) }
-func CallEvent(ev []byte) error                   { return doEvent(ev) }
-func CallDecide(req []byte) (bool, string, error) { return doDecide(req) }
-func CallFinish() error                           { return doFinish() }
+func CallInit(cfg []byte) error                 { return doInit(cfg) }
+func CallEvent(ev []byte) error                 { return doEvent(ev) }
+func CallFinish() error                         { return doFinish() }
+func CallDecision(req []byte) (Decision, error) { return doDecide(req) }
+func CallDecide(req []byte) (bool, string, error) {
+	d, err := doDecide(req)
+	return d.Deny, d.Reason, err
+}
 func CallTunnel(req []byte) (offer []byte, none bool, why string, err error) {
 	return doTunnel(req)
 }

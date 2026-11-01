@@ -298,9 +298,9 @@ func TestExitSOCKS5(t *testing.T) {
 type guardFunc func(GuardRequest) (bool, string)
 
 func (guardFunc) Name() string { return "test" }
-func (g guardFunc) Check(_ context.Context, r GuardRequest) (bool, string, error) {
+func (g guardFunc) Check(_ context.Context, r GuardRequest) (bool, string, *Meter, error) {
 	d, why := g(r)
-	return d, why, nil
+	return d, why, nil, nil
 }
 
 // A Guard at the exit is told which client asked.

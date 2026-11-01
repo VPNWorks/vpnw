@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package builtin embeds the first-party plugins in vpnw: Trace, Learn,
-// Ledger, ledger-verify and Rotate.
+// Ledger, ledger-verify, Rotate and Budget.
 //
 // They run through the same plugin host and interface as any other plugin;
 // being built in only means they ship inside the binary and are trusted
 // without a signature. The modules are built from ../trace, ../learn,
-// ../ledger, ../ledgerverify and ../rotate by tools/build-plugins.sh, which
+// ../ledger, ../ledgerverify, ../rotate and ../budget by
+// tools/build-plugins.sh, which
 // CI runs before every build.
 package builtin
 
@@ -24,7 +25,7 @@ import (
 var files embed.FS
 
 // Names lists the built-in plugins.
-var Names = []string{"trace", "learn", "ledger", "ledger-verify", "rotate"}
+var Names = []string{"trace", "learn", "ledger", "ledger-verify", "rotate", "budget"}
 
 // Packages returns the built-in plugins.
 func Packages() ([]*pluginhost.Package, error) {

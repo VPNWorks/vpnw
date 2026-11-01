@@ -296,7 +296,7 @@ func doctorPlugins(stdout io.Writer) {
 	for _, p := range st.Builtins {
 		// Each starts for real; one that asks for a file gets one that
 		// keeps nothing.
-		opt := pluginhost.Options{Command: "doctor", Run: "r-doctor"}
+		opt := pluginhost.Options{Command: "doctor", Run: "r-doctor", Settings: doctorSettings[p.Manifest.Name]}
 		if p.Manifest.Has(pluginhost.PermFile) {
 			opt.File, opt.FileName = nowhere{}, "(doctor: nothing is kept)"
 		}
@@ -313,6 +313,10 @@ func doctorPlugins(stdout io.Writer) {
 		fmt.Fprintf(stdout, "                   %v\n", e)
 	}
 }
+
+// doctorSettings are what vpnw doctor starts the built-in plugins that
+// need settings with.
+var doctorSettings = map[string]map[string]string{"budget": {"allow": "*"}}
 
 // nowhere is a plugin file that keeps nothing, for vpnw doctor.
 type nowhere struct{}

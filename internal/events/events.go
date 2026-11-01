@@ -60,12 +60,22 @@ const (
 	// connection (fields: config, and cut when connections still open were
 	// closed with it).
 	TunnelClose = "tunnel.close"
+	// ConnectionCut: a Guard's byte budget ran out and vpnw closed the
+	// connection (fields: rule "plugin:NAME", key, limit "up" or "down",
+	// bytes, the budget, and reason when the Guard gave one). Its
+	// connection.close follows.
+	ConnectionCut = "connection.cut"
+	// ExitReload: an exit read its configuration file again (fields: added,
+	// removed, changed, the client names; restart, settings that need a
+	// restart to change; error when the new file was refused and the clients
+	// stayed as they were).
+	ExitReload = "exit.reload"
 )
 
 // Types lists every event type in schema version 1.
 var Types = []string{RunStart, ProcessStart, DNSQuery, DNSResult, ConnectionAttempt,
 	PolicyAllow, PolicyDeny, PathSwitch, ConnectionOpen, ConnectionClose, ConnectionError, PluginError, AuthDeny,
-	TunnelSwitch, TunnelError, TunnelClose, ProcessExit, RunEnd}
+	TunnelSwitch, TunnelError, TunnelClose, ConnectionCut, ExitReload, ProcessExit, RunEnd}
 
 // Events whose type starts with "plugin.<name>." were added by that plugin.
 

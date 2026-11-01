@@ -156,8 +156,8 @@ Design decisions:
   can use it without a restart.
 
 Steps:
-1. [ ] core meters + `meter` host call + SDK `Budget`; tests
-2. [ ] plugins/budget; tests; Trace line for connection.cut
+1. [x] core meters + `meter` host call + SDK `Budget`; tests
+2. [x] plugins/budget; tests; Trace line for connection.cut
 3. [ ] exit hot reload; tests
 4. [ ] agent-session recording (test/results/budget.md), README, docs,
        workflows on stable Go

@@ -143,7 +143,7 @@ func TestStore(t *testing.T) {
 		t.Errorf("signer %q", p.Signer)
 	}
 	list, errs := st.List()
-	if len(errs) > 0 || len(list) != 6 || list[5].Manifest.Name != "blocker" {
+	if len(errs) > 0 || len(list) != 7 || list[6].Manifest.Name != "blocker" {
 		t.Errorf("list: %d %v", len(list), errs)
 	}
 
@@ -172,7 +172,7 @@ func TestStore(t *testing.T) {
 	// What an install cut short leaves behind is not listed as a plugin.
 	os.MkdirAll(filepath.Join(st.Dir, "blocker.old"), 0o700)
 	os.MkdirAll(filepath.Join(st.Dir, ".install-123"), 0o700)
-	if list, errs := st.List(); len(errs) > 0 || len(list) != 6 {
+	if list, errs := st.List(); len(errs) > 0 || len(list) != 7 {
 		t.Errorf("leftovers listed: %d %v", len(list), errs)
 	}
 	if err := st.Remove("blocker"); err != nil {

@@ -71,7 +71,10 @@ func TestEveryType(t *testing.T) {
 	b.Emit(events.DNSResult, 7, "office", 3, map[string]any{"host": "b.example", "error": "no such host"})
 	b.Emit(events.PolicyAllow, 7, "office", 1, map[string]any{"rule": "default"})
 	b.Emit(events.ConnectionOpen, 7, "office", 1, map[string]any{"host": "a.example", "ms": 4})
+	b.Emit(events.ConnectionCut, 7, "office", 1, map[string]any{"rule": "plugin:budget", "key": "a.example", "limit": "up", "bytes": 1000, "reason": "budget for a.example: 1 KB up"})
 	b.Emit(events.ConnectionClose, 7, "office", 1, map[string]any{"bytes_up": 1200, "bytes_down": 3e6, "ms": 1500})
+	b.Emit(events.ExitReload, 0, "", 0, map[string]any{"added": []string{"agent-3"}, "removed": []string{"agent-1"}, "restart": []string{"listen"}})
+	b.Emit(events.ExitReload, 0, "", 0, map[string]any{"error": "exit.toml, line 4: unknown key"})
 	b.Emit(events.ConnectionError, 7, "office", 4, map[string]any{"error": "connection refused"})
 	b.Emit(events.PluginError, 0, "", 0, map[string]any{"plugin": "geo", "type": "guard", "error": "panic: boom"})
 	b.Emit("plugin.geo.note", 7, "office", 1, map[string]any{"country": "NL", "n": 2})
@@ -83,6 +86,9 @@ func TestEveryType(t *testing.T) {
 		"allow  [2001:db8::1]:443  default allow", "open  exit resolves a.example via office", "close  sent 1.2 KB  received 3.0 MB",
 		"#4     error  : connection refused", "guard plugin geo stopped: panic: boom", "#1     plugin.geo.note  country=NL n=2",
 		"killed by SIGTERM", "summary  1 connection: 1 opened",
+		"CUT    [2001:db8::1]:443  sent 1.0 KB, the budget  budget for a.example: 1 KB up",
+		"reload  clients: added agent-3; removed agent-1; listen changed too, which takes a restart",
+		"reload  exit.toml, line 4: unknown key; the clients stay as they were",
 	} {
 		if !strings.Contains(all.String(), want) {
 			t.Errorf("all lacks %q:\n%s", want, all.String())

@@ -19,6 +19,9 @@ func hostError(p unsafe.Pointer, n uint32)
 //go:wasmimport vpnw reason
 func hostReason(p unsafe.Pointer, n uint32)
 
+//go:wasmimport vpnw meter
+func hostMeter(p unsafe.Pointer, n uint32)
+
 //go:wasmimport vpnw write
 func hostWrite(stream uint32, p unsafe.Pointer, n uint32)
 
@@ -136,15 +139,19 @@ func exportEvent(p unsafe.Pointer, n uint32) uint32 {
 //
 //go:wasmexport vpnw_on_decide
 func exportDecide(p unsafe.Pointer, n uint32) uint32 {
-	deny, reason, err := doDecide(take(p, n))
+	d, err := doDecide(take(p, n))
 	if err != nil {
 		return fail(err)
 	}
-	if !deny {
+	if !d.Deny {
+		if d.Budget != nil {
+			b := d.Budget.json()
+			hostMeter(ptr(b), uint32(len(b)))
+		}
 		return 0
 	}
-	if reason != "" {
-		b := []byte(reason)
+	if d.Reason != "" {
+		b := []byte(d.Reason)
 		hostReason(ptr(b), uint32(len(b)))
 	}
 	return 1

@@ -30,8 +30,8 @@ func (g *GuardCheck) Name() string { return g.in.Name() }
 
 // Check asks the plugin. After a failure every connection is refused
 // without asking.
-func (g *GuardCheck) Check(ctx context.Context, r broker.GuardRequest) (bool, string, error) {
-	deny, reason, err := g.in.Decide(ctx, r)
+func (g *GuardCheck) Check(ctx context.Context, r broker.GuardRequest) (bool, string, *broker.Meter, error) {
+	deny, reason, m, err := g.in.Decide(ctx, r)
 	if err != nil && !errors.Is(err, ErrClosed) {
 		g.once.Do(func() {
 			if g.onFail != nil {
@@ -39,7 +39,7 @@ func (g *GuardCheck) Check(ctx context.Context, r broker.GuardRequest) (bool, st
 			}
 		})
 	}
-	return deny, reason, err
+	return deny, reason, m, err
 }
 
 // Close stops the plugin and returns its failure, if any.

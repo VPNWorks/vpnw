@@ -27,6 +27,7 @@
 package pluginhost
 
 import (
+	"bytes"
 	"context"
 	crand "crypto/rand"
 	"encoding/json"
@@ -39,6 +40,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/VPNWorks/vpnw/internal/broker"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
@@ -190,6 +192,11 @@ func (h *Host) hostModule(ctx context.Context, rt wazero.Runtime) error {
 			in.reason = clean(string(read(m, p, min(n, 1<<10))), 300)
 		}
 	}).Export("reason")
+	b.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, p, n uint32) {
+		if in := h.instance(m); in != nil {
+			in.setMeter(read(m, p, min(n, 4<<10)), n)
+		}
+	}).Export("meter")
 	b.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, stream, p, n uint32) {
 		in := h.instance(m)
 		if in == nil || !in.pkg.Manifest.Has(PermConsole) {
@@ -368,7 +375,7 @@ func (in *Instance) fileErr(err error) {
 
 // The host calls any plugin may import, and the ones that need a permission.
 var hostCalls = map[string]string{
-	"log": "", "error": "", "reason": "",
+	"log": "", "error": "", "reason": "", "meter": "",
 	"write":       PermConsole,
 	"emit":        PermEmit,
 	"file_write":  PermFile,
@@ -455,6 +462,7 @@ func check(cm wazero.CompiledModule, m *Manifest) error {
 			if perm != "" && !m.Has(perm) {
 				return fmt.Errorf("imports vpnw.%s but its manifest does not ask for the %q permission", name, perm)
 			}
+
 		default:
 			return fmt.Errorf("imports %s.%s; plugins may only import from vpnw and WASI", mod, name)
 		}
@@ -515,7 +523,11 @@ type Instance struct {
 	dead   error
 	errMsg string
 	reason string
-	stderr *tail
+	// meter is the budget the Guard put on the connection it is deciding,
+	// and meterErr what was wrong with one it couldn't.
+	meter    *broker.Meter
+	meterErr string
+	stderr   *tail
 
 	alloc, initFn, event, decide, finish, tunnelFn api.Function
 
@@ -696,7 +708,7 @@ func (in *Instance) pass(ctx context.Context, budget time.Duration, fn api.Funct
 	if !in.mod.Memory().Write(p, data) {
 		return 0, in.stop(errors.New("gave a buffer outside its memory"))
 	}
-	in.errMsg, in.reason = "", ""
+	in.errMsg, in.reason, in.meter, in.meterErr = "", "", nil, ""
 	res, err = in.call(ctx, budget, fn, uint64(p), uint64(len(data)))
 	if err != nil {
 		return 0, err
@@ -789,7 +801,7 @@ const DecideWait = 5 * time.Second
 
 // Decide asks a Guard about one connection. Any failure of the plugin is an
 // error, which the caller treats as a refusal.
-func (in *Instance) Decide(ctx context.Context, req any) (deny bool, reason string, err error) {
+func (in *Instance) Decide(ctx context.Context, req any) (deny bool, reason string, m *broker.Meter, err error) {
 	budget := in.opt.DecideBudget
 	if budget == 0 {
 		budget = DecideBudget
@@ -799,25 +811,62 @@ func (in *Instance) Decide(ctx context.Context, req any) (deny bool, reason stri
 	cancel()
 	switch {
 	case err == ErrStopped || err == ErrClosed:
-		return true, "", err
+		return true, "", nil, err
 	case err != nil:
-		return true, fmt.Sprintf("guard plugin %s was busy: no turn within %v", in.Name(), DecideWait), nil
+		return true, fmt.Sprintf("guard plugin %s was busy: no turn within %v", in.Name(), DecideWait), nil, nil
 	}
 	defer func() { <-in.turn }()
 	b, err := json.Marshal(req)
 	if err != nil {
-		return true, "", err
+		return true, "", nil, err
 	}
 	code, err := in.pass(ctx, budget, in.decide, b)
 	switch {
 	case err != nil:
-		return true, "", err
+		return true, "", nil, err
+	case code == 0 && in.meterErr != "":
+		// A budget it couldn't put is a failure, never a pass without one.
+		in.errMsg = "gave a byte budget vpnw can't use: " + in.meterErr
+		return true, "", nil, in.stop(in.pluginErr())
 	case code == 0:
-		return false, "", nil
+		return false, "", in.meter, nil
 	case code == 1:
-		return true, in.reason, nil
+		return true, in.reason, nil, nil
 	default:
-		return true, "", in.pluginErr()
+		return true, "", nil, in.pluginErr()
+	}
+}
+
+// setMeter reads a budget from the meter host call. Anything wrong with it
+// fails the decision.
+func (in *Instance) setMeter(b []byte, n uint32) {
+	if n > 4<<10 {
+		in.meterErr = "more than 4 KiB"
+		return
+	}
+	var m struct {
+		Key    *string `json:"key"`
+		Up     int64   `json:"up"`
+		Down   int64   `json:"down"`
+		Reason string  `json:"reason"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&m); err != nil || dec.More() {
+		in.meterErr = "not one JSON object with key, up, down and reason"
+		return
+	}
+	switch {
+	case m.Key == nil || *m.Key == "" || len(*m.Key) > 128 || clean(*m.Key, 128) != *m.Key:
+		in.meterErr = "its key must be 1 to 128 printable characters"
+	case m.Up < 0 || m.Down < 0:
+		in.meterErr = "up and down can't be negative"
+	case m.Up == 0 && m.Down == 0:
+		in.meterErr = "it limits neither up nor down"
+	case in.meter != nil:
+		in.meterErr = "it gave two for one connection"
+	default:
+		in.meter = &broker.Meter{Key: *m.Key, Up: m.Up, Down: m.Down, Reason: clean(m.Reason, 300)}
 	}
 }
 

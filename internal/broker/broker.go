@@ -60,10 +60,11 @@ type Stats struct {
 }
 
 // Guard is a further check on a connection the policy allowed, such as a
-// Guard plugin. A Guard can only refuse; an error is a refusal.
+// Guard plugin. A Guard can only refuse; an error is a refusal. A Guard that
+// lets a connection through may put a byte budget on it (see Meter).
 type Guard interface {
 	Name() string
-	Check(ctx context.Context, r GuardRequest) (deny bool, reason string, err error)
+	Check(ctx context.Context, r GuardRequest) (deny bool, reason string, m *Meter, err error)
 }
 
 // GuardRequest is what a Guard is told about one connection.
@@ -126,6 +127,10 @@ type Broker struct {
 	denyWindow     time.Time
 	denyInWindow   int
 	denyUnrecorded int64
+	// The Guards' byte budgets, under mu: one per Guard and key, and how
+	// many each Guard keeps.
+	meters     map[string]*meter
+	meterCount map[string]int
 }
 
 // baseCtx is the context every connection's lookups and dials run under;
@@ -311,6 +316,7 @@ type outcome struct {
 	socks  byte     // SOCKS5 reply code on failure
 	path   string   // the ID of the path it went by, for its later events
 	addrs  []string // on failure: the addresses the name was looked up to
+	meter  *metered // the Guards' byte budgets on it, or nil
 }
 
 // origin is who asked for a connection. The zero origin is the broker's own
@@ -460,6 +466,7 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		}
 		emit(events.PolicyAllow, df)
 	}
+	var metr *metered
 	if len(b.Guards) > 0 {
 		req := GuardRequest{Run: b.runID(), Conn: id, PID: int(b.pid.Load()), Path: pathID, Host: host, Port: port, Proto: proto}
 		if host == "" {
@@ -469,9 +476,24 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 			req.Client = from.client.Name
 		}
 		for _, g := range b.Guards {
-			deny, reason, err := g.Check(ctx, req)
+			deny, reason, m, err := g.Check(ctx, req)
 			if err == nil && !deny {
-				continue
+				if m == nil {
+					continue
+				}
+				mt := b.meterFor(g.Name(), m)
+				switch {
+				case mt == nil:
+					deny, reason = true, fmt.Sprintf("guard plugin %s keeps %d byte budgets already, the most one may", g.Name(), MaxMeters)
+				case mt.spent() >= 0:
+					deny, reason = true, spentReason(mt, mt.spent())
+				default:
+					if metr == nil {
+						metr = &metered{b: b, path: pathID, conn: id}
+					}
+					metr.meters = append(metr.meters, mt)
+					continue
+				}
 			}
 			if err != nil {
 				reason = "guard plugin failed, so the connection is refused: " + err.Error()
@@ -542,7 +564,7 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		}
 		b.opened.Add(1)
 		emit(events.ConnectionOpen, of)
-		return outcome{conn: conn, id: id, start: start}
+		return outcome{conn: conn, id: id, start: start, meter: metr}
 	}
 	if refused != nil && lastErr == nil {
 		// The path refused every address by a rule of its own.
@@ -651,7 +673,7 @@ func (b *Broker) finish(o outcome, client net.Conn, fromClient io.Reader, extraU
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		n, err := io.Copy(o.conn, fromClient)
+		n, err := io.Copy(o.meter.writer(o.conn, dirUp), fromClient)
 		up = n
 		if err != nil {
 			o.conn.Close()
@@ -666,11 +688,11 @@ func (b *Broker) finish(o outcome, client net.Conn, fromClient io.Reader, extraU
 		defer wg.Done()
 		var err error
 		if rewrite != nil {
-			down, err = rewrite(quietReader{o.conn, &clientDone}, client)
+			down, err = rewrite(quietReader{o.conn, &clientDone}, o.meter.writer(client, dirDown))
 		} else {
 			for {
 				var n int64
-				n, err = io.Copy(client, o.conn)
+				n, err = io.Copy(o.meter.writer(client, dirDown), o.conn)
 				down += n
 				// The quiet limit ended this copy. Something arrived in
 				// the window, so the connection is alive: renew it.
@@ -891,7 +913,7 @@ func (b *Broker) http(c net.Conn, br *bufio.Reader) {
 		sb.WriteString(x.name + ": " + x.value + "\r\n")
 	}
 	sb.WriteString("Connection: close\r\n\r\n")
-	n, err := io.WriteString(o.conn, sb.String())
+	n, err := io.WriteString(o.meter.writer(o.conn, dirUp), sb.String())
 	if err != nil {
 		o.conn.Close()
 		b.emitPath(o.path, events.ConnectionClose, o.id, map[string]any{"bytes_up": n, "bytes_down": 0, "ms": b.now().Sub(o.start).Milliseconds()})

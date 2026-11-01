@@ -1,0 +1,6 @@
+name = "budget"
+version = "0.8.0"
+type = "guard"
+abi = 1
+description = "Allows only listed hosts, each with byte and connection budgets"
+permissions = []

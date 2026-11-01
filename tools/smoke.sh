@@ -26,11 +26,11 @@ case "$out" in
 esac
 
 list=$("$bin/vpnw" plugin list) || fail "vpnw plugin list failed"
-for p in trace learn ledger ledger-verify rotate; do
+for p in trace learn ledger ledger-verify rotate budget; do
   echo "$list" | grep -q "^$p .*built-in" || fail "built-in plugin $p is missing:
 $list"
 done
-echo "plugins: trace, learn, ledger, ledger-verify and rotate built in"
+echo "plugins: trace, learn, ledger, ledger-verify, rotate and budget built in"
 
 doctor=$("$bin/vpnw" doctor) || true
 echo "$doctor" | grep -q "plugins          ok" || fail "the plugin host did not start:

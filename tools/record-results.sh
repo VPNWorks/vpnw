@@ -39,7 +39,7 @@ say "sizes"
     GOOS=${os_arch%/*} GOARCH=${os_arch#*/} CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /dev/null ./cmd/vpnw \
       && echo "vpnw, $os_arch: compiles (env backend; sealed runs need Linux)"
   done
-  for p in trace learn ledger ledger-verify rotate; do
+  for p in trace learn ledger ledger-verify rotate budget; do
     printf 'built-in plugin %s: %s bytes of WebAssembly; gzip -9: %s bytes\n' "$p" \
       "$(stat -c %s "plugins/builtin/$p.wasm")" "$(gzip -9 -c "plugins/builtin/$p.wasm" | wc -c)"
   done

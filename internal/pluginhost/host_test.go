@@ -297,18 +297,18 @@ func req(host string) broker.GuardRequest {
 // refusal without a reason as a refusal.
 func TestGuardDecides(t *testing.T) {
 	g := guard(t, pluginhost.Options{Settings: map[string]string{"deny": "evil.example"}})
-	if deny, why, err := g.Check(sharedCtx, req("evil.example")); !deny || err != nil || why != "blocked by the test guard: evil.example" {
+	if deny, why, _, err := g.Check(sharedCtx, req("evil.example")); !deny || err != nil || why != "blocked by the test guard: evil.example" {
 		t.Errorf("evil: %v %q %v", deny, why, err)
 	}
-	if deny, _, err := g.Check(sharedCtx, req("good.example")); deny || err != nil {
+	if deny, _, _, err := g.Check(sharedCtx, req("good.example")); deny || err != nil {
 		t.Errorf("good: %v %v", deny, err)
 	}
-	if deny, why, err := g.Check(sharedCtx, req("quiet.example")); !deny || err != nil || why != "" {
+	if deny, why, _, err := g.Check(sharedCtx, req("quiet.example")); !deny || err != nil || why != "" {
 		t.Errorf("quiet: %v %q %v", deny, why, err)
 	}
 	// A reason can't draw on the terminal: no escapes, line breaks or
 	// reordering marks get through.
-	deny, why, err := g.Check(sharedCtx, req("esc.example"))
+	deny, why, _, err := g.Check(sharedCtx, req("esc.example"))
 	if !deny || err != nil || strings.ContainsAny(why, "\x1b\r\n\u202e") || !strings.Contains(why, "?[2K?vpnw") {
 		t.Errorf("esc: %v %q %v", deny, why, err)
 	}
@@ -333,7 +333,7 @@ func TestGuardBurst(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if deny, why, err := g.Check(sharedCtx, req("good.example")); deny || err != nil {
+			if deny, why, _, err := g.Check(sharedCtx, req("good.example")); deny || err != nil {
 				mu.Lock()
 				refused++
 				if refused == 1 {
@@ -347,7 +347,7 @@ func TestGuardBurst(t *testing.T) {
 	if refused > 0 {
 		t.Errorf("%d of 2000 refused", refused)
 	}
-	if deny, _, err := g.Check(sharedCtx, req("good.example")); deny || err != nil {
+	if deny, _, _, err := g.Check(sharedCtx, req("good.example")); deny || err != nil {
 		t.Errorf("after the burst: %v %v", deny, err)
 	}
 }
@@ -368,7 +368,7 @@ func TestGuardFailsClosed(t *testing.T) {
 			g := pluginhost.NewGuard(in, func(n string, err error) { reported = append(reported, err.Error()) })
 			defer g.Close()
 			t0 := time.Now()
-			deny, _, err := g.Check(sharedCtx, req(tc.host))
+			deny, _, _, err := g.Check(sharedCtx, req(tc.host))
 			if !deny || err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("first: deny=%v err=%v", deny, err)
 			}
@@ -376,7 +376,7 @@ func TestGuardFailsClosed(t *testing.T) {
 			if d := time.Since(t0); d > time.Second {
 				t.Errorf("the refusal took %v, past the 200ms budget", d)
 			}
-			deny, _, err = g.Check(sharedCtx, req("good.example"))
+			deny, _, _, err = g.Check(sharedCtx, req("good.example"))
 			if !deny || err == nil {
 				t.Fatalf("after the failure a good host got deny=%v err=%v", deny, err)
 			}
@@ -400,7 +400,7 @@ func TestGuardConcurrent(t *testing.T) {
 			if i%2 == 0 {
 				h = "evil.example"
 			}
-			deny, _, err := g.Check(sharedCtx, req(h))
+			deny, _, _, err := g.Check(sharedCtx, req(h))
 			if err != nil || deny != (i%2 == 0) {
 				errs <- fmt.Sprintf("%s: deny=%v err=%v", h, deny, err)
 			}
@@ -457,7 +457,7 @@ func TestBuiltins(t *testing.T) {
 			t.Errorf("%s: %v", p.Manifest.Name, err)
 		}
 	}
-	if !names["trace"] || !names["learn"] || !names["ledger"] || !names["ledger-verify"] || !names["rotate"] || len(names) != 5 {
+	if !names["trace"] || !names["learn"] || !names["ledger"] || !names["ledger-verify"] || !names["rotate"] || !names["budget"] || len(names) != 6 {
 		t.Errorf("built-ins: %v", names)
 	}
 
@@ -532,7 +532,7 @@ func BenchmarkGuardDecide(b *testing.B) {
 	r := req("good.example")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if deny, _, err := g.Check(sharedCtx, r); deny || err != nil {
+		if deny, _, _, err := g.Check(sharedCtx, r); deny || err != nil {
 			b.Fatal(deny, err)
 		}
 	}
@@ -618,7 +618,7 @@ func TestGuardAfterCloseIsNotAFailure(t *testing.T) {
 	failed := false
 	g := pluginhost.NewGuard(in, func(string, error) { failed = true })
 	g.Close()
-	deny, _, err := g.Check(sharedCtx, req("example.com"))
+	deny, _, _, err := g.Check(sharedCtx, req("example.com"))
 	if !deny || !errors.Is(err, pluginhost.ErrClosed) {
 		t.Errorf("deny=%v err=%v, want a refusal with ErrClosed", deny, err)
 	}
@@ -778,6 +778,51 @@ func BenchmarkLedgerEvent(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		if err := in.Event(sharedCtx, ev); err != nil {
 			b.Fatal(err)
+		}
+	}
+}
+
+// A Guard's byte budget reaches the broker as it gave it; one vpnw can't
+// use stops the plugin, so no connection goes through without the budget
+// it was meant to have.
+func TestGuardMeter(t *testing.T) {
+	load := func() *pluginhost.GuardCheck {
+		in, err := host(t).Load(sharedCtx, pkg(t, "meterer"), pluginhost.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		g := pluginhost.NewGuard(in, nil)
+		t.Cleanup(func() { g.Close() })
+		return g
+	}
+	g := load()
+	deny, _, m, err := g.Check(sharedCtx, req("budget.example"))
+	if deny || err != nil || m == nil || *m != (broker.Meter{Key: "host budget.example", Up: 100, Down: 2000, Reason: "test budget"}) {
+		t.Fatalf("budget: %v %+v %v", deny, m, err)
+	}
+	// The budget doesn't stay for the next connection.
+	if deny, _, m, err := g.Check(sharedCtx, req("good.example")); deny || err != nil || m != nil {
+		t.Fatalf("good: %v %+v %v", deny, m, err)
+	}
+	if deny, why, m, err := g.Check(sharedCtx, req("denied.example")); !deny || why != "no" || m != nil || err != nil {
+		t.Fatalf("denied: %v %q %+v %v", deny, why, m, err)
+	}
+	for host, want := range map[string]string{
+		"nokey.example":    "its key must be 1 to 128 printable characters",
+		"esc.example":      "its key must be 1 to 128 printable characters",
+		"negative.example": "up and down can't be negative",
+		"zero.example":     "it limits neither up nor down",
+		"junk.example":     "not one JSON object",
+		"twice.example":    "it gave two for one connection",
+	} {
+		g := load()
+		deny, _, m, err := g.Check(sharedCtx, req(host))
+		if !deny || m != nil || err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: %v %+v %v", host, deny, m, err)
+		}
+		// Stopped: it refuses from now on.
+		if deny, _, _, err := g.Check(sharedCtx, req("good.example")); !deny || err == nil {
+			t.Errorf("%s: after the failure: %v %v", host, deny, err)
 		}
 	}
 }

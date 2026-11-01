@@ -206,6 +206,9 @@ type Plugin struct {
 	Init     func(c *Config) error
 	OnEvent  func(e *Event) error
 	OnDecide func(r *Request) (deny bool, reason string)
+	// Decide replaces OnDecide for a Guard that also puts byte budgets on
+	// the connections it lets through. When both are set, Decide is used.
+	Decide func(r *Request) Decision
 	// OnTunnel hands vpnw a config. It returns NoConfig(why) when it has
 	// none to give; any other error stops the plugin.
 	OnTunnel func(r *TunnelRequest) (*TunnelConfig, error)
@@ -221,6 +224,43 @@ type Plugin struct {
 }
 
 var registered *Plugin
+
+// Decision is a Guard's answer about one connection: refuse it, with a
+// reason, or let it through, with a byte budget or none.
+type Decision struct {
+	Deny   bool
+	Reason string
+	// Budget, on a connection let through, counts it against a byte
+	// budget. Ignored on a refusal.
+	Budget *Budget
+}
+
+// Budget is a byte budget. Every connection a Guard gives the same Key
+// during a run counts against one budget: Up bytes the program may send,
+// Down bytes it may receive (0: no limit that way, but not both 0). vpnw
+// carries a connection up to the limit, then cuts it and records why
+// (connection.cut), and refuses connections asked for once the budget is
+// spent. The limits given last for a key are the ones that count. Key is 1
+// to 128 printable characters; Reason, at most 300, says what the budget
+// is, for the record. A budget vpnw can't use (a bad key, a negative limit)
+// stops the plugin, so a Guard never lets a connection through without the
+// budget it meant to put on it.
+type Budget struct {
+	Key    string
+	Up     int64
+	Down   int64
+	Reason string
+}
+
+func (b *Budget) json() []byte {
+	out, _ := json.Marshal(struct {
+		Key    string `json:"key"`
+		Up     int64  `json:"up"`
+		Down   int64  `json:"down"`
+		Reason string `json:"reason,omitempty"`
+	}{b.Key, b.Up, b.Down, b.Reason})
+	return out
+}
 
 // Register installs the plugin's hooks. Call it once, from init.
 func Register(p Plugin) {
@@ -381,16 +421,23 @@ func doEvent(b []byte) error {
 	return registered.OnEvent(&e)
 }
 
-func doDecide(b []byte) (bool, string, error) {
-	if registered == nil || registered.OnDecide == nil {
-		return false, "", nil
+func doDecide(b []byte) (Decision, error) {
+	if registered == nil || registered.OnDecide == nil && registered.Decide == nil {
+		return Decision{}, nil
 	}
 	var r Request
 	if err := json.Unmarshal(b, &r); err != nil {
-		return true, "", err
+		return Decision{Deny: true}, err
+	}
+	if registered.Decide != nil {
+		d := registered.Decide(&r)
+		if d.Deny {
+			d.Budget = nil
+		}
+		return d, nil
 	}
 	deny, reason := registered.OnDecide(&r)
-	return deny, reason, nil
+	return Decision{Deny: deny, Reason: reason}, nil
 }
 
 func doFinish() error {
