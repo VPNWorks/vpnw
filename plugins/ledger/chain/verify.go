@@ -448,7 +448,10 @@ func (v *Verifier) Result() Report {
 			say("this ledger isn't signed")
 		default:
 			signed := "no checkpoint"
-			if v.signedCP > 0 {
+			switch {
+			case v.signedCP == 1:
+				signed = "checkpoint 1"
+			case v.signedCP > 1:
 				signed = fmt.Sprintf("checkpoints 1 to %d", v.signedCP)
 			}
 			if v.endSig {
