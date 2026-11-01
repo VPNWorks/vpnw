@@ -45,28 +45,70 @@ type Reloader struct {
 	cfg     *Config // the file as last taken in
 	clients *Clients
 	sum     [32]byte // of the files as last read
+	// gens holds every broker.Client each name has had since it was last
+	// taken out or given a new token: a request or a connection may still
+	// hold an older one, and taking the client out must reach them all.
+	gens map[string][]*broker.Client
+	// warned holds the warnings said already, so a reload says only new ones.
+	warned map[string]bool
 }
 
 // NewReloader watches the exit that started with cfg and clients.
 func NewReloader(cfg *Config, clients *Clients, live *Live, revoke func(...*broker.Client) int) *Reloader {
-	r := &Reloader{Live: live, Revoke: revoke, start: cfg, cfg: cfg, clients: clients}
-	r.sum, _ = r.files(cfg)
+	r := &Reloader{Live: live, Revoke: revoke, start: cfg, cfg: cfg, clients: clients, gens: map[string][]*broker.Client{}}
+	r.sum = newSnapshot().sum(watched(cfg))
+	for _, bc := range clients.list {
+		r.gens[bc.Name] = append(r.gens[bc.Name], bc)
+	}
+	r.warned = map[string]bool{}
+	for _, w := range cfg.Warnings {
+		r.warned[w] = true
+	}
 	return r
 }
 
-// files hashes the exit's file and the policy files it names, in order; a
-// file that can't be read counts as changed.
-func (r *Reloader) files(cfg *Config) ([32]byte, error) {
+// read reads one of the exit's files as LoadConfig and config.Load would.
+func read(name string) ([]byte, error) {
+	st, err := os.Stat(name)
+	if err != nil {
+		return nil, err
+	}
+	if st.Size() > config.MaxSize {
+		return nil, fmt.Errorf("file is larger than %d bytes", config.MaxSize)
+	}
+	return os.ReadFile(name)
+}
+
+// snapshot is the bytes of the exit's files as read once, so the files
+// are hashed and parsed from the same bytes: a change written while a
+// reload is taken in is seen by the next look.
+type snapshot struct {
+	data map[string][]byte
+	errs map[string]error
+}
+
+func (s *snapshot) get(name string) ([]byte, error) {
+	if b, ok := s.data[name]; ok {
+		return b, nil
+	}
+	if err, ok := s.errs[name]; ok {
+		return nil, err
+	}
+	b, err := read(name)
+	if err != nil {
+		s.errs[name] = err
+		return nil, err
+	}
+	s.data[name] = b
+	return b, nil
+}
+
+// sum hashes the named files, in order; a file that can't be read counts
+// as its error.
+func (s *snapshot) sum(names []string) [32]byte {
 	h := sha256.New()
-	for _, name := range append([]string{cfg.File}, cfg.PolicyFiles...) {
-		st, err := os.Stat(name)
-		if err == nil && st.Size() > config.MaxSize {
-			err = fmt.Errorf("%s is larger than %d bytes", name, config.MaxSize)
-		}
-		var b []byte
-		if err == nil {
-			b, err = os.ReadFile(name)
-		}
+	for _, name := range names {
+		b, err := s.get(name)
 		if err != nil {
 			fmt.Fprintf(h, "unreadable %q %v\n", name, err)
 			continue
@@ -74,9 +116,30 @@ func (r *Reloader) files(cfg *Config) ([32]byte, error) {
 		fmt.Fprintf(h, "%q %d\n", name, len(b))
 		h.Write(b)
 	}
-	var sum [32]byte
-	copy(sum[:], h.Sum(nil))
-	return sum, nil
+	var out [32]byte
+	copy(out[:], h.Sum(nil))
+	return out
+}
+
+func newSnapshot() *snapshot {
+	return &snapshot{data: map[string][]byte{}, errs: map[string]error{}}
+}
+
+func watched(cfg *Config) []string { return append([]string{cfg.File}, cfg.PolicyFiles...) }
+
+// parse reads the exit's file and its policy files from the snapshot.
+func (s *snapshot) parse(file string) (*Config, error) {
+	b, err := s.get(file)
+	if err != nil {
+		return nil, errAt(file, 0, "cannot read the file: %s", fileErr(err))
+	}
+	return ParseConfig(string(b), file, func(name string) (*config.File, error) {
+		pb, err := s.get(name)
+		if err != nil {
+			return nil, &config.Error{File: name, Msg: "cannot read the file: " + fileErr(err)}
+		}
+		return config.ParseFile(name, string(pb))
+	})
 }
 
 // Change is what one reload did, for the exit.reload event.
@@ -133,21 +196,29 @@ func fingerprint(cl *Client) string {
 func (r *Reloader) Check() *Change {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	sum, _ := r.files(r.cfg)
+	snap := newSnapshot()
+	sum := snap.sum(watched(r.cfg))
 	if sum == r.sum {
 		return nil
 	}
+	// Whatever comes of it, these bytes have been looked at.
 	r.sum = sum
-	cfg, err := LoadConfig(r.start.File)
+	cfg, err := snap.parse(r.start.File)
 	if err != nil {
 		return &Change{Err: err}
 	}
 	if err := cfg.CheckSources(); err != nil {
 		return &Change{Err: fmt.Errorf("%v; each client's connections leave from its own address, so the exit needs them all", err)}
 	}
-	// The policy files may be other ones now: watch the new set.
-	r.sum, _ = r.files(cfg)
-	ch := &Change{Warnings: cfg.Warnings}
+	// The policy files may be other ones now: watch the new set, as read.
+	r.sum = snap.sum(watched(cfg))
+	ch := &Change{}
+	for _, w := range cfg.Warnings {
+		if !r.warned[w] {
+			r.warned[w] = true
+			ch.Warnings = append(ch.Warnings, w)
+		}
+	}
 	for _, x := range []struct{ name, was, is string }{
 		{"name", r.start.Name, cfg.Name}, {"listen", r.start.Listen, cfg.Listen},
 		{"cert", r.start.Cert, cfg.Cert}, {"key", r.start.Key, cfg.Key},
@@ -164,30 +235,37 @@ func (r *Reloader) Check() *Change {
 	for _, bc := range r.clients.list {
 		oldBroker[bc.Name] = bc
 	}
+	clients := cfg.BrokerClients()
 	var gone []*broker.Client
 	seen := map[string]bool{}
-	for _, cl := range cfg.Clients {
+	for i, cl := range cfg.Clients {
 		seen[cl.Name] = true
 		o, ok := old[cl.Name]
 		switch {
 		case !ok:
 			ch.Added = append(ch.Added, cl.Name)
-		case fingerprint(o) != fingerprint(cl):
+			r.gens[cl.Name] = []*broker.Client{clients.list[i]}
+		case fingerprint(o) == fingerprint(cl):
+			// Unchanged: the same client as before.
+			clients.list[i] = oldBroker[cl.Name]
+		default:
 			ch.Changed = append(ch.Changed, cl.Name)
 			if o.Hash != cl.Hash {
 				// A new token: whoever held the old one is out.
-				gone = append(gone, oldBroker[cl.Name])
+				gone = append(gone, r.gens[cl.Name]...)
+				r.gens[cl.Name] = nil
 			}
+			r.gens[cl.Name] = append(r.gens[cl.Name], clients.list[i])
 		}
 	}
 	for name := range old {
 		if !seen[name] {
 			ch.Removed = append(ch.Removed, name)
-			gone = append(gone, oldBroker[name])
+			gone = append(gone, r.gens[name]...)
+			delete(r.gens, name)
 		}
 	}
 	sort.Strings(ch.Removed)
-	clients := cfg.BrokerClients()
 	r.Live.cur.Store(clients)
 	if r.Revoke != nil && len(gone) > 0 {
 		ch.Closed = r.Revoke(gone...)

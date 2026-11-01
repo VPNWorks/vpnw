@@ -4,6 +4,7 @@
 package budget
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -167,5 +168,27 @@ func TestPlugin(t *testing.T) {
 	}
 	if err := sdk.CallInit([]byte(`{"plugin":"budget","command":"guard","settings":{"allow":"a.example","speed":"1"}}`)); err == nil {
 		t.Fatal("unknown setting taken")
+	}
+}
+
+// At an exit, one client filling its request counters leaves the others
+// theirs.
+func TestCountersPerClient(t *testing.T) {
+	r := mustParse(t, map[string]string{"allow": "*", "requests": "5"})
+	q := req("")
+	q.Client = "greedy"
+	for i := 0; i < MaxCounters; i++ {
+		q.Host = fmt.Sprintf("h%d.example", i)
+		if d := r.Decide(q); d.Deny {
+			t.Fatalf("%d: %+v", i, d)
+		}
+	}
+	q.Host = "one-more.example"
+	if d := r.Decide(q); !d.Deny {
+		t.Fatal("greedy got past the limit")
+	}
+	q.Client = "other"
+	if d := r.Decide(q); d.Deny {
+		t.Fatalf("other: %+v", d)
 	}
 }

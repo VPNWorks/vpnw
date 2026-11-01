@@ -123,7 +123,7 @@ Design decisions:
   connection given that key adds its bytes to it. A connection that would
   pass `up` or `down` is sent only up to the limit, then closed: a
   `connection.cut` event (rule `plugin:NAME`, the reason, key, which limit,
-  bytes so far), then its `connection.close`. A connection asked for once a
+  bytes = the budget), then its `connection.close`. A connection asked for once a
   meter is spent is refused (`policy.deny`, same rule). Only metered
   connections leave the kernel copy path. Plugins still never carry traffic.
 - Built-in Guard `budget` (plugins/budget), settings only (no file, so no

@@ -38,7 +38,8 @@ import (
 )
 
 // MaxCounters bounds the request counters the plugin keeps (one per budget
-// key), the way vpnw bounds the byte budgets it keeps per Guard.
+// key), for each client at an exit, the way vpnw bounds the byte budgets
+// it keeps per Guard.
 const MaxCounters = 100_000
 
 const (
@@ -60,11 +61,12 @@ type Entry struct {
 
 // Rules are the plugin's settings, read, and its counts so far.
 type Rules struct {
-	hosts    map[string]*Entry
-	suffixes []*Entry // longest first
-	ips      map[netip.Addr]*Entry
-	anyHost  *Entry
-	count    map[string]int64
+	hosts     map[string]*Entry
+	suffixes  []*Entry // longest first
+	ips       map[netip.Addr]*Entry
+	anyHost   *Entry
+	count     map[string]int64
+	perClient map[string]int
 }
 
 var sizeUnits = map[string]float64{
@@ -164,7 +166,7 @@ func Parse(settings map[string]string) (*Rules, error) {
 	if allow == "" {
 		return nil, fmt.Errorf("budget needs the hosts to allow: --set budget.allow='api.example.com up=10MB; *.example.org' (* allows any host)")
 	}
-	r := &Rules{hosts: map[string]*Entry{}, ips: map[netip.Addr]*Entry{}, count: map[string]int64{}}
+	r := &Rules{hosts: map[string]*Entry{}, ips: map[netip.Addr]*Entry{}, count: map[string]int64{}, perClient: map[string]int{}}
 	seen := map[string]bool{}
 	for _, part := range strings.Split(allow, ";") {
 		fields := strings.Fields(part)
@@ -176,10 +178,16 @@ func Parse(settings map[string]string) (*Rules, error) {
 		if strings.Contains(e.Pattern, "=") {
 			return nil, fmt.Errorf("budget.allow: an entry starts with %q; give the host first, then up=, down= or requests=", fields[0])
 		}
-		if seen[e.Pattern] {
+		// An address is listed once however it is written (::1, [::1],
+		// 0:0::1, ::ffff:10.0.0.1 for 10.0.0.1).
+		canon := e.Pattern
+		if a, err := netip.ParseAddr(strings.Trim(e.Pattern, "[]")); err == nil {
+			canon = a.Unmap().String()
+		}
+		if seen[canon] {
 			return nil, fmt.Errorf("budget.allow: %s is listed twice", e.Pattern)
 		}
-		seen[e.Pattern] = true
+		seen[canon] = true
 		for _, f := range fields[1:] {
 			k, v, ok := strings.Cut(f, "=")
 			if !ok {
@@ -292,11 +300,14 @@ func (r *Rules) Decide(q *sdk.Request) sdk.Decision {
 	k := key(e, q)
 	if e.Requests > 0 {
 		n, ok := r.count[k]
-		if !ok && len(r.count) >= MaxCounters {
+		if !ok && r.perClient[q.Client] >= MaxCounters {
 			return sdk.Decision{Deny: true, Reason: fmt.Sprintf("budget keeps request counts for %d hosts already, the most it may", MaxCounters)}
 		}
 		if n >= e.Requests {
 			return sdk.Decision{Deny: true, Reason: fmt.Sprintf("request budget spent: %d connections (%s)", e.Requests, describe(e, q))}
+		}
+		if !ok {
+			r.perClient[q.Client]++
 		}
 		r.count[k] = n + 1
 	}

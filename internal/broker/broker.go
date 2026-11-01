@@ -489,29 +489,12 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 		return o
 	}
 
-	if pol != nil {
-		var d policy.Decision
-		if pol.NeedsAddresses(t) {
-			if err := resolve(); err != nil {
-				return fail(err, 0x04)
-			}
-			d = pol.Decide(t, addrs)
-		} else {
-			d = pol.Decide(t, nil)
-		}
-		df := map[string]any{"rule": d.Rule, "reason": d.Reason}
-		if d.Text != "" {
-			df["text"] = d.Text
-		}
-		if !d.Allow {
-			b.denied.Add(1)
-			emit(events.PolicyDeny, df)
-			return outcome{id: id, start: start, denied: &d, socks: 0x02}
-		}
-		emit(events.PolicyAllow, df)
-	}
+	// The Guards are asked about a connection the policy allows. When the
+	// policy needs a name's addresses, they are asked before the lookup, so a
+	// name a Guard refuses is never looked up: a DNS query can carry data
+	// out too.
 	var metr *metered
-	if len(b.Guards) > 0 {
+	askGuards := func() *outcome {
 		req := GuardRequest{Run: b.runID(), Conn: id, PID: int(b.pid.Load()), Path: pathID, Host: host, Port: port, Proto: proto}
 		if host == "" {
 			req.IP = ip.String()
@@ -525,7 +508,7 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 				if m == nil {
 					continue
 				}
-				mt := b.meterFor(g.Name(), m)
+				mt := b.meterFor(g.Name(), req.Client, m)
 				switch {
 				case mt == nil:
 					deny, reason = true, fmt.Sprintf("guard plugin %s keeps %d byte budgets already, the most one may", g.Name(), MaxMeters)
@@ -547,7 +530,41 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 			d := policy.Decision{Allow: false, Rule: "plugin:" + g.Name(), Reason: reason}
 			b.denied.Add(1)
 			emit(events.PolicyDeny, map[string]any{"rule": d.Rule, "reason": d.Reason})
+			return &outcome{id: id, start: start, denied: &d, socks: 0x02}
+		}
+		return nil
+	}
+	guardsAsked := false
+	if pol != nil && len(b.Guards) > 0 && host != "" && pol.NeedsAddresses(t) {
+		if o := askGuards(); o != nil {
+			return *o
+		}
+		guardsAsked = true
+	}
+	if pol != nil {
+		var d policy.Decision
+		if pol.NeedsAddresses(t) {
+			if err := resolve(); err != nil {
+				return fail(err, 0x04)
+			}
+			d = pol.Decide(t, addrs)
+		} else {
+			d = pol.Decide(t, nil)
+		}
+		df := map[string]any{"rule": d.Rule, "reason": d.Reason}
+		if d.Text != "" {
+			df["text"] = d.Text
+		}
+		if !d.Allow {
+			b.denied.Add(1)
+			emit(events.PolicyDeny, df)
 			return outcome{id: id, start: start, denied: &d, socks: 0x02}
+		}
+		emit(events.PolicyAllow, df)
+	}
+	if !guardsAsked && len(b.Guards) > 0 {
+		if o := askGuards(); o != nil {
+			return *o
 		}
 	}
 	b.allowed.Add(1)

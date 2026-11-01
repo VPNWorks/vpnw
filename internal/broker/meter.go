@@ -26,9 +26,10 @@ type Meter struct {
 	Reason string
 }
 
-// MaxMeters is how many budgets one Guard may keep in a run. A Guard that
-// asks for more has its next connections refused, so a plugin can't make
-// vpnw keep unbounded state.
+// MaxMeters is how many budgets one Guard may keep in a run, and at an
+// exit for each client, so one client can't use up the others' share. A
+// Guard that asks for more has the next connections refused, so a plugin
+// can't make vpnw keep unbounded state.
 var MaxMeters = 100_000
 
 const (
@@ -94,7 +95,7 @@ func (m *meter) spent() int {
 // meterFor finds or makes the meter for a Guard's key, with the limits it
 // gives now (a Guard may raise or lower a budget as the run goes). It
 // returns nil when the Guard already keeps MaxMeters.
-func (b *Broker) meterFor(guard string, m *Meter) *meter {
+func (b *Broker) meterFor(guard, client string, m *Meter) *meter {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.meters == nil {
@@ -104,12 +105,12 @@ func (b *Broker) meterFor(guard string, m *Meter) *meter {
 	k := guard + "\x00" + m.Key
 	mt := b.meters[k]
 	if mt == nil {
-		if b.meterCount[guard] >= MaxMeters {
+		if b.meterCount[guard+"\x00"+client] >= MaxMeters {
 			return nil
 		}
 		mt = &meter{guard: guard, key: m.Key}
 		b.meters[k] = mt
-		b.meterCount[guard]++
+		b.meterCount[guard+"\x00"+client]++
 	}
 	mt.mu.Lock()
 	mt.limit = [2]int64{max(m.Up, 0), max(m.Down, 0)}

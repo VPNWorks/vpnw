@@ -159,7 +159,7 @@ Every connection is decided in the same order:
 
 A name is looked up only when an address could change the answer. A name that's denied, or simply not allowed, is never looked up, because a DNS query can carry data out too. If a name resolves to several addresses, all must pass.
 
-Guard plugins come after the policy: they see only connections the policy allowed, and can only refuse them, or put a byte budget on them (see [Budget](#budget)).
+Guard plugins come after the policy: they decide only connections the policy allows, and can only refuse them, or put a byte budget on them (see [Budget](#budget)). When the policy needs a name's addresses (`deny_private`, or rules on addresses), the Guards are asked before the lookup, so a name a Guard refuses is never looked up.
 
 ## Budget
 
@@ -183,8 +183,8 @@ A size is a number with `B`, `KB`, `MB`, `GB`, `TB` (powers of 1000) or `KiB`, `
 - A host on no entry is refused: `HOST is not on the budget allowlist`. A host matches its own entry first, then the longest pattern above it, then `*`.
 - The names under a pattern share its budget, so a program can't get a fresh budget from each made-up subdomain. Under `*`, each host has its own.
 - `requests` counts connections Budget lets through; the one past the budget is refused (`request budget spent`). An HTTP client that keeps a connection open sends many requests over one.
-- Bytes are counted by vpnw, on the connection, both ways: what the program sends (`up`) and what it receives (`down`), TLS and HTTP headers included. A connection that would pass a budget is carried up to it, then closed, with a `connection.cut` event before its `connection.close`; a connection asked for once a budget is spent is refused (`byte budget spent`). Connections sharing a budget at the same time never get past it together.
-- At an exit, each client has budgets of its own.
+- Bytes are counted by vpnw, on the connection, both ways: what the program sends (`up`) and what it receives (`down`), TLS and HTTP headers included (for plain `http://` requests, the request and response heads as vpnw passes them on, without proxy headers and with `Connection: close`). A connection that would pass a budget is carried up to it, then closed, with a `connection.cut` event before its `connection.close`; a connection asked for once a budget is spent is refused (`byte budget spent`). Connections sharing a budget at the same time never get past it together.
+- At an exit, each client has budgets of its own. A Guard keeps at most 100,000 byte budgets in a run, and at an exit as many for each client; Budget's request counts are bounded the same way.
 - A connection that has no byte budget keeps the kernel's fast copy; one that has a budget is copied through vpnw.
 
 Any Guard can put budgets on connections the same way; see [docs/plugins.md](plugins.md#byte-budgets).
@@ -350,7 +350,8 @@ Plugins run at an exit as they do in a run. Observers see its record (`--plugin 
 `vpnw exit serve` looks at its file, and at the policy files its clients name, every 2 seconds, by their contents. When one has changed it reads the file again, whole, and checks it as at start, source addresses included:
 
 - If the new file is refused (a mistake in it, a source address this machine doesn't have, a file it can't read), the clients stay as they were, and `exit.reload` records the error. With `--quiet`, the error is printed too.
-- Otherwise the new clients take over at once. A client added can connect. A client taken out, or given a new token, is refused from then on, and its open connections are closed. A client whose policy, address or pool changed keeps its open connections; its new requests are decided by the new file.
+- Otherwise the new clients take over at once. A client added can connect. A client taken out, or given a new token, is refused from then on, a request it sent just before included, and its open connections are closed. A client whose policy, address or pool changed keeps its open connections; requests it sends after the reload are decided by the new file.
+- A source address that isn't on the machine yet refuses the reload; once it is there, save the file again.
 - The exit's `name`, `listen`, `cert` and `key` stay as they were at start; `exit.reload` lists them under `restart` when they changed. Restart the exit to change them.
 
 A new token takes effect within 2 seconds; editing the file is the way to take a client's access away.
