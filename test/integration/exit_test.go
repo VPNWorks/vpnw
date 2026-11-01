@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -762,4 +763,83 @@ default = "allow"
 	if !ok {
 		t.Errorf("admin: %s %q %s", code1, body, code2)
 	}
+}
+
+// A client added to a running exit's file can use it within seconds, with
+// no restart; one taken out can't, and its open connection is closed; a
+// broken file leaves the clients as they were.
+func TestExitReload(t *testing.T) {
+	k := newExitKit(t)
+	srv := newSourceServer(t)
+	tok1, h1 := k.token("agent-1")
+	tok2, h2 := k.token("agent-2")
+	one := fmt.Sprintf("[clients.agent-1]\ntoken_sha256 = %q\nsource = \"127.0.0.2\"\nallow_exit_host = true\ndefault = \"deny\"\nallow = [\"127.0.0.1\"]\n", h1)
+	two := fmt.Sprintf("[clients.agent-2]\ntoken_sha256 = %q\nsource = \"127.0.0.3\"\nallow_exit_host = true\ndefault = \"deny\"\nallow = [\"127.0.0.1\"]\n", h2)
+	x := k.serve("exit-a", one)
+	conf := filepath.Join(k.e.dir, "exit-a.toml")
+	head, _ := os.ReadFile(conf)
+	base := strings.SplitN(string(head), "[clients.", 2)[0]
+	d1, d2 := k.direct(x.addr, tok1), k.direct(x.addr, tok2)
+	target := fmt.Sprintf("127.0.0.1:%d", srv.port)
+	before, _, _ := d2.connect(target)
+
+	// agent-1 holds a connection open through the exit.
+	held := d1.dial()
+	fmt.Fprintf(held, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s\r\n\r\n", target, target, base64.StdEncoding.EncodeToString([]byte("vpnw:"+d1.token)))
+	hb := bufio.NewReader(held)
+	status, _ := hb.ReadString('\n')
+	for {
+		l, err := hb.ReadString('\n')
+		if err != nil || l == "\r\n" {
+			break
+		}
+	}
+
+	waitReload := func(n int) time.Duration {
+		t0 := time.Now()
+		for time.Since(t0) < 15*time.Second {
+			if len(x.events(t, "exit.reload")) >= n {
+				return time.Since(t0)
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		t.Fatalf("no exit.reload %d:\n%s", n, x.output())
+		return 0
+	}
+	t0 := time.Now()
+	writeFile(t, k.e.dir, "exit-a.toml", base+two)
+	waitReload(1)
+	took := time.Since(t0)
+	code2, _, body2 := d2.connect(target)
+	code1, _, _ := d1.connect(target)
+	io.WriteString(held, "GET / HTTP/1.0\r\n\r\n")
+	held.SetReadDeadline(time.Now().Add(5 * time.Second))
+	rest, err := io.ReadAll(hb)
+	cut := err == nil && !strings.Contains(string(rest), "from 127.0.0.2") || err != nil && !isTimeout(err)
+	ev := fields(x.events(t, "exit.reload")[0])
+	ok := before == "407" && strings.HasPrefix(status, "HTTP/1.1 200") && code2 == "200" && body2 == "from 127.0.0.3" && code1 == "407" && cut &&
+		fmt.Sprint(ev["added"]) == "[agent-2]" && fmt.Sprint(ev["removed"]) == "[agent-1]"
+	exitRecord(t, "agent-2 added to the running exit's file, agent-1 taken out", "agent-2 is let in within seconds, from its address, no restart; agent-1 is refused and its open connection is closed; the record names both",
+		fmt.Sprintf("agent-2 before: %s, after: %s %s (taken in after %s); agent-1 after: %s, its open connection closed: %v; exit.reload added %v, removed %v, closed %v",
+			before, code2, body2, took.Round(100*time.Millisecond), code1, cut, ev["added"], ev["removed"], ev["closed"]), ok)
+	if !ok {
+		t.Errorf("before %s status %q after %s %q agent-1 %s cut %v (%q %v) ev %v\n%s", before, status, code2, body2, code1, cut, rest, err, ev, x.output())
+	}
+
+	writeFile(t, k.e.dir, "exit-a.toml", base+two+"\n[clients.broken]\nwhat = 1\n")
+	waitReload(2)
+	code2, _, _ = d2.connect(target)
+	ev = fields(x.events(t, "exit.reload")[1])
+	errText, _ := ev["error"].(string)
+	ok = code2 == "200" && strings.Contains(errText, "exit-a.toml")
+	exitRecord(t, "a mistake written into the running exit's file", "the clients stay as they were, and the record says why",
+		fmt.Sprintf("agent-2: %s; exit.reload error: %q", code2, errText), ok)
+	if !ok {
+		t.Errorf("%s %v", code2, ev)
+	}
+}
+
+func isTimeout(err error) bool {
+	var ne net.Error
+	return errors.As(err, &ne) && ne.Timeout()
 }

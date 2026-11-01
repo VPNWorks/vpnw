@@ -131,6 +131,9 @@ type Broker struct {
 	// many each Guard keeps.
 	meters     map[string]*meter
 	meterCount map[string]int
+	// At an exit, under mu: each client's open connections out, so a client
+	// taken out of the exit's file can have them closed (Revoke).
+	clientUps map[*Client]map[net.Conn]struct{}
 }
 
 // baseCtx is the context every connection's lookups and dials run under;
@@ -230,10 +233,10 @@ func (b *Broker) track(c net.Conn) bool {
 
 // trackUp registers a connection out through the path, so Shutdown can
 // close it; a run already ending closes it at once.
-func (b *Broker) trackUp(c net.Conn) {
+func (b *Broker) trackUp(c net.Conn, cl *Client) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.closed {
+	if b.closed || cl != nil && cl.revoked.Load() {
 		c.Close()
 		return
 	}
@@ -241,12 +244,44 @@ func (b *Broker) trackUp(c net.Conn) {
 		b.ups = map[net.Conn]struct{}{}
 	}
 	b.ups[c] = struct{}{}
+	if cl != nil {
+		if b.clientUps == nil {
+			b.clientUps = map[*Client]map[net.Conn]struct{}{}
+		}
+		if b.clientUps[cl] == nil {
+			b.clientUps[cl] = map[net.Conn]struct{}{}
+		}
+		b.clientUps[cl][c] = struct{}{}
+	}
 }
 
-func (b *Broker) untrackUp(c net.Conn) {
+func (b *Broker) untrackUp(c net.Conn, cl *Client) {
 	b.mu.Lock()
 	delete(b.ups, c)
+	if cl != nil {
+		delete(b.clientUps[cl], c)
+		if len(b.clientUps[cl]) == 0 {
+			delete(b.clientUps, cl)
+		}
+	}
 	b.mu.Unlock()
+}
+
+// Revoke takes clients out of an exit: their requests from now on are
+// refused, and their open connections closed. It returns how many were
+// closed. Clients is expected to stop finding them first.
+func (b *Broker) Revoke(cls ...*Client) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	n := 0
+	for _, cl := range cls {
+		cl.revoked.Store(true)
+		for c := range b.clientUps[cl] {
+			c.Close()
+			n++
+		}
+	}
+	return n
 }
 
 func (b *Broker) untrack(c net.Conn) {
@@ -317,6 +352,7 @@ type outcome struct {
 	path   string   // the ID of the path it went by, for its later events
 	addrs  []string // on failure: the addresses the name was looked up to
 	meter  *metered // the Guards' byte budgets on it, or nil
+	client *Client  // at an exit, the client it is for
 }
 
 // origin is who asked for a connection. The zero origin is the broker's own
@@ -338,6 +374,7 @@ func (b *Broker) open(from origin, rawHost string, port int, proto string) outco
 	}
 	o := b.decide(from, pol, p, rawHost, port, proto)
 	o.path = p.ID()
+	o.client = from.client
 	return o
 }
 
@@ -360,6 +397,13 @@ func (b *Broker) decide(from origin, pol *policy.Policy, p path.Path, rawHost st
 	}
 	from.fields(f)
 	emit(events.ConnectionAttempt, f)
+	if from.client != nil && from.client.revoked.Load() {
+		// It logged in just before the exit's file took it out.
+		d := policy.Decision{Allow: false, Rule: "exit", Reason: "client " + from.client.Name + " was taken out of the exit's file"}
+		b.denied.Add(1)
+		emit(events.PolicyDeny, map[string]any{"rule": d.Rule, "reason": d.Reason})
+		return outcome{id: id, start: start, denied: &d, socks: 0x02}
+	}
 	if from.client != nil && pol == nil {
 		// An exit never treats a client without a policy as allowed.
 		d := policy.Decision{Allow: false, Rule: "no-policy", Reason: "the exit has no policy for client " + from.client.Name}
@@ -662,8 +706,8 @@ func isTimeout(err error) bool {
 // finish relays until both sides are done, then records the close.
 func (b *Broker) finish(o outcome, client net.Conn, fromClient io.Reader, extraUp, extraDown int64, rewrite func(io.Reader, io.Writer) (int64, error)) {
 	defer o.conn.Close()
-	b.trackUp(o.conn)
-	defer b.untrackUp(o.conn)
+	b.trackUp(o.conn, o.client)
+	defer b.untrackUp(o.conn, o.client)
 	client.SetDeadline(time.Time{})
 	b.active.Add(1)
 	defer b.active.Add(-1)

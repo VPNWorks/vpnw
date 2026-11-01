@@ -163,6 +163,10 @@ func newExitRunID() string {
 	return "x-" + hex.EncodeToString(b[:])
 }
 
+// ReloadEvery is how often vpnw exit serve looks at its file and the policy
+// files it names for changes.
+var ReloadEvery = 2 * time.Second
+
 func exitServe(args []string, stderr io.Writer) int {
 	var file, out string
 	var jsonOut, verbose, quiet bool
@@ -260,8 +264,10 @@ func exitServe(args []string, stderr io.Writer) int {
 		defer outFile.Close()
 	}
 
+	clients := cfg.BrokerClients()
+	live := exit.NewLive(clients)
 	br := &broker.Broker{
-		Exit:     &broker.Exit{Name: cfg.Name, Clients: cfg.BrokerClients()},
+		Exit:     &broker.Exit{Name: cfg.Name, Clients: live},
 		Resolver: path.SystemResolver{},
 		Bus:      bus,
 		Guards:   pr.brokerGuards(),
@@ -289,10 +295,42 @@ func exitServe(args []string, stderr io.Writer) int {
 
 	// Serve returns only when the listener is closed, below.
 	go br.Serve(tl)
+	// The file and its policy files are read again when they change, so
+	// clients come and go without a restart.
+	reloader := exit.NewReloader(cfg, clients, live, br.Revoke)
+	stopWatch := make(chan struct{})
+	watched := make(chan struct{})
+	go func() {
+		defer close(watched)
+		t := time.NewTicker(ReloadEvery)
+		defer t.Stop()
+		for {
+			select {
+			case <-stopWatch:
+				return
+			case <-t.C:
+			}
+			ch := reloader.Check()
+			if ch == nil {
+				continue
+			}
+			bus.Emit(events.ExitReload, 0, "", 0, ch.Fields())
+			if quiet && ch.Err != nil {
+				fmt.Fprintf(stderr, "vpnw: %s changed but was not taken in: %v; the clients stay as they were\n", file, ch.Err)
+			}
+			if !quiet {
+				for _, w := range ch.Warnings {
+					fmt.Fprintf(stderr, "vpnw: warning: %s\n", w)
+				}
+			}
+		}
+	}()
 	sigs := make(chan os.Signal, 4)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	why := "stopped by " + (<-sigs).String()
 	signal.Stop(sigs)
+	close(stopWatch)
+	<-watched
 	l.Close()
 	br.Shutdown(5 * time.Second)
 	st := br.Stats()

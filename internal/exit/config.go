@@ -54,6 +54,9 @@ type Config struct {
 	// Warnings are things that work but deserve a look, such as a client
 	// policy that lets it reach private addresses.
 	Warnings []string
+	// PolicyFiles are the policy files the clients' policies came from, as
+	// read, for vpnw exit serve to watch.
+	PolicyFiles []string
 }
 
 // Pool is a set of source addresses that clients share.
@@ -432,6 +435,7 @@ func parseClient(file, name string, t *config.Table, load Loader, c *Config) (*C
 		}
 		cl.Policy = p
 	case cl.PolicyFile != "":
+		c.PolicyFiles = append(c.PolicyFiles, c.inDir(cl.PolicyFile))
 		f, err := load(c.inDir(cl.PolicyFile))
 		if err != nil {
 			return nil, "", errAt(file, t.Keys["policy"].Line, "client %s: %v", name, err)

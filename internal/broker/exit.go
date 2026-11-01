@@ -15,6 +15,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/VPNWorks/vpnw/internal/events"
@@ -86,6 +87,8 @@ type Client struct {
 	Path   path.Path
 	// Source is the address its connections leave from, for the record.
 	Source string
+
+	revoked atomic.Bool
 }
 
 // Clients finds the client a token belongs to, or nil. Login must take the
