@@ -14,6 +14,25 @@
 //	{"cp":1,"n":100,"h":"…"}                           a checkpoint
 //	{"end":143,"cp":2,"h":"…"}                         the run ended here
 //
+// A signed ledger names its key in the header, and has a signature line
+// after each checkpoint and after the end line:
+//
+//	{"vpnw-ledger":1,"run":"r-3f9a1c","key":"vpnw-ed25519:…"}
+//	{"cp":1,"n":100,"h":"…"}
+//	{"sig":1,"s":"<base64>"}                           checkpoint 1's signature
+//	{"end":143,"cp":2,"h":"…"}
+//	{"sig":"end","s":"<base64>"}                       the end line's
+//
+// The signature is vpnw's (the plugin never holds the key), Ed25519 over
+//
+//	"vpnw-signed v1\nledger\n" || run || "\n" || statement
+//
+// where the statement is "cp K N <h>" for checkpoint K after entry N with
+// hash h, and "end N K <h>" for the end line. Signature lines are not links
+// of the chain: the key is, through the header. A ledger written again
+// after a checkpoint no longer matches that checkpoint's signature, and
+// without the key no one can sign the new one.
+//
 // Entries (events and lost-event marks) are numbered from 1. Each entry's
 // hash covers the hash before it, its number and its content:
 //
@@ -32,7 +51,9 @@ package chain
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -73,11 +94,63 @@ func lowerHex(s string) bool {
 var runRe = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
 
 // Header returns the header line, without its newline.
-func Header(run string) ([]byte, error) {
+func Header(run string) ([]byte, error) { return SignedHeader(run, "") }
+
+var keyRe = regexp.MustCompile(`^vpnw-ed25519:[A-Za-z0-9+/]{43}=$`)
+
+// SignedHeader returns the header line of a ledger signed by key ("" for
+// an unsigned one), without its newline.
+func SignedHeader(run, key string) ([]byte, error) {
 	if !runRe.MatchString(run) {
 		return nil, fmt.Errorf("run %q is not a run identifier", run)
 	}
-	return []byte(`{"vpnw-ledger":1,"run":"` + run + `"}`), nil
+	if key == "" {
+		return []byte(`{"vpnw-ledger":1,"run":"` + run + `"}`), nil
+	}
+	if !keyRe.MatchString(key) {
+		return nil, fmt.Errorf("%q is not a vpnw public key", key)
+	}
+	return []byte(`{"vpnw-ledger":1,"run":"` + run + `","key":"` + key + `"}`), nil
+}
+
+// ValidKey says whether s is a vpnw public key, "vpnw-ed25519:…".
+func ValidKey(s string) bool { return keyRe.MatchString(s) }
+
+// SignedDomain and Signer are what vpnw puts before a statement it signs
+// for the Ledger plugin (see internal/pluginhost, sign).
+const (
+	SignedDomain = "vpnw-signed v1\n"
+	Signer       = "ledger"
+)
+
+// CheckpointStatement and EndStatement are what Ledger has vpnw sign.
+func CheckpointStatement(k, n uint64, h Hash) string { return fmt.Sprintf("cp %d %d %s", k, n, h) }
+func EndStatement(n, k uint64, h Hash) string        { return fmt.Sprintf("end %d %d %s", n, k, h) }
+
+// SignedMessage is what a signature over a statement in run covers.
+func SignedMessage(run, statement string) []byte {
+	return []byte(SignedDomain + Signer + "\n" + run + "\n" + statement)
+}
+
+// VerifySig checks a signature from key over a statement in run.
+func VerifySig(key, run, statement string, sig []byte) bool {
+	if !keyRe.MatchString(key) || len(sig) != ed25519.SignatureSize {
+		return false
+	}
+	pub, err := base64.StdEncoding.DecodeString(key[len("vpnw-ed25519:"):])
+	if err != nil || len(pub) != ed25519.PublicKeySize {
+		return false
+	}
+	return ed25519.Verify(ed25519.PublicKey(pub), SignedMessage(run, statement), sig)
+}
+
+// SigLine is the signature line of checkpoint k, or of the end when k is 0.
+func SigLine(k uint64, sig []byte) []byte {
+	which := strconv.FormatUint(k, 10)
+	if k == 0 {
+		which = `"end"`
+	}
+	return []byte(`{"sig":` + which + `,"s":"` + base64.StdEncoding.EncodeToString(sig) + "\"}\n")
 }
 
 // Start is h0, the hash a ledger with this header line starts from.
@@ -138,8 +211,11 @@ type Writer struct {
 }
 
 // NewWriter starts a ledger for a run and returns it with the header line.
-func NewWriter(run string) (*Writer, []byte, error) {
-	hd, err := Header(run)
+func NewWriter(run string) (*Writer, []byte, error) { return NewSignedWriter(run, "") }
+
+// NewSignedWriter starts a ledger signed by key ("" for none).
+func NewSignedWriter(run, key string) (*Writer, []byte, error) {
+	hd, err := SignedHeader(run, key)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -150,6 +226,9 @@ func NewWriter(run string) (*Writer, []byte, error) {
 // latest line.
 func (w *Writer) Entries() uint64 { return w.n }
 func (w *Writer) Head() Hash      { return w.head }
+
+// Checkpoints is how many checkpoints the ledger has.
+func (w *Writer) Checkpoints() uint64 { return w.cp }
 
 // SinceCheckpoint is how many entries no checkpoint covers yet.
 func (w *Writer) SinceCheckpoint() uint64 { return w.n - w.cpAt }
@@ -211,6 +290,7 @@ const (
 	KLost
 	KCheckpoint
 	KEnd
+	KSig
 )
 
 // Parsed is one ledger line, read back.
@@ -220,8 +300,10 @@ type Parsed struct {
 	N     uint64 // event, lost, checkpoint: the entry; end: entries in all
 	Ev    []byte // event: the event's bytes, a slice of the line
 	Count uint64 // lost
-	CP    uint64 // checkpoint: its number; end: checkpoints in all
+	CP    uint64 // checkpoint: its number; end: checkpoints in all; sig: the checkpoint's, 0 for the end
 	H     Hash
+	Key   string // header: the key that signs the ledger, or ""
+	Sig   []byte // sig
 }
 
 // ErrForm is returned for a line that is not exactly as Ledger writes it.
@@ -235,14 +317,37 @@ func Parse(line []byte) (*Parsed, error) {
 		var h struct {
 			V   int    `json:"vpnw-ledger"`
 			Run string `json:"run"`
+			Key string `json:"key"`
 		}
 		if json.Unmarshal(line, &h) != nil || h.V != Version {
 			return nil, ErrForm
 		}
-		if hd, err := Header(h.Run); err != nil || !bytes.Equal(hd, line) {
+		if hd, err := SignedHeader(h.Run, h.Key); err != nil || !bytes.Equal(hd, line) {
 			return nil, ErrForm
 		}
-		return &Parsed{Kind: KHeader, Run: h.Run}, nil
+		return &Parsed{Kind: KHeader, Run: h.Run, Key: h.Key}, nil
+	case bytes.HasPrefix(line, []byte(`{"sig":`)):
+		rest := line[len(`{"sig":`):]
+		var k uint64
+		if bytes.HasPrefix(rest, []byte(`"end"`)) {
+			rest = rest[len(`"end"`):]
+		} else {
+			var ok bool
+			k, rest, ok = number(rest)
+			if !ok || k == 0 {
+				return nil, ErrForm
+			}
+		}
+		const sigLen = 88 // base64 of 64 bytes
+		if len(rest) != len(`,"s":"`)+sigLen+len(`"}`) || !bytes.HasPrefix(rest, []byte(`,"s":"`)) || !bytes.HasSuffix(rest, []byte(`"}`)) {
+			return nil, ErrForm
+		}
+		b64 := rest[len(`,"s":"`) : len(rest)-2]
+		sig, err := base64.StdEncoding.DecodeString(string(b64))
+		if err != nil || len(sig) != ed25519.SignatureSize || base64.StdEncoding.EncodeToString(sig) != string(b64) {
+			return nil, ErrForm
+		}
+		return &Parsed{Kind: KSig, CP: k, Sig: sig}, nil
 	case bytes.HasPrefix(line, []byte(`{"n":`)):
 		rest := line[len(`{"n":`):]
 		n, rest, ok := number(rest)

@@ -156,6 +156,18 @@ VPNW_LEDGER_MATRIX_OUT="$PWD/$OUT/ledger-tamper.md" go test -count=1 -run 'TestT
 cat "$OUT/ledger-tamper.md"
 echo "$(grep -c '^| [a-z]' "$OUT/ledger-tamper.md") kinds of change; verdicts: $(awk -F' [|] ' 'NR>2{print $2}' "$OUT/ledger-tamper.md" | sort | uniq -c | tr -s ' ' | tr '\n' ';')" | tee -a "$OUT/ledger-tamper.md"
 
+say "signed ledgers: the real vpnw signs, verify catches a ledger written again"
+rm -f "$OUT/ledger-signed.md"
+sg=0
+VPNW_SIGNED_OUT="$PWD/$OUT/ledger-signed.md" go test -count=1 -run 'TestLedgerSigned$' -v ./test/integration/ >"$OUT/signed.log" 2>&1 || sg=$?
+grep -E '^(---|ok|FAIL)' "$OUT/signed.log" | tee "$OUT/ledger-signed.txt"; rm -f "$OUT/signed.log"
+if [ ! -s "$OUT/ledger-signed.md" ] || ! grep -qE '\| (passed|FAILED) \|' "$OUT/ledger-signed.md"; then
+  echo "The signed ledger test didn't run: it needs a sealed run (Linux with user namespaces)" | tee "$OUT/ledger-signed.md"
+else
+  cat "$OUT/ledger-signed.md"
+  echo "$(grep -c '| passed |' "$OUT/ledger-signed.md") of $(grep -cE '\| (passed|FAILED) \|' "$OUT/ledger-signed.md") checks passed$([ "$sg" -ne 0 ] && echo "; go test FAILED (exit $sg)")" | tee -a "$OUT/ledger-signed.md"
+fi
+
 say "Lab: faults on the WireGuard paths, --wireguard and --tunnel rotate"
 rm -f "$OUT/lab.md"
 lab=0

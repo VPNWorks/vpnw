@@ -31,6 +31,7 @@ const (
 	PermEmit    = "events.emit" // add events to the run's record
 	PermFile    = "file.write"  // append to the one file vpnw opens for it
 	PermFolder  = "folder.read" // read the files in the one folder vpnw opens for it
+	PermSign    = "sign"        // have vpnw sign statements with its key, as this plugin
 )
 
 var knownPerms = map[string]string{
@@ -38,6 +39,7 @@ var knownPerms = map[string]string{
 	PermEmit:    "add its own events to the run's record",
 	PermFile:    "append to one file that vpnw opens for it",
 	PermFolder:  "read the files in one folder that vpnw opens for it",
+	PermSign:    "have vpnw sign short statements with this machine's key, in its own name and the run's",
 }
 
 // What an Advisor is handed: events (the default) or the lines of its

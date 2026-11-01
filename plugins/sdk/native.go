@@ -30,7 +30,18 @@ var (
 	// at the top. Nil makes them fail, as when vpnw has no folder open for
 	// the plugin.
 	TestFolder fs.FS
+	// TestSign signs for Sign; nil makes Sign fail, as when vpnw has no
+	// key for the plugin.
+	TestSign func(statement string) []byte
 )
+
+func sign(st, out []byte) uint32 {
+	if TestSign == nil {
+		return 1
+	}
+	copy(out, TestSign(string(st)))
+	return 0
+}
 
 func folderList(buf []byte) uint32 {
 	if TestFolder == nil {

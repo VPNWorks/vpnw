@@ -130,6 +130,10 @@ type Config struct {
 	// The plugin can only list it and read the files in it, with FolderList
 	// and FolderRead.
 	Folder string `json:"folder"`
+	// SignKey is the public key vpnw signs with for this plugin
+	// ("vpnw-ed25519:…"), if its manifest asks for "sign" and the command
+	// has a key; "" if not. Sign uses the key; the plugin never sees it.
+	SignKey string `json:"sign_key"`
 }
 
 // TunnelRequest is what vpnw asks a tunnel plugin: a WireGuard config to
@@ -313,6 +317,26 @@ func FileWrite(b []byte) error {
 		return ErrNoFile
 	}
 	return nil
+}
+
+// ErrNoSign is returned by Sign when vpnw has no key for the plugin.
+var ErrNoSign = errors.New("vpnw has no signing key for this plugin (it needs the \"sign\" permission, and run, trace, guard or exit serve)")
+
+// Sign has vpnw sign a statement, printable ASCII of at most 1 KiB, with
+// its key: an Ed25519 signature over
+//
+//	"vpnw-signed v1\n" + plugin name + "\n" + run + "\n" + statement
+//
+// Needs the "sign" permission.
+func Sign(statement string) ([]byte, error) {
+	if statement == "" {
+		return nil, errors.New("nothing to sign")
+	}
+	sig := make([]byte, 64)
+	if sign([]byte(statement), sig) != 0 {
+		return nil, ErrNoSign
+	}
+	return sig, nil
 }
 
 // FileSync asks vpnw to flush the plugin's file to disk. Needs the

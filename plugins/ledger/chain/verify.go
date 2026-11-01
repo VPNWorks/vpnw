@@ -25,6 +25,19 @@ type Verifier struct {
 	// Head, if set, is the end hash kept somewhere else; the ledger must
 	// end with it.
 	Head *Hash
+	// Key is the public key to check a signed ledger against, and KeyFrom
+	// where it came from: "given" (vpnw verify --key; the ledger must be
+	// signed by it) or "machine" (this machine's own key; a ledger signed
+	// by another key is reported, not failed).
+	Key, KeyFrom string
+
+	key      string // the key the header names, or ""
+	wantSig  bool   // the last line was a checkpoint or the end of a signed ledger
+	wantCP   uint64 // which: a checkpoint's number, or 0 for the end
+	wantStmt string // the statement its signature covers
+	wantLine int
+	signedCP uint64 // checkpoints signed so far
+	endSig   bool   // the end line's signature checked out
 
 	file    string
 	run     string
@@ -100,7 +113,7 @@ func (v *Verifier) Ledger(file string, n int, text []byte, partial bool) {
 	if v.problem != "" {
 		return
 	}
-	if v.ended {
+	if v.ended && !(v.wantSig && v.wantCP == 0) {
 		v.fail(n, "a line after the end line: it was added")
 		return
 	}
@@ -116,13 +129,21 @@ func (v *Verifier) Ledger(file string, n int, text []byte, partial bool) {
 			v.fail(n, "this is not a VPN Works ledger: its first line is not a ledger header")
 			return
 		}
-		v.started, v.run, v.prev = true, p.Run, Start(text)
+		v.started, v.run, v.prev, v.key = true, p.Run, Start(text), p.Key
 		return
 	}
 	p, err := Parse(text)
 	if err != nil {
 		v.flush()
 		v.fail(n, "not a line Ledger writes: it was changed")
+		return
+	}
+	if p.Kind == KSig {
+		v.sig(n, p)
+		return
+	}
+	if v.wantSig {
+		v.unsigned(n)
 		return
 	}
 	switch p.Kind {
@@ -146,6 +167,7 @@ func (v *Verifier) Ledger(file string, n int, text []byte, partial bool) {
 		default:
 			v.cp, v.cpAt, v.prev = p.CP, p.N, p.H
 			v.cps = append(v.cps, cpLine{n: p.N, h: p.H, line: n})
+			v.expectSig(n, p.CP, CheckpointStatement(p.CP, p.N, p.H))
 		}
 	case KEnd:
 		v.flush()
@@ -161,6 +183,51 @@ func (v *Verifier) Ledger(file string, n int, text []byte, partial bool) {
 			v.fail(n, "the end line doesn't match its hash: it was changed")
 		default:
 			v.ended, v.endLine, v.prev = true, n, p.H
+			v.expectSig(n, 0, EndStatement(p.N, p.CP, p.H))
+		}
+	}
+}
+
+// expectSig notes that a signed ledger's next line must be the signature
+// of the checkpoint (or the end) just read.
+func (v *Verifier) expectSig(line int, cp uint64, statement string) {
+	if v.key != "" {
+		v.wantSig, v.wantCP, v.wantStmt, v.wantLine = true, cp, statement, line
+	}
+}
+
+func what(cp uint64) string {
+	if cp == 0 {
+		return "the end line"
+	}
+	return fmt.Sprintf("checkpoint %d", cp)
+}
+
+// unsigned fails a signed ledger whose checkpoint or end line is not
+// followed by its signature.
+func (v *Verifier) unsigned(line int) {
+	v.fail(v.wantLine, "%s has no signature after it: the signature was removed, or the line was added", what(v.wantCP))
+}
+
+// sig checks a signature line.
+func (v *Verifier) sig(line int, p *Parsed) {
+	v.flush()
+	if v.problem != "" {
+		return
+	}
+	switch {
+	case v.key == "":
+		v.fail(line, "a signature in a ledger whose header names no key: it was added, or the header was changed")
+	case !v.wantSig || p.CP != v.wantCP:
+		v.fail(line, "a signature of %s where none belongs: it was added or moved", what(p.CP))
+	case !VerifySig(v.key, v.run, v.wantStmt, p.Sig):
+		v.fail(v.wantLine, "%s doesn't match its signature: the ledger was written again after it was signed", what(p.CP))
+	default:
+		v.wantSig = false
+		if p.CP == 0 {
+			v.endSig = true
+		} else {
+			v.signedCP = p.CP
 		}
 	}
 }
@@ -324,6 +391,17 @@ func (v *Verifier) Result() Report {
 	if v.problem == "" {
 		v.checkCopies()
 	}
+	if v.problem == "" && v.wantSig && v.wantCP == 0 {
+		v.unsigned(0)
+	}
+	if v.problem == "" && v.KeyFrom == "given" {
+		switch {
+		case v.key == "":
+			v.fail(1, "this ledger isn't signed, and --key asks for one signed by %s: it was written unsigned, or written again without its signatures", v.Key)
+		case v.key != v.Key:
+			v.fail(1, "the ledger is signed by %s, not by the key you gave: it was written again with another key", v.key)
+		}
+	}
 	if v.problem == "" && v.Head != nil && v.ended {
 		if v.prev != *v.Head {
 			v.fail(0, "the ledger's last hash is not the one you kept: it was rewritten")
@@ -348,6 +426,33 @@ func (v *Verifier) Result() Report {
 	default:
 		r.Verdict = Intact
 		say("%s: %s holds %d entries of run %s, every one matching its hash, and ends normally", Intact, v.file, v.n, v.run)
+	}
+	if r.Verdict != Changed {
+		switch {
+		case v.key == "":
+			say("this ledger isn't signed")
+		default:
+			signed := "no checkpoint"
+			if v.signedCP > 0 {
+				signed = fmt.Sprintf("checkpoints 1 to %d", v.signedCP)
+			}
+			if v.endSig {
+				signed += " and the end"
+			}
+			switch {
+			case v.KeyFrom == "given":
+				say("signed by the key you gave, %s: %s", v.key, signed)
+			case v.KeyFrom == "machine" && v.key == v.Key:
+				say("signed by this machine's key, %s: %s", v.key, signed)
+			case v.KeyFrom == "machine":
+				say("signed by %s, not this machine's key: %s check out against it; give vpnw verify --key with the key of the machine that ran it, to know it's theirs", v.key, signed)
+			default:
+				say("signed by %s: %s check out against it; give vpnw verify --key to check it's the key you trust", v.key, signed)
+			}
+			if v.wantSig && v.wantCP > 0 {
+				say("%s was never signed: the run stopped before its signature was written; entries after checkpoint %d are covered by the hash chain only", what(v.wantCP), v.signedCP)
+			}
+		}
 	}
 	for _, l := range v.lost {
 		say("%s", l)

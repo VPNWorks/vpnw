@@ -64,6 +64,8 @@ Options for serve:
                       for one (file.write); it must not exist yet
   --plugin-folder NAME=PATH  the folder plugin NAME reads, if it asks for one
                       (folder.read); the default is ~/.config/vpnw/NAME
+  --sign-key FILE     the key vpnw signs with for plugins that ask (sign);
+                      the default is ~/.config/vpnw/signing.key
 
 Options for cert:
   --host HOST         an address or name clients reach the exit by (repeatable)
@@ -168,7 +170,7 @@ func newExitRunID() string {
 var ReloadEvery = 2 * time.Second
 
 func exitServe(args []string, stderr io.Writer) int {
-	var file, out string
+	var file, out, signKey string
 	var jsonOut, verbose, quiet bool
 	var plugins, sets, pluginFiles, pluginFolders multi
 	fs := exitFlags("serve")
@@ -183,6 +185,7 @@ func exitServe(args []string, stderr io.Writer) int {
 	fs.Var(&sets, "set", "")
 	fs.Var(&pluginFiles, "plugin-file", "")
 	fs.Var(&pluginFolders, "plugin-folder", "")
+	fs.StringVar(&signKey, "sign-key", "", "")
 	if !parseExitFlags(fs, args, stderr) {
 		return process.ExitConfig
 	}
@@ -223,7 +226,7 @@ func exitServe(args []string, stderr io.Writer) int {
 		l.Close()
 		return fail(stderr, process.ExitConfig, "%v", err)
 	}
-	pr := &pluginRun{mode: "exit", bus: bus, stderr: stderr, settings: settings, verbose: verbose, files: pfiles, folders: pfolders}
+	pr := &pluginRun{mode: "exit", bus: bus, stderr: stderr, settings: settings, verbose: verbose, files: pfiles, folders: pfolders, signKey: signKey}
 	defer pr.close()
 	if !quiet {
 		if jsonOut {

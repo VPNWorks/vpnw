@@ -46,9 +46,25 @@ func (s *state) init(c *sdk.Config) error {
 				return fmt.Errorf("head=%q: %v", v, err)
 			}
 			s.v.Head = &h
+		case "key":
+			s.v.Key = strings.TrimSpace(v)
+			if s.v.KeyFrom == "" {
+				s.v.KeyFrom = "given"
+			}
+		case "key_from":
+			if v != "given" && v != "machine" {
+				return fmt.Errorf("key_from=%q: given or machine", v)
+			}
+			s.v.KeyFrom = v
 		default:
-			return fmt.Errorf("unknown setting %q (ledger-verify has: head)", k)
+			return fmt.Errorf("unknown setting %q (ledger-verify has: head, key, key_from)", k)
 		}
+	}
+	if s.v.Key != "" && !chain.ValidKey(s.v.Key) {
+		return fmt.Errorf("key=%q is not a vpnw public key (vpnw-ed25519:…)", s.v.Key)
+	}
+	if s.v.Key == "" {
+		s.v.KeyFrom = ""
 	}
 	return nil
 }

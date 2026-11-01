@@ -50,7 +50,11 @@ Usage:
   vpnw guard [options] -- command [args...]   run it under a policy, enforced
   vpnw learn [options]                        turn a trace into a policy
   vpnw advise PLUGIN [options]                run an advisor plugin on traces
-  vpnw verify LEDGER [TRACE]... [--head HASH] check a ledger the Ledger plugin wrote
+  vpnw verify LEDGER [TRACE]... [--head HASH] [--key KEY|FILE]
+                                              check a ledger the Ledger plugin wrote,
+                                              and its signatures
+  vpnw key                                    this machine's signing key: where it is
+                                              and its public key
   vpnw exit COMMAND                           run an exit, the server end of a path,
                                               with fixed addresses; see vpnw exit help
   vpnw plugin COMMAND                         list, inspect, add and remove plugins
@@ -100,6 +104,9 @@ Options for run, trace and guard:
                       is ~/.local/state/vpnw/NAME/RUN.NAME
   --plugin-folder NAME=PATH  the folder plugin NAME reads, if it asks for one
                       (folder.read). The default is ~/.config/vpnw/NAME
+  --sign-key FILE     the key vpnw signs with for plugins that ask (sign),
+                      such as Ledger; it must exist. The default is
+                      ~/.config/vpnw/signing.key, made on first use
 
 Exit codes: the program's own, or 120 denied, 121 usage or
 configuration, 122 enforcement unavailable, 123 path unavailable,
@@ -127,6 +134,8 @@ func realMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return adviseCmd(args[1:], stdout, stderr)
 	case "verify":
 		return verifyCmd(args[1:], stdout, stderr)
+	case "key":
+		return keyCmd(args[1:], stdout, stderr)
 	case "exit":
 		return exitCmd(args[1:], stdout, stderr)
 	case "plugin", "plugins":
@@ -151,7 +160,7 @@ func (m *multi) Set(s string) error { *m = append(*m, s); return nil }
 
 type runOpts struct {
 	policyFile, configFile, via, dns, def, out, backend, wg          string
-	caFile, tokenFile, tunnel                                        string
+	caFile, tokenFile, tunnel, signKey                               string
 	direct, denyPrivate, jsonOut, verbose, quiet, noSave, noDenyExit bool
 	allowUnix                                                        bool
 	allow, deny, proxy, plugins, sets, pluginFiles, pluginFolders    multi
@@ -194,6 +203,7 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	fs.Var(&o.sets, "set", "")
 	fs.Var(&o.pluginFiles, "plugin-file", "")
 	fs.Var(&o.pluginFolders, "plugin-folder", "")
+	fs.StringVar(&o.signKey, "sign-key", "", "")
 	if err := fs.Parse(args); err != nil {
 		return fail(stderr, process.ExitConfig, "%v; see vpnw help", err)
 	}
@@ -294,7 +304,7 @@ func runCmd(mode string, args []string, stdin io.Reader, stdout, stderr io.Write
 	// path, so they come first.
 	runID := newRunID()
 	bus := events.NewBus(runID, nil)
-	pr := &pluginRun{mode: mode, bus: bus, stderr: stderr, settings: settings, verbose: o.verbose, files: pfiles, folders: pfolders}
+	pr := &pluginRun{mode: mode, bus: bus, stderr: stderr, settings: settings, verbose: o.verbose, files: pfiles, folders: pfolders, signKey: o.signKey}
 	defer pr.close()
 
 	// Path.

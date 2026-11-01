@@ -119,6 +119,9 @@ type Options struct {
 	// plugin.
 	Folder     Folder
 	FolderName string
+	// Signer signs for the plugin, if it has the sign permission and this
+	// command has a key; nil when it hasn't.
+	Signer *Signer
 	// DecideBudget and EventBudget override the time budgets for one Guard
 	// decision and one event; zero is the default.
 	DecideBudget time.Duration
@@ -249,6 +252,13 @@ func (h *Host) hostModule(ctx context.Context, rt wazero.Runtime) error {
 		}
 		return in.folderRead(m, np, nn, p, capacity)
 	}).Export("folder_read")
+	b.NewFunctionBuilder().WithFunc(func(ctx context.Context, m api.Module, p, n, out uint32) uint32 {
+		in := h.instance(m)
+		if in == nil || !in.pkg.Manifest.Has(PermSign) || in.opt.Signer == nil {
+			return 1
+		}
+		return in.sign(m, p, n, out)
+	}).Export("sign")
 	_, err := b.Instantiate(ctx)
 	return err
 }
@@ -382,6 +392,7 @@ var hostCalls = map[string]string{
 	"file_sync":   PermFile,
 	"folder_list": PermFolder,
 	"folder_read": PermFolder,
+	"sign":        PermSign,
 }
 
 // Exports every plugin has, and those each type needs.
@@ -594,7 +605,7 @@ func (h *Host) Load(ctx context.Context, pkg *Package, opt Options) (*Instance, 
 		cfg, _ := json.Marshal(map[string]any{
 			"plugin": m.Name, "command": opt.Command, "settings": nonNil(opt.Settings),
 			"color": opt.Color, "tz_offset": off, "tz_name": zone,
-			"run": opt.Run, "file": fileName(opt), "folder": folderPath(opt),
+			"run": opt.Run, "file": fileName(opt), "folder": folderPath(opt), "sign_key": signKey(opt, m),
 		})
 		var code uint64
 		code, err = in.pass(ctx, InitBudget, in.initFn, cfg)

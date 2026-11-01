@@ -15,10 +15,14 @@
 // Settings:
 //
 //	every  entries between checkpoints, 1 to 1000000 (default 100)
+//	sign   false writes an unsigned ledger; by default, when vpnw has a
+//	       signing key for Ledger, each checkpoint and the end are signed
+//	       with it (vpnw holds the key; Ledger only asks for signatures)
 package seal
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +39,7 @@ type state struct {
 	cfg   *sdk.Config
 	w     *chain.Writer
 	every uint64
+	sign  bool
 }
 
 // Plugin returns the hooks.
@@ -49,6 +54,7 @@ func (s *state) init(c *sdk.Config) error {
 		return errors.New("Ledger needs its file: run it with vpnw run, trace or guard --plugin ledger")
 	}
 	s.every = DefaultEvery
+	s.sign = c.SignKey != ""
 	for k, v := range c.Settings {
 		switch k {
 		case "every":
@@ -57,11 +63,26 @@ func (s *state) init(c *sdk.Config) error {
 				return fmt.Errorf("every=%q: give a number of entries from 1 to 1000000", v)
 			}
 			s.every = n
+		case "sign":
+			switch v {
+			case "true":
+				if c.SignKey == "" {
+					return errors.New("sign=true, but vpnw has no signing key for Ledger here")
+				}
+			case "false":
+				s.sign = false
+			default:
+				return fmt.Errorf("sign=%q: true or false", v)
+			}
 		default:
-			return fmt.Errorf("unknown setting %q (Ledger has: every)", k)
+			return fmt.Errorf("unknown setting %q (Ledger has: every, sign)", k)
 		}
 	}
-	w, hd, err := chain.NewWriter(c.Run)
+	key := ""
+	if s.sign {
+		key = c.SignKey
+	}
+	w, hd, err := chain.NewSignedWriter(c.Run, key)
 	if err != nil {
 		return err
 	}
@@ -110,12 +131,35 @@ func (s *state) event(e *sdk.Event) error {
 	return nil
 }
 
+// signed has vpnw sign a statement and returns the signature line, or
+// nothing for an unsigned ledger.
+func (s *state) signed(k uint64, statement string) ([]byte, []byte, error) {
+	if !s.sign {
+		return nil, nil, nil
+	}
+	sig, err := sdk.Sign(statement)
+	if err != nil {
+		return nil, nil, fmt.Errorf("vpnw didn't sign checkpoint: %v", err)
+	}
+	return chain.SigLine(k, sig), sig, nil
+}
+
 func (s *state) checkpoint(end bool) error {
 	b, cp := s.w.Checkpoint()
 	if err := write(b); err != nil {
 		return err
 	}
+	sl, sig, err := s.signed(cp, chain.CheckpointStatement(cp, s.w.Entries(), s.w.Head()))
+	if err != nil {
+		return err
+	}
+	if err := write(sl); err != nil {
+		return err
+	}
 	f := map[string]any{"cp": cp, "n": s.w.Entries(), "h": s.w.Head().String()}
+	if sig != nil {
+		f["sig"] = base64.StdEncoding.EncodeToString(sig)
+	}
 	if end {
 		f["end"] = true
 	}
@@ -134,7 +178,18 @@ func (s *state) finish() error {
 	if err := write(s.w.End()); err != nil {
 		return err
 	}
+	sl, _, err := s.signed(0, chain.EndStatement(s.w.Entries(), s.w.Checkpoints(), s.w.Head()))
+	if err != nil {
+		return err
+	}
+	if err := write(sl); err != nil {
+		return err
+	}
 	sdk.FileSync()
-	sdk.Stderr(fmt.Sprintf("vpnw: ledger: %d entries sealed in %s\nvpnw: ledger: last hash %s\n", s.w.Entries(), s.cfg.File, s.w.Head()))
+	signed := ""
+	if s.sign {
+		signed = ", signed by " + s.cfg.SignKey
+	}
+	sdk.Stderr(fmt.Sprintf("vpnw: ledger: %d entries sealed in %s%s\nvpnw: ledger: last hash %s\n", s.w.Entries(), s.cfg.File, signed, s.w.Head()))
 	return nil
 }

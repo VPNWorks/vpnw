@@ -82,6 +82,8 @@ type pluginRun struct {
 	verbose  bool
 	files    map[string]string // --plugin-file NAME=PATH
 	folders  map[string]string // --plugin-folder NAME=PATH
+	signKey  string            // --sign-key FILE; "" for the default
+	signer   *pluginhost.Signer
 	opened   []*os.File
 	dirs     []pluginhost.Folder
 	tunnel   *pluginhost.TunnelPlugin
@@ -236,12 +238,46 @@ func (r *pluginRun) load(name string, pkg *pluginhost.Package) (*pluginhost.Inst
 		r.dropFile(opt)
 		return nil, fmt.Errorf("--plugin-folder %s=…: plugin %s doesn't ask for a folder (folder.read)", name, name)
 	}
+	if pkg.Manifest.Has(pluginhost.PermSign) {
+		sg, err := r.loadSigner()
+		if err != nil {
+			r.dropFile(opt)
+			return nil, err
+		}
+		opt.Signer = sg
+	}
 	in, err := r.host.Load(context.Background(), pkg, opt)
 	if err != nil {
 		r.dropFile(opt)
 		return nil, err
 	}
 	return in, nil
+}
+
+// loadSigner reads this machine's signing key, the first time a plugin
+// with the sign permission needs it, and makes it if it doesn't exist yet.
+// A key given with --sign-key must exist.
+func (r *pluginRun) loadSigner() (*pluginhost.Signer, error) {
+	if r.signer != nil {
+		return r.signer, nil
+	}
+	file, create := r.signKey, false
+	if file == "" {
+		def, err := pluginhost.DefaultSigningKey()
+		if err != nil {
+			return nil, fmt.Errorf("no place for the signing key: %v; give one with --sign-key FILE", err)
+		}
+		file, create = def, true
+	}
+	sg, made, err := pluginhost.LoadSigner(file, create)
+	if err != nil {
+		return nil, fmt.Errorf("signing key: %v", err)
+	}
+	if made {
+		fmt.Fprintf(r.stderr, "vpnw: made a signing key for this machine in %s; its public key, for vpnw verify --key elsewhere: %s\n", file, sg.Public)
+	}
+	r.signer = sg
+	return sg, nil
 }
 
 // dropFile removes the file opened for a plugin that never started, so no
@@ -646,11 +682,12 @@ func writeAdvice(out []byte, outFile string, stdout, stderr io.Writer) int {
 // checkpoint copies when the ledger is from the last run. Exit codes: 0 the
 // ledger is intact, 1 it isn't (changed or cut short), 121 usage.
 func verifyCmd(args []string, stdout, stderr io.Writer) int {
-	const use = "usage: vpnw verify LEDGER [TRACE]... [--head HASH]"
-	var head string
+	const use = "usage: vpnw verify LEDGER [TRACE]... [--head HASH] [--key KEY|FILE]"
+	var head, key string
 	fs := flag.NewFlagSet("vpnw verify", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.StringVar(&head, "head", "", "")
+	fs.StringVar(&key, "key", "", "")
 	files, err := parseAnywhere(fs, args)
 	if err != nil {
 		return fail(stderr, process.ExitConfig, "%v; %s", err, use)
@@ -669,6 +706,22 @@ func verifyCmd(args []string, stdout, stderr io.Writer) int {
 	if head != "" {
 		set["head"] = head
 	}
+	switch {
+	case key != "":
+		pub, err := publicKeyArg(key)
+		if err != nil {
+			return fail(stderr, process.ExitConfig, "--key: %v", err)
+		}
+		set["key"], set["key_from"] = pub, "given"
+	default:
+		// This machine's key, if it has one: a ledger signed here is
+		// checked without being asked.
+		if def, err := pluginhost.DefaultSigningKey(); err == nil {
+			if sg, _, err := pluginhost.LoadSigner(def, false); err == nil {
+				set["key"], set["key_from"] = sg.Public, "machine"
+			}
+		}
+	}
 	out, err := advise("ledger-verify", files, set, "verify", stderr)
 	stdout.Write(out)
 	if err != nil {
@@ -677,6 +730,64 @@ func verifyCmd(args []string, stdout, stderr io.Writer) int {
 		}
 		return 1
 	}
+	return 0
+}
+
+// publicKeyArg reads --key: a public key, "vpnw-ed25519:…", or a file
+// holding one, or holding a signing key, whose public key is taken.
+func publicKeyArg(arg string) (string, error) {
+	if strings.HasPrefix(arg, "vpnw-ed25519:") {
+		if _, err := pluginhost.ParsePublicKey(arg); err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(arg), nil
+	}
+	b, err := os.ReadFile(arg)
+	if err != nil {
+		return "", fmt.Errorf("give a public key (vpnw-ed25519:…) or a file holding one: %v", err)
+	}
+	text := strings.TrimSpace(string(b))
+	if strings.HasPrefix(text, "vpnw-ed25519-private:") {
+		sg, _, err := pluginhost.LoadSigner(arg, false)
+		if err != nil {
+			return "", err
+		}
+		return sg.Public, nil
+	}
+	if _, err := pluginhost.ParsePublicKey(text); err != nil {
+		return "", fmt.Errorf("%s: %v", arg, err)
+	}
+	return text, nil
+}
+
+// keyCmd shows this machine's signing key, making it if there is none.
+func keyCmd(args []string, stdout, stderr io.Writer) int {
+	const use = "usage: vpnw key [--sign-key FILE]"
+	var file string
+	fs := flag.NewFlagSet("vpnw key", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	fs.StringVar(&file, "sign-key", "", "")
+	if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
+		return fail(stderr, process.ExitConfig, use)
+	}
+	create := false
+	if file == "" {
+		def, err := pluginhost.DefaultSigningKey()
+		if err != nil {
+			return fail(stderr, process.ExitConfig, "no place for the signing key: %v; give one with --sign-key FILE", err)
+		}
+		file, create = def, true
+	}
+	sg, made, err := pluginhost.LoadSigner(file, create)
+	if err != nil {
+		return fail(stderr, process.ExitConfig, "%v", err)
+	}
+	if made {
+		fmt.Fprintf(stdout, "made a signing key in %s\n", file)
+	} else {
+		fmt.Fprintf(stdout, "signing key: %s\n", file)
+	}
+	fmt.Fprintf(stdout, "public key:  %s\n", sg.Public)
 	return 0
 }
 

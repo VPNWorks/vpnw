@@ -162,9 +162,9 @@ Design decisions:
   signatures and a ledger signed by another key.
 
 Steps:
-1. [ ] core: key file, `vpnw key`, `--sign-key`, permission `sign`, host call, SDK; tests
-2. [ ] chain + seal: signed header, signature lines, trace copies; verifier; tests
-3. [ ] ledger-verify and `vpnw verify --key`; integration test of the rewrite
+1. [x] core: key file, `vpnw key`, `--sign-key`, permission `sign`, host call, SDK; tests
+2. [x] chain + seal: signed header, signature lines, trace copies; verifier; tests
+3. [x] ledger-verify and `vpnw verify --key`; integration test of the rewrite
 4. [ ] README, docs, independent review, fixes, record-results.sh
 5. [ ] release 0.10.0; vpnw.com post; softdevstudio note; softdev-plan.md
 

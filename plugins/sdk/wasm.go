@@ -22,6 +22,11 @@ func hostReason(p unsafe.Pointer, n uint32)
 //go:wasmimport vpnw meter
 func hostMeter(p unsafe.Pointer, n uint32)
 
+//go:wasmimport vpnw sign
+func hostSign(p unsafe.Pointer, n uint32, out unsafe.Pointer) uint32
+
+func sign(st, out []byte) uint32 { return hostSign(ptr(st), uint32(len(st)), ptr(out)) }
+
 //go:wasmimport vpnw write
 func hostWrite(stream uint32, p unsafe.Pointer, n uint32)
 
