@@ -4,9 +4,9 @@
 | --tunnel rotate | the peer goes silent mid-run | requests fail in time, nothing reaches the peer, every connection in the record has an outcome, vpnw ends with the program | 4 requests failed, 4 connection errors recorded, 0 new requests at the peer, every connection has an outcome, vpnw exited 0 after 14 s | passed |
 | --wireguard | the peer goes silent, then comes back | requests fail while it's gone and work again after, with no restart; every connection has an outcome | 2 requests failed while it was gone, then 2 worked; every connection has an outcome | passed |
 | --tunnel rotate | the peer goes silent, then comes back | requests fail while it's gone and work again after, with no restart; every connection has an outcome | 2 requests failed while it was gone, then 2 worked; every connection has an outcome | passed |
-| --wireguard | the first handshake is lost | WireGuard tries again and the run starts | started after 2 handshakes, 5.2 s | passed |
+| --wireguard | the first handshake is lost | WireGuard tries again and the run starts | started after 2 handshakes, 5.3 s | passed |
 | --wireguard | every handshake is lost | the program never starts; vpnw exits 123 | exit 123, program started: false | passed |
-| --tunnel rotate | the first handshake is lost | WireGuard tries again and the run starts | started after 2 handshakes, 5.3 s | passed |
+| --tunnel rotate | the first handshake is lost | WireGuard tries again and the run starts | started after 2 handshakes, 5.4 s | passed |
 | --tunnel rotate | every handshake is lost | the program never starts; vpnw exits 123 | exit 123, program started: false | passed |
 | --wireguard | the tunnel is sent to an impostor peer from the start | no handshake completes; the program never starts; vpnw exits 123 | exit 123, program started: false | passed |
 | --wireguard | the tunnel is sent to an impostor peer mid-run | the impostor gets only packets it can't read; requests fail; every connection has an outcome | 3 requests failed, 4 packets went to the impostor, 0 requests reached it, every connection has an outcome | passed |
@@ -34,6 +34,6 @@
 | --tunnel rotate | the tunnel's DNS points lan.tunnel.test at 192.168.1.1 (full tunnel, deny_private) | refused with the reason; only the lookup goes out | refused: "lan.tunnel.test resolved to 192.168.1.1: private network address (192.168.0.0/16)"; 5 packets on the tunnel, the handshake and lookup included | passed |
 | --wireguard | every packet is delayed 300 ms each way | it works, only slower | exit 0, the page arrived: true | passed |
 | --tunnel rotate | every packet is delayed 300 ms each way | it works, only slower | exit 0, the page arrived: true | passed |
-| --wireguard | the peer goes silent in the middle of a download | the program's read times out, vpnw ends with it, the record closes the connection with the bytes that arrived | program stalled: true; closed in the record: true, with 1.1 MB down | passed |
-| --tunnel rotate | the peer goes silent in the middle of a download | the program's read times out, vpnw ends with it, the record closes the connection with the bytes that arrived | program stalled: true; closed in the record: true, with 1.1 MB down | passed |
+| --wireguard | the peer goes silent in the middle of a download | the program's read times out, vpnw ends with it, the record closes the connection with the bytes that arrived | program stalled: true; closed in the record: true, with 1.2 MB down | passed |
+| --tunnel rotate | the peer goes silent in the middle of a download | the program's read times out, vpnw ends with it, the record closes the connection with the bytes that arrived | program stalled: true; closed in the record: true, with 1.2 MB down | passed |
 36 of 36 faults handled

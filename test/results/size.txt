@@ -1,10 +1,11 @@
-vpnw, linux/amd64: 30830776 bytes; gzip -9: 9842614 bytes
-vpnw, linux/arm64: 30277816 bytes; gzip -9: 9469053 bytes
+vpnw, linux/amd64: 34640056 bytes; gzip -9: 10916450 bytes
+vpnw, linux/arm64: 34013368 bytes; gzip -9: 10528422 bytes
 vpnw, darwin/amd64: compiles (env backend; sealed runs need Linux)
 vpnw, darwin/arm64: compiles (env backend; sealed runs need Linux)
-built-in plugin trace: 3412728 bytes of WebAssembly; gzip -9: 951392 bytes
-built-in plugin learn: 3992519 bytes of WebAssembly; gzip -9: 1096850 bytes
-built-in plugin ledger: 3975137 bytes of WebAssembly; gzip -9: 1108293 bytes
-built-in plugin ledger-verify: 4036169 bytes of WebAssembly; gzip -9: 1119185 bytes
-built-in plugin rotate: 3352963 bytes of WebAssembly; gzip -9: 936444 bytes
+built-in plugin trace: 3428788 bytes of WebAssembly; gzip -9: 957993 bytes
+built-in plugin learn: 3997419 bytes of WebAssembly; gzip -9: 1098149 bytes
+built-in plugin ledger: 3980026 bytes of WebAssembly; gzip -9: 1108789 bytes
+built-in plugin ledger-verify: 4041067 bytes of WebAssembly; gzip -9: 1120009 bytes
+built-in plugin rotate: 3357860 bytes of WebAssembly; gzip -9: 937173 bytes
+built-in plugin budget: 3709960 bytes of WebAssembly; gzip -9: 1035510 bytes
 third-party modules linked: 8 (github.com/google/btree v1.1.2, github.com/tetratelabs/wazero v1.10.1, golang.org/x/crypto v0.37.0, golang.org/x/net v0.39.0, golang.org/x/sys v0.32.0, golang.org/x/time v0.7.0, golang.zx2c4.com/wireguard v0.0.0-20261006164505-2631ce99a06f, gvisor.dev/gvisor v0.0.0-20250503011706-39ed1f5ac29c)

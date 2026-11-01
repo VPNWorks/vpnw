@@ -21,5 +21,7 @@
 | a Guard plugin and Ledger at the exit | the Guard refuses what the client's policy allowed; Ledger seals the exit's record; SIGTERM ends it cleanly | localhost: 403 by plugin:blocker; 127.0.0.1: 200, from 127.0.0.2; exit code 0; ledger: intact, 9 entries | passed |
 | a client whose policy allows everything asks for the exit's own machine and for cloud metadata | every one refused at the exit, whatever the policy says; nothing reached | 5 of 5 refused, 0 reached | passed |
 | the same with allow_exit_host = true for that client | the exit's own machine is reached, from the client's address; cloud metadata stays refused | loopback: 200, from 127.0.0.3; metadata: 403 | passed |
-21 of 21 checks passed
+| agent-2 added to the running exit's file, agent-1 taken out | agent-2 is let in within seconds, from its address, no restart; agent-1 is refused and its open connection is closed; the record names both | agent-2 before: 407, after: 200 from 127.0.0.3 (taken in after 1s); agent-1 after: 407, its open connection closed: true; exit.reload added [agent-2], removed [agent-1], closed 1 | passed |
+| a mistake written into the running exit's file | the clients stay as they were, and the record says why | agent-2: 200; exit.reload error: "/tmp/TestExitReload499676875/001/exit-a.toml:15: unknown key \"what\" for a client (known: token_sha256, source, pool, policy, allow_exit_host, default, deny_private, allow, deny)" | passed |
+23 of 23 checks passed
 513 of 513 requests decided the same way at both ends, by a run's broker and by an exit, given the same policy and the same DNS answers (TestSameDecisionAtBothEnds)
