@@ -478,6 +478,8 @@ func (v *Verifier) Result() Report {
 	switch {
 	case v.Head != nil && r.Verdict == Intact:
 		say("the last hash is the one you kept")
+	case v.Head != nil && r.Verdict == CutShort && v.ended:
+		say("the last hash is the one you kept")
 	case v.Head != nil && r.Verdict == CutShort:
 		say("the hash you kept couldn't be checked: it is the end line's, and this ledger has none")
 	}

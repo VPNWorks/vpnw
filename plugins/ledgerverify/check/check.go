@@ -52,6 +52,9 @@ func (s *state) init(c *sdk.Config) error {
 				s.v.KeyFrom = "given"
 			}
 		case "allow_unsigned":
+			if v != "true" && v != "false" {
+				return fmt.Errorf("allow_unsigned=%q: true or false", v)
+			}
 			s.v.AllowUnsigned = v == "true"
 		case "key_from":
 			if v != "given" && v != "machine" {

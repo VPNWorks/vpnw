@@ -724,7 +724,9 @@ func verifyCmd(args []string, stdout, stderr io.Writer) int {
 			case err == nil:
 				set["key"], set["key_from"] = sg.Public, "machine"
 			case !errors.Is(err, os.ErrNotExist):
-				fmt.Fprintf(stderr, "vpnw: this machine's signing key can't be read (%v), so the ledger's signatures aren't checked against it; give --key\n", err)
+				// Fail closed: checking against nothing would pass a ledger
+				// signed by anyone.
+				return fail(stderr, process.ExitConfig, "this machine's signing key can't be read (%v), so the ledger can't be checked against it; give the key to check against with --key", err)
 			}
 		}
 	}

@@ -119,11 +119,29 @@ func makeKeyFile(file string) (made bool, err error) {
 		return false, werr
 	}
 	// A link never replaces a file that's there.
-	if err := os.Link(tmp.Name(), file); err != nil {
-		if errors.Is(err, os.ErrExist) {
-			return false, nil
-		}
+	err = os.Link(tmp.Name(), file)
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, os.ErrExist):
+		return false, nil
+	}
+	// No hard links on this file system: create the file only if it isn't
+	// there, and write it.
+	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, os.ErrExist) {
+		return false, nil
+	}
+	if err != nil {
 		return false, err
+	}
+	_, werr = f.WriteString(priv + "\n")
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		os.Remove(file)
+		return false, werr
 	}
 	return true, nil
 }

@@ -277,8 +277,8 @@ What is signed is the statement `cp K N <hash>` for checkpoint K after entry N, 
 
 | `vpnw verify` | Finds |
 |---|---|
-| with `--key KEY` (a public key, or a file holding one or a signing key) | the ledger must be signed by that key: a ledger not signed, signed by another key, or a checkpoint or the end whose signature is missing, moved or doesn't match, is `CHANGED`, naming the line |
-| on a machine with a signing key, without `--key` | the same, against this machine's key. A ledger from another machine needs `--key` with that machine's key; one written with `--sign-key` needs `--key` with that key |
+| with `--key KEY` (a public key, or a file holding one or a signing key) | the ledger must be signed by that key: a ledger not signed, signed by another key, or a checkpoint or the end whose signature is missing, moved or doesn't match, is `CHANGED`, naming the line (an end signature missing at the very end of the file is `cut short`: the run was killed while Ledger signed it) |
+| on a machine with a signing key, without `--key` | the same, against this machine's key; if the key file can't be read, verify stops and asks for `--key`. A ledger from another machine needs `--key` with that machine's key; one written with `--sign-key` needs `--key` with that key |
 | on a machine with no signing key, without `--key` | the signatures are checked against the key the ledger names, and the report says that key wasn't checked against one you trust |
 | `--unsigned` | an unsigned ledger is taken as one, as 0.9 wrote them and as `ledger.sign=false` writes them; the hash chain and the copies are still checked |
 
