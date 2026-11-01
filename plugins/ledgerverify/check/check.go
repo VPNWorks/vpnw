@@ -51,13 +51,15 @@ func (s *state) init(c *sdk.Config) error {
 			if s.v.KeyFrom == "" {
 				s.v.KeyFrom = "given"
 			}
+		case "allow_unsigned":
+			s.v.AllowUnsigned = v == "true"
 		case "key_from":
 			if v != "given" && v != "machine" {
 				return fmt.Errorf("key_from=%q: given or machine", v)
 			}
 			s.v.KeyFrom = v
 		default:
-			return fmt.Errorf("unknown setting %q (ledger-verify has: head, key, key_from)", k)
+			return fmt.Errorf("unknown setting %q (ledger-verify has: head, key, key_from, allow_unsigned)", k)
 		}
 	}
 	if s.v.Key != "" && !chain.ValidKey(s.v.Key) {

@@ -147,16 +147,20 @@ Design decisions:
   links. The trace copies carry `sig` too. `ledger.sign=false` writes an
   unsigned ledger, as 0.9 did.
 - Verify (`vpnw verify LEDGER [TRACE]... [--head H] [--key KEY|FILE]`): a
-  signed ledger is checked against `--key`, or else this machine's key; a
-  ledger signed by another key fails against either. Each checkpoint and the
-  end must carry a valid signature; a missing or wrong one is CHANGED with
-  its line. `--key` on an unsigned ledger fails. With no key to check
-  against, the report says who signed it and that it wasn't checked.
-- Limit, documented: the watched program runs as the same user and could
-  read the key file (sealing is network only); keep the key where it can't
-  (`--sign-key` on a path the program's user can't read, or vpnw run as
-  another user). Entries after the last signed checkpoint of a killed run
-  are covered by the chain only.
+  ledger is checked against `--key`, or else this machine's key: unsigned
+  or signed by another key fails against either (`--unsigned` takes an
+  unsigned one, for 0.9 ledgers and `ledger.sign=false`). Each checkpoint and
+  the end must carry a valid signature; a missing or wrong one is CHANGED
+  with its line, except at the very end of a killed run (cut short). With
+  no key to check against, the report says who signed it and that it wasn't
+  checked. Keys are compared in canonical base64 only.
+- Limit, documented: vpnw runs the watched program as its own user and
+  reads the key as that user, so the program can read the key while it
+  runs (sealing is network only); signatures hold against everyone else.
+  Against the program, the last hash or the trace kept elsewhere, as before.
+  Entries after the last signed checkpoint of a killed run are covered by
+  the chain only. The key file is made whole, then linked into place, so
+  two first uses at once share one key.
 - Done when: a ledger rewritten after a checkpoint (chain recomputed,
   signature lines kept) fails verify, naming the checkpoint; so do stripped
   signatures and a ledger signed by another key.

@@ -50,10 +50,10 @@ Usage:
   vpnw guard [options] -- command [args...]   run it under a policy, enforced
   vpnw learn [options]                        turn a trace into a policy
   vpnw advise PLUGIN [options]                run an advisor plugin on traces
-  vpnw verify LEDGER [TRACE]... [--head HASH] [--key KEY|FILE]
+  vpnw verify LEDGER [TRACE]... [--head HASH] [--key KEY|FILE] [--unsigned]
                                               check a ledger the Ledger plugin wrote,
                                               and its signatures
-  vpnw key                                    this machine's signing key: where it is
+  vpnw key [--sign-key FILE]                  this machine's signing key: where it is
                                               and its public key
   vpnw exit COMMAND                           run an exit, the server end of a path,
                                               with fixed addresses; see vpnw exit help

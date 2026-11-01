@@ -682,12 +682,14 @@ func writeAdvice(out []byte, outFile string, stdout, stderr io.Writer) int {
 // checkpoint copies when the ledger is from the last run. Exit codes: 0 the
 // ledger is intact, 1 it isn't (changed or cut short), 121 usage.
 func verifyCmd(args []string, stdout, stderr io.Writer) int {
-	const use = "usage: vpnw verify LEDGER [TRACE]... [--head HASH] [--key KEY|FILE]"
+	const use = "usage: vpnw verify LEDGER [TRACE]... [--head HASH] [--key KEY|FILE] [--unsigned]"
 	var head, key string
+	var unsigned bool
 	fs := flag.NewFlagSet("vpnw verify", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.StringVar(&head, "head", "", "")
 	fs.StringVar(&key, "key", "", "")
+	fs.BoolVar(&unsigned, "unsigned", false, "")
 	files, err := parseAnywhere(fs, args)
 	if err != nil {
 		return fail(stderr, process.ExitConfig, "%v; %s", err, use)
@@ -717,10 +719,17 @@ func verifyCmd(args []string, stdout, stderr io.Writer) int {
 		// This machine's key, if it has one: a ledger signed here is
 		// checked without being asked.
 		if def, err := pluginhost.DefaultSigningKey(); err == nil {
-			if sg, _, err := pluginhost.LoadSigner(def, false); err == nil {
+			sg, _, err := pluginhost.LoadSigner(def, false)
+			switch {
+			case err == nil:
 				set["key"], set["key_from"] = sg.Public, "machine"
+			case !errors.Is(err, os.ErrNotExist):
+				fmt.Fprintf(stderr, "vpnw: this machine's signing key can't be read (%v), so the ledger's signatures aren't checked against it; give --key\n", err)
 			}
 		}
+	}
+	if unsigned {
+		set["allow_unsigned"] = "true"
 	}
 	out, err := advise("ledger-verify", files, set, "verify", stderr)
 	stdout.Write(out)

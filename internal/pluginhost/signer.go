@@ -65,33 +65,19 @@ func DefaultSigningKey() (string, error) {
 func LoadSigner(file string, create bool) (s *Signer, made bool, err error) {
 	b, err := os.ReadFile(file)
 	if errors.Is(err, os.ErrNotExist) && create {
-		_, priv, gerr := GenerateKey()
-		if gerr != nil {
-			return nil, false, gerr
-		}
-		if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
-			return nil, false, err
-		}
-		f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		made, err = makeKeyFile(file)
 		if err != nil {
 			return nil, false, err
 		}
-		_, werr := f.WriteString(priv + "\n")
-		if cerr := f.Close(); werr == nil {
-			werr = cerr
-		}
-		if werr != nil {
-			os.Remove(file)
-			return nil, false, werr
-		}
-		made = true
-		b = []byte(priv)
-	} else if err != nil {
+		// Ours, or another command's that made it first: read what's there.
+		b, err = os.ReadFile(file)
+	}
+	if err != nil {
 		return nil, false, err
 	}
 	text := strings.TrimSpace(string(b))
 	if !strings.HasPrefix(text, privPrefix) {
-		return nil, false, fmt.Errorf("%s is not a vpnw signing key (it starts with %q)", file, privPrefix)
+		return nil, false, fmt.Errorf("%s is not a vpnw signing key (a signing key starts with %q; a public key can't sign)", file, privPrefix)
 	}
 	seed, err := base64.StdEncoding.DecodeString(text[len(privPrefix):])
 	if err != nil || len(seed) != ed25519.SeedSize {
@@ -100,6 +86,46 @@ func LoadSigner(file string, create bool) (s *Signer, made bool, err error) {
 	priv := ed25519.NewKeyFromSeed(seed)
 	pub := priv.Public().(ed25519.PublicKey)
 	return &Signer{priv: priv, Public: pubPrefix + base64.StdEncoding.EncodeToString(pub), File: file}, made, nil
+}
+
+// makeKeyFile writes a new key to file whole, then puts it in place, so no
+// one reads half a key; when another command put one there first, it is
+// kept and made is false.
+func makeKeyFile(file string) (made bool, err error) {
+	_, priv, err := GenerateKey()
+	if err != nil {
+		return false, err
+	}
+	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+		return false, err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(file), ".signing-key-*")
+	if err != nil {
+		return false, err
+	}
+	defer os.Remove(tmp.Name())
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return false, err
+	}
+	_, werr := tmp.WriteString(priv + "\n")
+	if serr := tmp.Sync(); werr == nil {
+		werr = serr
+	}
+	if cerr := tmp.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		return false, werr
+	}
+	// A link never replaces a file that's there.
+	if err := os.Link(tmp.Name(), file); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // NewSigner makes a signer with a fresh key that is kept nowhere, for tests.

@@ -150,10 +150,10 @@ func TestSignatureTampering(t *testing.T) {
 		want   string // in the problem; "" for a pass
 	}{
 		{"signatures stripped", without(func(l string) bool { return strings.HasPrefix(l, `{"sig":`) }), k.pub, "given", "checkpoint 1 has no signature after it"},
-		{"the end's signature removed", without(func(l string) bool { return l == good[len(good)-1] }), k.pub, "given", "the end line has no signature after it"},
+		{"the end's signature removed, and a line after the end", append(without(func(l string) bool { return l == good[len(good)-1] }), good[len(good)-2]), k.pub, "given", "the end line has no signature after it"},
 		{"one signature removed", without(func(l string) bool { return strings.HasPrefix(l, `{"sig":2,`) }), k.pub, "given", "checkpoint 2 has no signature after it"},
 		{"a forger's own key", signedLedger(t, other, "r-abc123", 25, 10, nil), k.pub, "given", "not by the key you gave"},
-		{"a forger's own key, checked on this machine", signedLedger(t, other, "r-abc123", 25, 10, nil), k.pub, "machine", ""},
+		{"a forger's own key, checked on this machine", signedLedger(t, other, "r-abc123", 25, 10, nil), k.pub, "machine", "not by this machine's key"},
 		{"signed by a key it doesn't name", func() []string {
 			l := signedLedger(t, other, "r-abc123", 25, 10, nil)
 			hd, _ := SignedHeader("r-abc123", k.pub)
@@ -173,12 +173,6 @@ func TestSignatureTampering(t *testing.T) {
 	}
 	for _, c := range cases {
 		r := verifyKey(c.ledger, c.key, c.from)
-		if c.want == "" {
-			if r.Verdict != Intact || !strings.Contains(strings.Join(r.Lines, "\n"), "not this machine's key") {
-				t.Errorf("%s: %+v", c.name, r)
-			}
-			continue
-		}
 		if r.Verdict != Changed || !strings.Contains(r.Problem, c.want) {
 			t.Errorf("%s: %+v", c.name, r)
 		}
@@ -191,8 +185,16 @@ func TestUnsignedWithKey(t *testing.T) {
 	if r := verifyKey(l, k.pub, "given"); r.Verdict != Changed || !strings.Contains(r.Problem, "isn't signed, and --key asks for one") {
 		t.Fatalf("given: %+v", r)
 	}
-	if r := verifyKey(l, k.pub, "machine"); r.Verdict != Intact || !strings.Contains(strings.Join(r.Lines, "\n"), "this ledger isn't signed") {
+	if r := verifyKey(l, k.pub, "machine"); r.Verdict != Changed || !strings.Contains(r.Problem, "this machine signs its ledgers") {
 		t.Fatalf("machine: %+v", r)
+	}
+	// --unsigned takes it, as 0.9 did.
+	v := &Verifier{Key: k.pub, KeyFrom: "machine", AllowUnsigned: true}
+	for i, line := range l {
+		v.Ledger("run.ledger", i+1, []byte(line), false)
+	}
+	if r := v.Result(); r.Verdict != Intact || !strings.Contains(strings.Join(r.Lines, "\n"), "this ledger isn't signed") {
+		t.Fatalf("--unsigned: %+v", r)
 	}
 	// A signature line added to an unsigned ledger.
 	s := signedLedger(t, k, "r-abc123", 25, 10, nil)

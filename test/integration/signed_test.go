@@ -190,8 +190,9 @@ func TestLedgerSigned(t *testing.T) {
 	led2 := filepath.Join(e.dir, "unsigned.ledger")
 	e.must("run", "--plugin", "ledger", "--plugin-file", "ledger="+led2, "--set", "ledger.sign=false", "--", "true")
 	got, code = e.run("verify", led2)
-	ok = code == 0 && strings.Contains(got, "this ledger isn't signed")
-	signedRecord("ledger.sign=false", "an unsigned ledger, as in 0.9; verify says it isn't signed", fmt.Sprintf("exit %d; %s", code, firstLine(strings.Split(got, "\n"), "isn't signed")), ok)
+	got2, code2 := e.run("verify", led2, "--unsigned")
+	ok = code == 1 && strings.Contains(got, "this machine signs its ledgers") && code2 == 0 && strings.Contains(got2, "this ledger isn't signed")
+	signedRecord("ledger.sign=false, verified on the machine that signs its ledgers", "CHANGED without --unsigned, since an unsigned ledger could be a rewrite; intact with it", fmt.Sprintf("exit %d, then with --unsigned exit %d; %s", code, code2, firstLine(strings.Split(got2, "\n"), "isn't signed")), ok)
 	if !ok {
 		t.Errorf("unsigned: exit %d\n%s", code, got)
 	}

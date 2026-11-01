@@ -139,7 +139,7 @@ func (s *state) signed(k uint64, statement string) ([]byte, []byte, error) {
 	}
 	sig, err := sdk.Sign(statement)
 	if err != nil {
-		return nil, nil, fmt.Errorf("vpnw didn't sign checkpoint: %v", err)
+		return nil, nil, fmt.Errorf("vpnw didn't sign %q: %v", statement, err)
 	}
 	return chain.SigLine(k, sig), sig, nil
 }

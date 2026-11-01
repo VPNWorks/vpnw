@@ -73,7 +73,7 @@ vpnw key                                                  # this machine's publi
 vpnw verify r-3f9a1c.ledger --key vpnw-ed25519:J+BD…      # on any machine
 ```
 
-The [signed ledger tests](test/results/ledger-signed.md) rewrite a real run's ledger after its first checkpoint, strip its signatures, sign it with another key and write it unsigned: verify catches each one. The key is a file of yours, and the watched program runs as your user, so keep the key where the program can't read it if the program itself is what you're guarding against. The format is in [the reference](docs/reference.md#ledger).
+The [signed ledger tests](test/results/ledger-signed.md) rewrite a real run's ledger after its first checkpoint, strip its signatures, sign it with another key and write it unsigned: verify catches each one. On the machine that ran it, `vpnw verify` checks against that machine's key without being asked, so a ledger written again unsigned or with another key fails there too (`--unsigned` takes an unsigned ledger from before 0.10). The key is a file of yours, and the watched program runs as your user, so it could read the key while it runs: the signatures hold against everyone else who later holds the ledger. Against the program itself, keep the last hash or the trace somewhere it can't reach. The format is in [the reference](docs/reference.md#ledger).
 
 Ledger is a plugin like any other. It writes its file through the `file.write` permission, which vpnw offers every plugin: one new file, opened by vpnw, that the plugin can only add to. It gets its signatures through `sign`, which any plugin can ask for too: vpnw signs only in the plugin's own name, for its own run.
 

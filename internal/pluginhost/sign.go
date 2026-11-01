@@ -53,8 +53,8 @@ func ParsePublicKey(s string) (ed25519.PublicKey, error) {
 	if !strings.HasPrefix(s, pubPrefix) {
 		return nil, fmt.Errorf("a public key starts with %q", pubPrefix)
 	}
-	b, err := base64.StdEncoding.DecodeString(s[len(pubPrefix):])
-	if err != nil || len(b) != ed25519.PublicKeySize {
+	b, err := base64.StdEncoding.Strict().DecodeString(s[len(pubPrefix):])
+	if err != nil || len(b) != ed25519.PublicKeySize || base64.StdEncoding.EncodeToString(b) != s[len(pubPrefix):] {
 		return nil, errors.New("not a valid Ed25519 public key")
 	}
 	return ed25519.PublicKey(b), nil

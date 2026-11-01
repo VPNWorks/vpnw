@@ -30,6 +30,9 @@ type Verifier struct {
 	// signed by it) or "machine" (this machine's own key; a ledger signed
 	// by another key is reported, not failed).
 	Key, KeyFrom string
+	// AllowUnsigned takes an unsigned ledger, as 0.9 wrote them, even with
+	// a key to check against (vpnw verify --unsigned).
+	AllowUnsigned bool
 
 	key      string // the key the header names, or ""
 	wantSig  bool   // the last line was a checkpoint or the end of a signed ledger
@@ -391,13 +394,18 @@ func (v *Verifier) Result() Report {
 	if v.problem == "" {
 		v.checkCopies()
 	}
-	if v.problem == "" && v.wantSig && v.wantCP == 0 {
-		v.unsigned(0)
-	}
-	if v.problem == "" && v.KeyFrom == "given" {
+	if v.problem == "" && v.Key != "" {
+		// With a key to check against, this machine's or one given, a
+		// ledger must be signed by it: one written again unsigned, or signed
+		// with a forger's key, fails.
 		switch {
+		case v.key == "" && v.AllowUnsigned:
+		case v.key == "" && v.KeyFrom == "machine":
+			v.fail(1, "this ledger isn't signed, and this machine signs its ledgers with %s: it was written unsigned (ledger.sign=false, or before vpnw 0.10), or written again without its signatures; vpnw verify --unsigned takes it as unsigned", v.Key)
 		case v.key == "":
 			v.fail(1, "this ledger isn't signed, and --key asks for one signed by %s: it was written unsigned, or written again without its signatures", v.Key)
+		case v.key != v.Key && v.KeyFrom == "machine":
+			v.fail(1, "the ledger is signed by %s, not by this machine's key: it was written again with another key, or on another machine; give vpnw verify --key with that machine's key", v.key)
 		case v.key != v.Key:
 			v.fail(1, "the ledger is signed by %s, not by the key you gave: it was written again with another key", v.key)
 		}
@@ -414,6 +422,13 @@ func (v *Verifier) Result() Report {
 		if v.n > 0 {
 			say("entries 1 to %d, before that, check out", v.n)
 		}
+	case v.ended && v.wantSig:
+		// The end line is there, its signature isn't: the run was killed
+		// while Ledger signed the end, or the signature was removed.
+		r.Verdict = CutShort
+		r.Problem = fmt.Sprintf("%s:%d: the end line has no signature after it: the run was cut short while Ledger signed it, or the signature was removed; entries after checkpoint %d are covered by the hash chain only", v.file, v.endLine, v.signedCP)
+		say("%s: %s", CutShort, r.Problem)
+		say("entries 1 to %d check out", v.n)
 	case !v.ended:
 		r.Verdict = CutShort
 		how := "after line " + fmt.Sprint(v.line)
@@ -444,8 +459,6 @@ func (v *Verifier) Result() Report {
 				say("signed by the key you gave, %s: %s", v.key, signed)
 			case v.KeyFrom == "machine" && v.key == v.Key:
 				say("signed by this machine's key, %s: %s", v.key, signed)
-			case v.KeyFrom == "machine":
-				say("signed by %s, not this machine's key: %s check out against it; give vpnw verify --key with the key of the machine that ran it, to know it's theirs", v.key, signed)
 			default:
 				say("signed by %s: %s check out against it; give vpnw verify --key to check it's the key you trust", v.key, signed)
 			}

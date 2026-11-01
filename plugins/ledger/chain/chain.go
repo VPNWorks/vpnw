@@ -107,14 +107,21 @@ func SignedHeader(run, key string) ([]byte, error) {
 	if key == "" {
 		return []byte(`{"vpnw-ledger":1,"run":"` + run + `"}`), nil
 	}
-	if !keyRe.MatchString(key) {
+	if !ValidKey(key) {
 		return nil, fmt.Errorf("%q is not a vpnw public key", key)
 	}
 	return []byte(`{"vpnw-ledger":1,"run":"` + run + `","key":"` + key + `"}`), nil
 }
 
-// ValidKey says whether s is a vpnw public key, "vpnw-ed25519:…".
-func ValidKey(s string) bool { return keyRe.MatchString(s) }
+// ValidKey says whether s is a vpnw public key, "vpnw-ed25519:…", written
+// the one way vpnw writes it, so two spellings of one key never differ.
+func ValidKey(s string) bool {
+	if !keyRe.MatchString(s) {
+		return false
+	}
+	b, err := base64.StdEncoding.Strict().DecodeString(s[len("vpnw-ed25519:"):])
+	return err == nil && len(b) == ed25519.PublicKeySize && base64.StdEncoding.EncodeToString(b) == s[len("vpnw-ed25519:"):]
+}
 
 // SignedDomain and Signer are what vpnw puts before a statement it signs
 // for the Ledger plugin (see internal/pluginhost, sign).
@@ -134,7 +141,7 @@ func SignedMessage(run, statement string) []byte {
 
 // VerifySig checks a signature from key over a statement in run.
 func VerifySig(key, run, statement string, sig []byte) bool {
-	if !keyRe.MatchString(key) || len(sig) != ed25519.SignatureSize {
+	if !ValidKey(key) || len(sig) != ed25519.SignatureSize {
 		return false
 	}
 	pub, err := base64.StdEncoding.DecodeString(key[len("vpnw-ed25519:"):])
