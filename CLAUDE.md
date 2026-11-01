@@ -41,9 +41,9 @@ Read this first in a new session, and update it at the end of every release.
   (`vpnw exit`, in the core), 0.6.0 Lab, 0.5.0 Ledger and `file.write`,
   0.4.1 the IPv6 escape tests in CI, 0.4.0 WireGuard paths, 0.3.0 the core
   with plugins.
-- **Next:** Phase B of softdev-plan.md item 4: signed ledger checkpoints with
-  a key held by the core, and `vpnw verify` against a checkpoint. Waits for
-  the owner's go.
+- **Next:** 0.10.0, signed ledger checkpoints (Phase B of softdev-plan.md
+  item 4), approved by the owner on November 1, 2026 ("Go"). Plan below,
+  under "0.10.0".
 - **Budgets, what to keep in mind:** meters are per (guard, key), bounded by
   MaxMeters per guard and exit client; only metered connections leave the
   kernel copy path. Budget's request counts are per key and counted when it
@@ -120,6 +120,53 @@ Read this first in a new session, and update it at the end of every release.
 - **Getting Go modules here:** proxy.golang.org may be unreachable; use
   `GOTOOLCHAIN=local GOPROXY=off GONOSUMDB='*' GOFLAGS=-mod=mod` with the
   module cache already in place. CI checks the sums.
+
+## 0.10.0: signed ledger checkpoints (Phase B)
+
+What and why: a ledger written again from scratch, chain and all, is caught
+today only by copies kept elsewhere. Signatures from a key the core holds,
+which no plugin can read, make each checkpoint evidence a third party can
+check with the public key alone: a ledger rewritten after a checkpoint
+fails `vpnw verify`.
+
+Design decisions:
+- The key: Ed25519, one per machine and user, `~/.config/vpnw/signing.key`
+  (`vpnw-ed25519-private:` format, 0600), made on first use; `--sign-key
+  FILE` in run, trace, guard and exit serve. `vpnw key` prints its path and
+  public key (making it if missing). The plugin never sees it.
+- Plugin interface: permission `sign`, host call `sign(msg, len, out) ->
+  i32`: the core signs `"vpnw-signed v1\n" + plugin + "\n" + run + "\n" +
+  msg` (msg printable ASCII, at most 1 KiB) and writes 64 bytes to out. The
+  plugin's name and the run are the core's, so a plugin can only sign as
+  itself, for this run. Config gains `sign_key` (the public key) when
+  signing is available; none in advise.
+- Ledger: header `{"vpnw-ledger":1,"run":"…","key":"vpnw-ed25519:…"}` when
+  signed (the key is in h0, so it's in the chain); after each checkpoint
+  line `{"sig":K,"s":"<base64>"}` over `cp K N <h>`, after the end line
+  `{"sig":"end","s":"…"}` over `end N K <h>`. Signature lines aren't chain
+  links. The trace copies carry `sig` too. `ledger.sign=false` writes an
+  unsigned ledger, as 0.9 did.
+- Verify (`vpnw verify LEDGER [TRACE]... [--head H] [--key KEY|FILE]`): a
+  signed ledger is checked against `--key`, or else this machine's key; a
+  ledger signed by another key fails against either. Each checkpoint and the
+  end must carry a valid signature; a missing or wrong one is CHANGED with
+  its line. `--key` on an unsigned ledger fails. With no key to check
+  against, the report says who signed it and that it wasn't checked.
+- Limit, documented: the watched program runs as the same user and could
+  read the key file (sealing is network only); keep the key where it can't
+  (`--sign-key` on a path the program's user can't read, or vpnw run as
+  another user). Entries after the last signed checkpoint of a killed run
+  are covered by the chain only.
+- Done when: a ledger rewritten after a checkpoint (chain recomputed,
+  signature lines kept) fails verify, naming the checkpoint; so do stripped
+  signatures and a ledger signed by another key.
+
+Steps:
+1. [ ] core: key file, `vpnw key`, `--sign-key`, permission `sign`, host call, SDK; tests
+2. [ ] chain + seal: signed header, signature lines, trace copies; verifier; tests
+3. [ ] ledger-verify and `vpnw verify --key`; integration test of the rewrite
+4. [ ] README, docs, independent review, fixes, record-results.sh
+5. [ ] release 0.10.0; vpnw.com post; softdevstudio note; softdev-plan.md
 
 ## 0.9.0: egress budgets (Phase A)
 
