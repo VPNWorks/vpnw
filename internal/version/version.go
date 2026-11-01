@@ -12,8 +12,9 @@ package version
 // server end of a path (vpnw exit). 0.8.0 adds Tunnel plugins, the
 // folder.read permission and the built-in rotate plugin. 0.9.0 adds byte
 // budgets for Guards (the meter host call), the built-in budget plugin and
-// the exit's reload of its clients file.
-const Version = "0.9.0"
+// the exit's reload of its clients file. 0.10.0 signs Ledger's checkpoints
+// with a key the core holds (the sign permission, vpnw key, verify --key).
+const Version = "0.10.0"
 
 // Schema is the version of the event schema written to every event ("v").
 const Schema = 1

@@ -24,7 +24,17 @@ whole procedure and the checks to run afterwards.
 
 Read this first in a new session, and update it at the end of every release.
 
-- **Released:** 0.9.0 (November 1, 2026): egress budgets. Guards can put
+- **Released:** 0.10.0 (November 1, 2026): signed ledgers. The core holds
+  an Ed25519 key per machine (internal/pluginhost/signer.go,
+  ~/.config/vpnw/signing.key, made whole then linked into place), the `sign`
+  permission and host call sign `"vpnw-signed v1\n"+plugin+"\n"+run+"\n"+
+  statement`; Ledger signs each checkpoint and the end (`{"sig":…}` lines,
+  key in the header); `vpnw verify` checks against `--key` or this
+  machine's key and fails unsigned or other-key ledgers (`--unsigned` takes
+  one); `vpnw key` shows the key. Results: test/results/ledger-signed.md
+  (10 of 10). Two independent review rounds, 6 defects fixed with tests
+  (review_0100*_test.go). Known limit: the watched program runs as the same
+  user and can read the key while it runs. 0.9.0 (November 1, 2026): egress budgets. Guards can put
   byte budgets on connections (the `meter` host call; internal/broker/meter.go
   counts and cuts, `connection.cut`), the built-in `budget` Guard
   (plugins/budget), and `vpnw exit serve` reloads its file
@@ -41,9 +51,8 @@ Read this first in a new session, and update it at the end of every release.
   (`vpnw exit`, in the core), 0.6.0 Lab, 0.5.0 Ledger and `file.write`,
   0.4.1 the IPv6 escape tests in CI, 0.4.0 WireGuard paths, 0.3.0 the core
   with plugins.
-- **Next:** 0.10.0, signed ledger checkpoints (Phase B of softdev-plan.md
-  item 4), approved by the owner on November 1, 2026 ("Go"). Plan below,
-  under "0.10.0".
+- **Next:** softdev-plan.md item 4 is complete (Phases A and B). What comes
+  next is the owner's call; "Later, needs YK": sealing on macOS.
 - **Budgets, what to keep in mind:** meters are per (guard, key), bounded by
   MaxMeters per guard and exit client; only metered connections leave the
   kernel copy path. Budget's request counts are per key and counted when it
@@ -170,7 +179,7 @@ Steps:
 2. [x] chain + seal: signed header, signature lines, trace copies; verifier; tests
 3. [x] ledger-verify and `vpnw verify --key`; integration test of the rewrite
 4. [x] README, docs, independent review, fixes, record-results.sh
-5. [ ] release 0.10.0; vpnw.com post; softdevstudio note; softdev-plan.md
+5. [x] release 0.10.0; vpnw.com post; softdevstudio note; softdev-plan.md
 
 ## 0.9.0: egress budgets (Phase A)
 
@@ -246,6 +255,7 @@ release on your own, even when the last one went well.
 | 0.7.0 | Exit | released |
 | 0.8.0 | Tunnel plugins | released |
 | 0.9.0 | Egress budgets (softdev-plan.md item 4, Phase A) | released |
+| 0.10.0 | Signed ledger checkpoints (item 4, Phase B) | released |
 
 **0.5.0, Ledger.**
 - Plugin interface: a new permission that lets a plugin write to one file

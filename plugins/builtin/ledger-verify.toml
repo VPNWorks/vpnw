@@ -1,5 +1,5 @@
 name = "ledger-verify"
-version = "0.9.0"
+version = "0.10.0"
 type = "advisor"
 abi = 1
 description = "Checks a Ledger file and names the line that was changed"
